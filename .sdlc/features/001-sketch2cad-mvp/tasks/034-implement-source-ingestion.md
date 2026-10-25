@@ -1,7 +1,7 @@
 ---
 id: 001-034
 title: "Implement source ingestion"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-029, 001-032, 001-028]
