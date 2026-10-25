@@ -409,6 +409,7 @@ describe("palette", () => {
       "Polilínea",
       "Punto",
       "Texto",
+      "Símbolo",
     ]);
     for (const [index, button] of buttons.entries()) {
       expect(button.getAttribute("title")).toBe(
@@ -444,6 +445,7 @@ describe("palette", () => {
       ["o", "point"],
       ["t", "text"],
       ["e", "vertex"],
+      ["S", "symbol"],
       ["v", "select"],
     ] as const) {
       key(shortcut);

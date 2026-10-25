@@ -2,14 +2,26 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createEditorStore } from "../store/entities";
 import type { EntityOut, Geometry } from "../store/types";
-import { CANVAS_TEXT, EditorCanvas, SELECTION_COLOR, type Catalog } from "./EditorCanvas";
+import {
+  CANVAS_TEXT,
+  EditorCanvas,
+  SELECTION_COLOR,
+  WHEEL_ZOOM_PER_PX,
+  type Catalog,
+} from "./EditorCanvas";
 import { parseSymbolSvg } from "./symbolArt";
+import { CSS_PX_PER_MM } from "./symbols";
+import type { Viewport } from "./viewport";
 
 const REVISION_ID = "00000000-0000-4000-8000-0000000000r1";
 const IMAGE_URL = "blob:http://localhost/rectified-1";
 const MARKER_SVG =
   "<svg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'>" +
   "<g fill='none' stroke='currentColor' stroke-width='4'><circle cx='0' cy='0' r='40'/></g></svg>";
+
+const DOOR_SVG =
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='-5 -105 110 110'>" +
+  "<g fill='none' stroke='currentColor'><line x1='0' y1='0' x2='0' y2='-100'/></g></svg>";
 
 const CATALOG: Catalog = {
   id: "00000000-0000-4000-8000-0000000000c1",
@@ -28,6 +40,16 @@ const CATALOG: Catalog = {
       dxf_block: { name: "S2C_evidence_marker", base_point: [0, 0], entities: [] },
       size_mode: "paper_mm",
       default_size: 6,
+      attributes: [],
+    },
+    {
+      symbol_id: "door",
+      label: "Puerta",
+      default_layer: "L_STRUCTURE",
+      svg: DOOR_SVG,
+      dxf_block: { name: "S2C_door", base_point: [0, 0], entities: [] },
+      size_mode: "world_m",
+      default_size: 0.9,
       attributes: [],
     },
   ],
@@ -74,6 +96,13 @@ const ENTITIES: EntityOut[] = [
     rotation_deg: 0,
     scale: 1,
   }),
+  entityOut("door", "L_STRUCTURE", {
+    kind: "symbol",
+    symbol_id: "door",
+    anchor_m: [6, 2],
+    rotation_deg: 90,
+    scale: 1,
+  }),
   entityOut("label", "L_TEXT", {
     kind: "text",
     anchor_m: [1, 1],
@@ -94,6 +123,7 @@ const ENTITIES: EntityOut[] = [
 function renderCanvas() {
   const store = createEditorStore();
   store.getState().load(REVISION_ID, ENTITIES);
+  const camera: { current: Viewport | null } = { current: null };
   const result = render(
     <EditorCanvas
       catalog={CATALOG}
@@ -102,9 +132,17 @@ function renderCanvas() {
       height={600}
       imageUrl={IMAGE_URL}
       imageBounds={{ minX: 0, minY: 0, maxX: 20, maxY: 15 }}
+      onViewportChange={(viewport) => {
+        camera.current = viewport;
+      }}
     />,
   );
-  return { store, ...result };
+  /** Zoom (px per metre) of the last render. */
+  const zoom = (): number => {
+    if (camera.current === null) throw new Error("No viewport yet");
+    return camera.current.scale;
+  };
+  return { store, zoom, ...result };
 }
 
 function canvas(): SVGSVGElement {
@@ -275,8 +313,36 @@ describe("catalog symbol markup", () => {
     const circle = marker.querySelector("circle");
     expect(circle?.getAttribute("r")).toBe("40");
     expect(circle?.getAttribute("vector-effect")).toBe("non-scaling-stroke");
-    // 6 mm at 1:100 is 0.6 m per block unit, 100 SVG units per block unit.
-    expect(marker.getAttribute("transform")).toBe("translate(4 -4) rotate(0) scale(0.006)");
+    expect(marker.getAttribute("transform")).toMatch(/^translate\(4 -4\) rotate\(0\) scale\(/);
+  });
+
+  it("keeps paper_mm symbols at a constant screen size and zooms world_m symbols", () => {
+    const { container, zoom } = renderCanvas();
+    /** Screen px per catalog SVG unit (100 per block unit) of an entity's symbol. */
+    const screenUnit = (id: string): number => {
+      const transform = entityElement(container, id)?.getAttribute("transform") ?? "";
+      const match = /scale\(([^)]+)\)/.exec(transform);
+      return Number(match?.[1]) * zoom();
+    };
+    const zoomBefore = zoom();
+    // 6 mm marker: 6 CSS mm on screen. 0.9 m door: 0.9 m at the zoom; rotation is kept.
+    expect(screenUnit("marker") * 100).toBeCloseTo(6 * CSS_PX_PER_MM, 6);
+    expect(screenUnit("door") * 100).toBeCloseTo(0.9 * zoomBefore, 6);
+    expect(entityElement(container, "door")?.getAttribute("transform")).toMatch(
+      /^translate\(6 -2\) rotate\(-90\) scale\(0\.009/,
+    );
+    const marker = entityElement(container, "marker");
+    const doorBefore = screenUnit("door");
+
+    // A wheel step of factor exp(-deltaY * WHEEL_ZOOM_PER_PX) = 2.
+    const deltaY = -Math.log(2) / WHEEL_ZOOM_PER_PX;
+    fireEvent.wheel(canvas(), { deltaY, clientX: 100, clientY: 100 });
+
+    expect(zoom() / zoomBefore).toBeCloseTo(2, 6);
+    expect(screenUnit("marker") * 100).toBeCloseTo(6 * CSS_PX_PER_MM, 6);
+    expect(screenUnit("door") / doorBefore).toBeCloseTo(2, 6);
+    // The element is updated in place, not re-created.
+    expect(entityElement(container, "marker")).toBe(marker);
   });
 
   it.each([

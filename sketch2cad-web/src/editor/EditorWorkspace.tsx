@@ -4,7 +4,7 @@
 //
 // Pointer: with the Select tool a press on an entity selects it and a press on the background
 // pans; drawing tools take every primary-button press, so with them the canvas pans with the
-// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T) and the active
+// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S) and the active
 // tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work anywhere except
 // while typing in a field. The snap settings panel configures snapping for every tool.
 import { useEffect, useMemo } from "react";
@@ -13,11 +13,13 @@ import type { StoreApi } from "zustand/vanilla";
 import { EditorCanvas, type EditorCanvasProps } from "./canvas/EditorCanvas";
 import { Palette, isTypingTarget } from "./panels/Palette";
 import { SnapSettings, snapSettings, type SnapSettingsStore } from "./panels/SnapSettings";
+import { SymbolPicker, symbolPicker, type SymbolPickerStore } from "./panels/SymbolPicker";
 import { editorStore, type EditorStore } from "./store/entities";
 import { createLineTool } from "./tools/LineTool";
 import { createPointTool, createTextTool } from "./tools/PointTextTools";
 import { createPolylineTool } from "./tools/PolylineTool";
 import { SelectionPanel, createSelectTool } from "./tools/SelectTool";
+import { createSymbolTool } from "./tools/SymbolTool";
 import { createVertexEditTool } from "./tools/VertexEditTool";
 import {
   editorUi,
@@ -34,6 +36,7 @@ export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => E
   polyline: createPolylineTool,
   point: createPointTool,
   text: createTextTool,
+  symbol: createSymbolTool,
 };
 
 export type EditorWorkspaceProps = Omit<
@@ -43,20 +46,23 @@ export type EditorWorkspaceProps = Omit<
   store?: StoreApi<EditorStore>;
   ui?: StoreApi<EditorUiStore>;
   snap?: StoreApi<SnapSettingsStore>;
+  symbols?: StoreApi<SymbolPickerStore>;
 };
 
 export function EditorWorkspace({
   store = editorStore,
   ui = editorUi,
   snap = snapSettings,
+  symbols = symbolPicker,
   catalog,
   ...canvasProps
 }: EditorWorkspaceProps) {
+  const { paperScale } = canvasProps;
   const activeTool = useStore(ui, (state) => state.activeTool);
   const layerFlags = useStore(ui, (state) => state.layerFlags);
   const tool = useMemo(
-    () => TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap }),
-    [activeTool, store, ui, catalog, snap],
+    () => TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap, symbols, paperScale }),
+    [activeTool, store, ui, catalog, snap, symbols, paperScale],
   );
 
   useEffect(() => {
@@ -80,6 +86,7 @@ export function EditorWorkspace({
         onLayerFlagsChange={(flags) => ui.getState().setLayerFlags(flags)}
       />
       {activeTool === "select" && <SelectionPanel store={store} ui={ui} catalog={catalog} />}
+      {activeTool === "symbol" && <SymbolPicker picker={symbols} catalog={catalog} />}
       <SnapSettings snap={snap} />
     </div>
   );

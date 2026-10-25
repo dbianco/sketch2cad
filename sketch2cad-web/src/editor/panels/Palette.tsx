@@ -31,6 +31,7 @@ export const TOOL_BUTTONS: readonly ToolButton[] = [
   { id: "polyline", label: "Polilínea", caption: "Polilín.", shortcut: "P" },
   { id: "point", label: "Punto", caption: "Punto", shortcut: "O" },
   { id: "text", label: "Texto", caption: "Texto", shortcut: "T" },
+  { id: "symbol", label: "Símbolo", caption: "Símbolo", shortcut: "S" },
 ];
 
 export const PALETTE_TEXT = {

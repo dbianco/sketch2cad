@@ -3,10 +3,12 @@
 // a CSS transform, which would break `vector-effect: non-scaling-stroke`. Hit-testing uses
 // native SVG pointer events on the entity elements.
 //
-// Paper sizes (text height, dimension text, `paper_mm` symbols) become world metres with the
-// plan's paper scale: `m = mm * paperScale / 1000` (spec 12.2 and 13). The canvas then shows
-// them as the DXF and PDF will, growing and shrinking with the zoom, and zooming never has to
-// re-render them. Plans without a declared scale use the provisional 1:100 of spec section 10.
+// Paper sizes of texts and dimension text become world metres with the plan's paper scale:
+// `m = mm * paperScale / 1000` (spec 13). The canvas then shows them as the DXF and PDF will,
+// growing and shrinking with the zoom, and zooming never has to re-render them. Plans without a
+// declared scale use the provisional 1:100 of spec section 10. Symbols follow their `size_mode`
+// (symbols.ts): `world_m` ones scale with the zoom, `paper_mm` ones (annotative) keep a constant
+// screen size, so only symbol elements re-render on zoom (ZoomContext).
 import {
   createContext,
   memo,
@@ -20,6 +22,7 @@ import {
   type PointerEvent,
   type ReactElement,
   type ReactNode,
+  type SVGProps,
 } from "react";
 import type { StoreApi } from "zustand/vanilla";
 import { useStore } from "zustand";
@@ -38,6 +41,7 @@ import {
   type LayerView,
 } from "./layers";
 import { SYMBOL_UNITS_PER_BLOCK, parseSymbolSvg } from "./symbolArt";
+import { symbolRenderSize, symbolSizeInput, type CatalogSymbol } from "./symbols";
 import {
   boundsOf,
   fitToBounds,
@@ -50,7 +54,6 @@ import {
 } from "./viewport";
 
 export type Catalog = components["schemas"]["CatalogOut"];
-type CatalogSymbol = components["schemas"]["Symbol"];
 
 /** Paper scale denominator used when the plan has none (provisional 1:100, spec 10). */
 export const DEFAULT_PAPER_SCALE = 100;
@@ -138,8 +141,7 @@ type Camera = Pick<Viewport, "centerX" | "centerY" | "scale">;
 
 interface SymbolArt {
   children: ReactElement[] | null;
-  /** World metres per block unit at scale 1. */
-  blockSizeM: number;
+  symbol: CatalogSymbol;
 }
 
 interface CanvasContextValue {
@@ -158,10 +160,31 @@ function useCanvasContext(): CanvasContextValue {
   return value;
 }
 
-function blockSizeM(symbol: CatalogSymbol, paperScale: number): number {
-  return symbol.size_mode === "paper_mm"
-    ? (symbol.default_size * paperScale) / 1000
-    : symbol.default_size;
+/** Zoom (px per metre) of the canvas, read only by symbol elements. */
+const ZoomContext = createContext(1);
+
+export type SymbolGlyphProps = Omit<SVGProps<SVGGElement>, "transform" | "children"> & {
+  symbol: CatalogSymbol;
+  /** Shapes parsed from the catalog SVG (`parseSymbolSvg`). */
+  art: readonly ReactElement[];
+  geometry: Pick<Extract<Geometry, { kind: "symbol" }>, "anchor_m" | "rotation_deg" | "scale">;
+  paperScale: number;
+};
+
+/** A catalog symbol at its anchor, sized for the current zoom by its `size_mode`. */
+export function SymbolGlyph({ symbol, art, geometry, paperScale, ...rest }: SymbolGlyphProps) {
+  const zoom = useContext(ZoomContext);
+  const input = symbolSizeInput(symbol, geometry.scale, paperScale);
+  // SVG user units (metres) per catalog SVG unit.
+  const unit = symbolRenderSize(input, { scale: zoom }) / zoom / SYMBOL_UNITS_PER_BLOCK;
+  const transform =
+    `translate(${String(svgX(geometry.anchor_m))} ${String(svgY(geometry.anchor_m))}) ` +
+    `rotate(${String(-geometry.rotation_deg)}) scale(${String(unit)})`;
+  return (
+    <g {...rest} transform={transform}>
+      {art}
+    </g>
+  );
 }
 
 /** SVG coordinates (Y down) of a world point. */
@@ -253,14 +276,15 @@ function renderGeometry(
         // Unknown or rejected symbol: a dot keeps it visible and selectable.
         return renderGeometry({ kind: "point", coords_m: [geometry.anchor_m] }, common, context);
       }
-      const unit = (art.blockSizeM * geometry.scale) / SYMBOL_UNITS_PER_BLOCK;
-      const transform =
-        `translate(${String(svgX(geometry.anchor_m))} ${String(svgY(geometry.anchor_m))}) ` +
-        `rotate(${String(-geometry.rotation_deg)}) scale(${String(unit)})`;
       return (
-        <g {...common} data-symbol-id={geometry.symbol_id} transform={transform}>
-          {art.children}
-        </g>
+        <SymbolGlyph
+          {...common}
+          data-symbol-id={geometry.symbol_id}
+          symbol={art.symbol}
+          art={art.children}
+          geometry={geometry}
+          paperScale={context.paperScale}
+        />
       );
     }
   }
@@ -466,7 +490,7 @@ export function EditorCanvas({
       symbols: new Map(
         catalog.symbols.map((symbol) => [
           symbol.symbol_id,
-          { children: parseSymbolSvg(symbol.svg), blockSizeM: blockSizeM(symbol, paperScale) },
+          { children: parseSymbolSvg(symbol.svg), symbol },
         ]),
       ),
     }),
@@ -658,17 +682,19 @@ export function EditorCanvas({
               pointerEvents="none"
             />
           )}
-          <CanvasContext.Provider value={context}>
-            {layers.map((layer) => (
-              <LayerGroup
-                key={layer.name}
-                layer={layer}
-                ids={groups.get(layer.name) ?? NO_IDS}
-                flags={layerFlags(flags, layer.name)}
-              />
-            ))}
-          </CanvasContext.Provider>
-          {tool?.preview !== undefined && <g pointerEvents="none">{tool.preview}</g>}
+          <ZoomContext.Provider value={viewport.scale}>
+            <CanvasContext.Provider value={context}>
+              {layers.map((layer) => (
+                <LayerGroup
+                  key={layer.name}
+                  layer={layer}
+                  ids={groups.get(layer.name) ?? NO_IDS}
+                  flags={layerFlags(flags, layer.name)}
+                />
+              ))}
+            </CanvasContext.Provider>
+            {tool?.preview !== undefined && <g pointerEvents="none">{tool.preview}</g>}
+          </ZoomContext.Provider>
         </svg>
         {tool?.renderOverlay?.(viewport)}
       </div>
