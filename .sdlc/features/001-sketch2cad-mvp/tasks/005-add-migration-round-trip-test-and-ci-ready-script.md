@@ -1,7 +1,7 @@
 ---
 id: 001-005
 title: "Add migration round-trip test and CI-ready script"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-004]
