@@ -1,7 +1,7 @@
 ---
 id: 001-060
 title: "Build the SVG canvas with layers, pan and zoom"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-059]
