@@ -1,0 +1,200 @@
+# CI for the web app (sketch2cad-web/). Jotdown H0-6 (duration, report only), H0-7 (licenses),
+# H0-8 (pnpm audit), H0-9 (gitleaks) and decision D-7 (generated API client).
+#
+# Action pinning: actions/checkout is pinned to the full commit SHA of v4.2.2 (same as
+# api-ci.yml). pnpm/action-setup and actions/setup-node use their major tag v4 because their
+# commit SHAs could not be verified when this file was written; replace them with the SHAs of
+# the releases you audit. gitleaks runs as a Docker image pinned by tag and digest.
+# Tool versions match sketch2cad-web/Dockerfile (node 24.22.1, pnpm 11.20.0).
+name: web-ci
+
+on:
+  pull_request:
+    # The contract job depends on the API schema, so changes to it also run this workflow.
+    paths: ["sketch2cad-web/**", "sketch2cad-api/openapi.json", ".github/workflows/web-ci.yml"]
+  push:
+    branches: [main]
+    paths: ["sketch2cad-web/**", "sketch2cad-api/openapi.json", ".github/workflows/web-ci.yml"]
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: sketch2cad-web
+
+env:
+  NODE_VERSION: "24.22.1"
+  PNPM_VERSION: "11.20.0"
+  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    outputs:
+      epoch: ${{ steps.clock.outputs.epoch }}
+    steps:
+      - id: clock
+        working-directory: .
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          package_json_file: sketch2cad-web/package.json
+      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: sketch2cad-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          package_json_file: sketch2cad-web/package.json
+      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: sketch2cad-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test --run
+      - run: node --test scripts/check-licenses.test.mjs scripts/check-audit.test.mjs
+
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          package_json_file: sketch2cad-web/package.json
+      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: sketch2cad-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # Regenerates src/api/schema.d.ts from sketch2cad-api/openapi.json; any difference means
+      # the committed client was edited by hand or not regenerated after an API change.
+      - run: bash scripts/generate-client.sh && git diff --exit-code src/api/schema.d.ts
+
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          package_json_file: sketch2cad-web/package.json
+      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: sketch2cad-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:licenses
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          package_json_file: sketch2cad-web/package.json
+      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # pnpm audit reads the lockfile only, so no install is needed. It exits 1 when it lists
+      # advisories; the verdict belongs to check-audit.mjs, which also fails when pnpm produced
+      # no valid audit JSON (for example after a registry error).
+      - run: |
+          set +o pipefail
+          pnpm audit --audit-level=high --json | node scripts/check-audit.mjs
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Fake key fixture is detected (self-test of the private-key rule)
+        run: |
+          status=0
+          docker run --rm --user "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/repo:ro" \
+            -w /repo/sketch2cad-web "$GITLEAKS_IMAGE" \
+            detect --no-git --source tests/fixtures --config .gitleaks.toml --redact || status=$?
+          if [ "$status" -ne 1 ]; then
+            echo "gitleaks did not report the fake key in tests/fixtures (exit ${status})" >&2
+            exit 1
+          fi
+      - name: Repository history has no secrets
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/repo:ro" \
+            -w /repo/sketch2cad-web "$GITLEAKS_IMAGE" \
+            detect --source . --config .gitleaks.toml --redact
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          package_json_file: sketch2cad-web/package.json
+      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: sketch2cad-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  summary:
+    needs: [start, lint, unit, contract, licenses, audit, secrets, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # Report only (H0-6): the reference is 10 minutes and exceeding it never fails the run.
+      # The duration is measured from the start job, so it excludes the initial queue time.
+      - working-directory: .
+        env:
+          START_EPOCH: ${{ needs.start.outputs.epoch }}
+          RESULTS: >-
+            lint=${{ needs.lint.result }}
+            unit=${{ needs.unit.result }}
+            contract=${{ needs.contract.result }}
+            licenses=${{ needs.licenses.result }}
+            audit=${{ needs.audit.result }}
+            secrets=${{ needs.secrets.result }}
+            build=${{ needs.build.result }}
+        run: |
+          now="$(date +%s)"
+          start="${START_EPOCH:-$now}"
+          minutes="$(awk -v s="$start" -v n="$now" 'BEGIN { printf "%.1f", (n - s) / 60 }')"
+          {
+            echo "## web-ci"
+            echo
+            echo '```'
+            echo "ci_duration_minutes=${minutes}"
+            for result in $RESULTS; do
+              echo "job_${result}"
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
