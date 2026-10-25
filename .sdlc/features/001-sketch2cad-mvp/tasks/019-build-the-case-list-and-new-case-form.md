@@ -1,7 +1,7 @@
 ---
 id: 001-019
 title: "Build the case list and new case form"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-018]
