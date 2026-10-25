@@ -1,0 +1,21 @@
+# Licenses that pass the check automatically (decision DEC-6, jotdown D-6).
+# One normalized identifier per line; `#` starts a comment.
+# scripts/check_licenses.py maps pip-licenses spellings ("MIT License",
+# "Apache Software License", "Python Software Foundation License", ...) to these ids.
+#
+# LGPL is accepted by DEC-6 only through one documented exception per dependency in
+# license-exceptions.toml, so it is deliberately NOT listed here.
+# GPL and AGPL are forbidden and cannot be allowed by any exception (spec section 2.2).
+# Do not extend this list without an owner decision recorded in the PRD.
+
+MIT
+
+# "BSD License" classifier (variant not stated), plus the SPDX variants.
+BSD
+BSD-2-Clause
+BSD-3-Clause
+
+Apache-2.0
+
+# Python Software Foundation License.
+PSF-2.0

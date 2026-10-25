@@ -1,0 +1,41 @@
+# Documented license exceptions checked by scripts/check_licenses.py (decision DEC-6).
+#
+# Every package whose license is not in licenses-allowed.txt needs one entry here:
+#   package = distribution name, version = exact version or "*",
+#   license = the license string reported by pip-licenses,
+#   reason  = why it is accepted (required, non-empty),
+#   status  = "approved" or "pending-owner-decision".
+# Entries that match no installed package fail the check, so remove them with the dependency.
+# GPL and AGPL packages cannot be excepted.
+
+# --- LGPL: accepted by DEC-6 with one documented exception per dependency ---
+
+[[exception]]
+package = "psycopg"
+version = "*"
+license = "LGPL-3.0-only"
+status = "approved"
+reason = "psycopg 3 (LGPL-3.0) is the PostgreSQL driver required by Procrastinate (jotdown D-6, PRD DEC-6); used unmodified as a dynamically imported library."
+
+[[exception]]
+package = "psycopg-binary"
+version = "*"
+license = "LGPL-3.0-only"
+status = "approved"
+reason = "Binary build of psycopg pulled by psycopg[binary] (jotdown D-6, PRD DEC-6); used unmodified."
+
+[[exception]]
+package = "psycopg-pool"
+version = "*"
+license = "LGPL-3.0-only"
+status = "approved"
+reason = "Connection pool of psycopg required by Procrastinate (jotdown D-6, PRD DEC-6); used unmodified."
+
+# --- Outside the DEC-6 allow-list: waiting for an owner decision ---
+
+[[exception]]
+package = "cffi"
+version = "*"
+license = "MIT-0"
+status = "pending-owner-decision"
+reason = "MIT No Attribution, transitive dependency of argon2-cffi-bindings (password hashing). Not literally in the allow-list; owner must decide whether to add MIT-0."
