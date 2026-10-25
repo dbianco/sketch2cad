@@ -1,7 +1,7 @@
 ---
 id: 001-031
 title: "Implement chain verification"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-030]
