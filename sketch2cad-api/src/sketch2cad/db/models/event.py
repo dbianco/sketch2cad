@@ -20,8 +20,9 @@ class Event(Base):
     Migration ``0002_sources_events`` installs a trigger that rejects every ``UPDATE`` and
     ``DELETE`` on this table. ``occurred_at`` has no server default on purpose: it is part
     of the hashed payload, so the writer must set it explicitly. ``plan_id``,
-    ``revision_id`` and ``entity_id`` have no foreign key because their tables arrive in
-    later milestones.
+    ``revision_id`` and ``entity_id`` have no foreign key on purpose (see migration
+    ``0005_plans_editor``): the log must outlive the rows it mentions, and ``entity_id``
+    is the generic subject of an event (a source for the ``source.*`` kinds).
     """
 
     __tablename__ = "event"

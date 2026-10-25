@@ -20,9 +20,15 @@ APPLICATION_TABLES = {
     "source",
     "event",
     "job_meta",
+    "plan",
+    "calibration",
+    "revision",
+    "entity",
+    "catalog",
+    "artifact",
 }
 SUPPORT_TABLES = {"alembic_version", "case_code_counter"}
-ENUM_TYPES = {"user_role", "incident_type"}
+ENUM_TYPES = {"user_role", "incident_type", "plan_status", "source_mode", "metric_status"}
 
 
 @pytest.fixture
