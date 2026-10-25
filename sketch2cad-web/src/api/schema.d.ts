@@ -163,6 +163,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/case-files/{case_id}/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Case Plan
+         * @description Create a plan from a source of the case file, in ``CALIBRATION_PENDING``.
+         *
+         *     ``source_mode`` defaults to ``schematic_sketch``. Creates revision 1 in ``draft`` and a
+         *     ``plan.created`` event; enqueues no job. Requires ``edit``.
+         */
+        post: operations["create_case_plan_api_v1_case_files__case_id__plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/case-files/{case_id}/sources": {
         parameters: {
             query?: never;
@@ -187,6 +210,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Active Catalog
+         * @description Return the active catalog; requires a session but no case permission.
+         */
+        get: operations["get_active_catalog_api_v1_catalog_active_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Entity
+         * @description Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.
+         *
+         *     ``reason`` is optional. Requires ``edit``.
+         */
+        delete: operations["remove_entity_api_v1_entities__entity_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Entity
+         * @description Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.
+         *
+         *     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
+         *     optional ``reason``. Requires ``edit``.
+         */
+        patch: operations["patch_entity_api_v1_entities__entity_id__patch"];
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -203,6 +275,184 @@ export interface paths {
         get: operations["get_job_api_v1_jobs__job_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plan
+         * @description A plan with its status, active calibration, lease and current revision.
+         *
+         *     Requires ``read`` on the plan's case file; others get 403 and an ``access.denied``
+         *     event.
+         */
+        get: operations["get_plan_api_v1_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}/calibration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Propose Calibration
+         * @description Compute the matrix, the reprojection error and ``meets_tolerance``; store nothing.
+         *
+         *     Requires ``edit``. 409 when the plan is past ``EDITING`` or has entities (V-08).
+         */
+        put: operations["propose_calibration_api_v1_plans__plan_id__calibration_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}/calibration/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Calibration
+         * @description Store the calibration as the plan's active one and move the plan to ``EDITING``.
+         *
+         *     Appends ``calibration.proposed`` and ``calibration.accepted``. ``as_metric`` is
+         *     rejected for ``none`` and above the reprojection tolerance (V-05). Method ``none``
+         *     leaves the plan ``non_metric``. Requires ``edit`` and the plan's edit lease.
+         */
+        post: operations["accept_calibration_api_v1_plans__plan_id__calibration_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}/lease": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Lease
+         * @description Acquire or renew the plan's edit lease for 10 minutes. Requires ``edit``.
+         *
+         *     A renewal by the holder writes no event; a first acquisition, or one after the lease
+         *     expired, writes ``lease.acquired`` (``before`` is the previous lease). 409 with
+         *     ``holder`` and the V-12 message while another user holds a valid lease.
+         */
+        post: operations["post_lease_api_v1_plans__plan_id__lease_post"];
+        /**
+         * Delete Lease
+         * @description Release the caller's edit lease with ``lease.released``. Requires ``edit``.
+         *
+         *     Only the holder releases. ``released`` is false, and nothing is written, when the
+         *     caller holds no lease; 409 with ``holder`` while another user holds a valid one.
+         */
+        delete: operations["delete_lease_api_v1_plans__plan_id__lease_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}/local-frame": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Local Frame
+         * @description Set the plan's local frame on its active calibration. Requires ``edit``.
+         *
+         *     A change of origin or +X axis moves every live entity of the draft revision by one
+         *     rigid transform in one transaction. The first frame writes ``local_frame.set``; later
+         *     changes write one ``local_frame.changed`` with the previous and new frame and the
+         *     transform (null when only the North changes). An unchanged frame writes nothing.
+         */
+        put: operations["put_local_frame_api_v1_plans__plan_id__local_frame_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}/transition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Transition
+         * @description Move the plan to ``to`` following the spec section 9.2 table. Requires ``edit``.
+         *
+         *     ``REVIEW_PENDING`` (technician or reviewer) releases the caller's lease;
+         *     ``IN_REVIEW`` (reviewer) takes it; ``VALIDATED`` (reviewer) freezes the current
+         *     revision and sets ``validated_revision_id``; ``REJECTED`` (reviewer, ``reason``
+         *     required) and ``REOPENED`` (reviewer, from ``VALIDATED`` or ``EXPORTED``, creating
+         *     draft revision ``n + 1``) continue to ``EDITING``. Each step writes ``plan.transition``.
+         */
+        post: operations["post_transition_api_v1_plans__plan_id__transition_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/revisions/{revision_id}/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Revision Entities
+         * @description Entities of the revision ordered by id, without soft-deleted ones. Requires ``read``.
+         */
+        get: operations["get_revision_entities_api_v1_revisions__revision_id__entities_get"];
+        put?: never;
+        /**
+         * Create Revision Entities
+         * @description Create one or more hand-drawn entities, in request order, with ``entity.created`` each.
+         *
+         *     The server sets ``source`` (``manual``), ``review_status`` (``accepted``) and
+         *     ``metric_origin``. Requires ``edit``; 409 unless the revision is an editable draft.
+         */
+        post: operations["create_revision_entities_api_v1_revisions__revision_id__entities_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -301,6 +551,135 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * CalibrationAcceptIn
+         * @description Calibration inputs plus whether to accept the calibration as metric.
+         */
+        CalibrationAcceptIn: {
+            /** As Metric */
+            as_metric: boolean;
+            /** Check Points */
+            check_points?: components["schemas"]["PointIn"][];
+            /** Control Points */
+            control_points?: components["schemas"]["PointIn"][];
+            known_dimensions_mm?: components["schemas"]["DimensionsIn"] | null;
+            method: components["schemas"]["CalibrationMethod"];
+            /** Paper Scale */
+            paper_scale?: number | null;
+            /** Segment Mm */
+            segment_mm?: number | null;
+        };
+        /**
+         * CalibrationIn
+         * @description Calibration inputs.
+         *
+         *     - ``scan_dpi``: nothing; the scale comes from the source DPI.
+         *     - ``scan_segment``: 2 ``control_points`` and ``segment_mm``, their distance on paper.
+         *     - ``photo_homography_4pt``: 4 ``control_points`` in order around the quadrilateral;
+         *       each needs ``paper_mm`` unless ``known_dimensions_mm`` is given, which defaults them
+         *       to the corners TL, TR, BR, BL.
+         *     - ``none``: nothing.
+         *
+         *     ``check_points`` (each with ``paper_mm``) do not take part in the fit; when present,
+         *     ``reprojection_error_mm`` is measured on them. ``paper_scale`` (``100`` for 1:100)
+         *     applies only to ``scaled_drawing`` plans.
+         */
+        CalibrationIn: {
+            /** Check Points */
+            check_points?: components["schemas"]["PointIn"][];
+            /** Control Points */
+            control_points?: components["schemas"]["PointIn"][];
+            known_dimensions_mm?: components["schemas"]["DimensionsIn"] | null;
+            method: components["schemas"]["CalibrationMethod"];
+            /** Paper Scale */
+            paper_scale?: number | null;
+            /** Segment Mm */
+            segment_mm?: number | null;
+        };
+        /**
+         * CalibrationMethod
+         * @description Calibration methods; enforced by the ``ck_calibration_method`` check constraint.
+         * @enum {string}
+         */
+        CalibrationMethod: "scan_dpi" | "scan_segment" | "photo_homography_4pt" | "none";
+        /**
+         * CalibrationOut
+         * @description The active calibration; ``image_to_paper`` is the 3x3 matrix in mm per pixel.
+         */
+        CalibrationOut: {
+            /**
+             * Accepted At
+             * Format: date-time
+             */
+            accepted_at: string;
+            /**
+             * Accepted By
+             * Format: uuid
+             */
+            accepted_by: string;
+            /** As Metric */
+            as_metric: boolean;
+            /** Control Points */
+            control_points: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image To Paper */
+            image_to_paper: number[][] | null;
+            local_frame: components["schemas"]["LocalFrameOut"] | null;
+            /** Method */
+            method: string;
+            /** Paper Scale */
+            paper_scale: number | null;
+            /** Reprojection Error Mm */
+            reprojection_error_mm: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * CalibrationPointOut
+         * @description A stored point: ``role`` ``control`` or ``check``; ``error_mm`` is its residual.
+         */
+        CalibrationPointOut: {
+            /** Error Mm */
+            error_mm: number | null;
+            /** Image Px */
+            image_px: number[];
+            /** Paper Mm */
+            paper_mm: number[] | null;
+            /** Role */
+            role: string;
+        };
+        /**
+         * CalibrationProposalOut
+         * @description A computed calibration that is not stored.
+         *
+         *     ``image_to_paper`` is the 3x3 matrix (px to paper mm), null for ``none``.
+         *     ``reprojection_error_basis`` says whether the error is measured on ``check_points`` or
+         *     ``control_points``; both are null when there is no error to report. ``meets_tolerance``
+         *     tells whether ``as_metric`` would be accepted on the error.
+         */
+        CalibrationProposalOut: {
+            /** Control Points */
+            control_points: components["schemas"]["CalibrationPointOut"][];
+            /** Image To Paper */
+            image_to_paper: number[][] | null;
+            /** Max Reprojection Error Mm */
+            max_reprojection_error_mm: number;
+            /** Meets Tolerance */
+            meets_tolerance: boolean;
+            method: components["schemas"]["CalibrationMethod"];
+            /** Paper Scale */
+            paper_scale: number | null;
+            /** Reprojection Error Basis */
+            reprojection_error_basis: string | null;
+            reprojection_error_mm: components["schemas"]["ReprojectionErrorOut"] | null;
+            scale: components["schemas"]["ScaleOut"] | null;
+        };
         /** CaseFileCreate */
         CaseFileCreate: {
             /** Declared Location */
@@ -387,11 +766,306 @@ export interface components {
          */
         CasePermission: "read" | "edit" | "deliver";
         /**
-         * EventKind
-         * @description Minimum event kinds of spec section 14.1.
+         * CatalogOut
+         * @description The active catalog version with its layers and symbols (SVG inline).
+         */
+        CatalogOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Layers */
+            layers: components["schemas"]["Layer"][];
+            /** Symbols */
+            symbols: components["schemas"]["Symbol"][];
+            /** Version */
+            version: string;
+        };
+        /**
+         * DimensionGeometry
+         * @description ``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.
+         */
+        DimensionGeometry: {
+            /** Declared Value M */
+            declared_value_m?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "dimension";
+            /** Measured Value M */
+            measured_value_m?: number | null;
+            /**
+             * Offset M
+             * @default 0
+             */
+            offset_m: number;
+            /** P1 M */
+            p1_m: [
+                number,
+                number
+            ];
+            /** P2 M */
+            p2_m: [
+                number,
+                number
+            ];
+        };
+        /**
+         * DimensionsIn
+         * @description Paper size of the rectangle whose corners are the 4 control points.
+         */
+        DimensionsIn: {
+            /** Height */
+            height: number;
+            /** Width */
+            width: number;
+        };
+        /**
+         * DxfArc
+         * @description Counter-clockwise arc from ``start_angle`` to ``end_angle``, in degrees.
+         */
+        DxfArc: {
+            /** Center */
+            center: [
+                number,
+                number
+            ];
+            /** End Angle */
+            end_angle: number;
+            /** Radius */
+            radius: number;
+            /** Start Angle */
+            start_angle: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "ARC";
+        };
+        /**
+         * DxfAttributeDefinition
+         * @description ATTDEF filled from the symbol attribute whose upper-cased name is ``tag``.
+         */
+        DxfAttributeDefinition: {
+            /** Height */
+            height: number;
+            /** Insert */
+            insert: [
+                number,
+                number
+            ];
+            /** Tag */
+            tag: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "ATTDEF";
+        };
+        /**
+         * DxfBlock
+         * @description DXF block definition; inserted as ``INSERT`` of ``name`` at the entity anchor.
+         */
+        DxfBlock: {
+            /**
+             * Base Point
+             * @default [
+             *       0,
+             *       0
+             *     ]
+             */
+            base_point: [
+                number,
+                number
+            ];
+            /** Entities */
+            entities: (components["schemas"]["DxfLine"] | components["schemas"]["DxfCircle"] | components["schemas"]["DxfArc"] | components["schemas"]["DxfPolyline"] | components["schemas"]["DxfAttributeDefinition"])[];
+            /** Name */
+            name: string;
+        };
+        /** DxfCircle */
+        DxfCircle: {
+            /** Center */
+            center: [
+                number,
+                number
+            ];
+            /** Radius */
+            radius: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "CIRCLE";
+        };
+        /** DxfLine */
+        DxfLine: {
+            /** End */
+            end: [
+                number,
+                number
+            ];
+            /** Start */
+            start: [
+                number,
+                number
+            ];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "LINE";
+        };
+        /** DxfPolyline */
+        DxfPolyline: {
+            /**
+             * Closed
+             * @default false
+             */
+            closed: boolean;
+            /** Points */
+            points: [
+                number,
+                number
+            ][];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "LWPOLYLINE";
+        };
+        /** EntitiesCreate */
+        EntitiesCreate: {
+            /** Entities */
+            entities: components["schemas"]["EntityIn"][];
+        };
+        /**
+         * EntityIn
+         * @description A new entity drawn by hand; provenance, review and metric fields are set by the server.
+         */
+        EntityIn: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Geometry */
+            geometry: components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"];
+            /** Layer */
+            layer: string;
+            type: components["schemas"]["EntityType"];
+        };
+        /**
+         * EntityListOut
+         * @description Entities of a revision, ordered by id; soft-deleted ones are left out.
+         */
+        EntityListOut: {
+            /** Entities */
+            entities: components["schemas"]["EntityOut"][];
+        };
+        /**
+         * EntityOperation
+         * @description Edit operations of ``PATCH /entities/{id}``, recorded in ``entity.updated``.
          * @enum {string}
          */
-        EventKind: "case_file.created" | "member.added" | "source.ingested" | "source.downloaded" | "plan.created" | "calibration.proposed" | "calibration.accepted" | "local_frame.set" | "local_frame.changed" | "suggestions.added" | "evidence.created" | "evidence.updated" | "entity.created" | "entity.updated" | "entity.recomputed" | "entity.reviewed" | "entity.deleted" | "plan.transition" | "revision.frozen" | "export.requested" | "artifact.created" | "artifact.downloaded" | "lease.acquired" | "lease.released" | "auth.login" | "auth.failed" | "access.denied" | "config.changed";
+        EntityOperation: "move_vertex" | "snap_orthogonal" | "snap_endpoint" | "snap_grid" | "relabel" | "reclassify";
+        /**
+         * EntityOut
+         * @description An entity of spec section 8.2; ``created_by`` is null for system entities.
+         */
+        EntityOut: {
+            /** Attributes */
+            attributes: {
+                [key: string]: unknown;
+            };
+            /** Confidence */
+            confidence: number | null;
+            /** Constraint */
+            constraint: {
+                [key: string]: unknown;
+            } | null;
+            /** Created By */
+            created_by: string | null;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Evidence Id */
+            evidence_id: string | null;
+            /** Geometry */
+            geometry: components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Region */
+            image_region: {
+                [key: string]: unknown;
+            } | null;
+            /** Layer */
+            layer: string;
+            metric_origin: components["schemas"]["MetricOrigin"];
+            /** Model Version */
+            model_version: string | null;
+            review_status: components["schemas"]["ReviewStatus"];
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Revision Number */
+            revision_number: number;
+            source: components["schemas"]["EntitySource"];
+            type: components["schemas"]["EntityType"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * EntityPatch
+         * @description An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.
+         *
+         *     ``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs
+         *     ``layer``; ``relabel`` needs ``geometry`` or ``attributes``.
+         */
+        EntityPatch: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: string | number | boolean | null;
+            } | null;
+            /** Geometry */
+            geometry?: (components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"]) | null;
+            /** Layer */
+            layer?: string | null;
+            operation: components["schemas"]["EntityOperation"];
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * EntitySource
+         * @description Provenance of an entity; kept unchanged by edits (history lives in the events).
+         */
+        EntitySource: {
+            /** Job Id */
+            job_id?: string | null;
+            method: components["schemas"]["SourceMethod"];
+            /** Parent Entity Id */
+            parent_entity_id?: string | null;
+        };
+        /**
+         * EntityType
+         * @description Entity types; enforced by the ``ck_entity_type`` check constraint.
+         * @enum {string}
+         */
+        EntityType: "line" | "polyline" | "point" | "text" | "dimension" | "symbol";
+        /**
+         * EventKind
+         * @description Minimum event kinds of spec section 14.1, plus ``revision.reopened`` (section 9.2).
+         * @enum {string}
+         */
+        EventKind: "case_file.created" | "member.added" | "source.ingested" | "source.downloaded" | "plan.created" | "calibration.proposed" | "calibration.accepted" | "local_frame.set" | "local_frame.changed" | "suggestions.added" | "evidence.created" | "evidence.updated" | "entity.created" | "entity.updated" | "entity.recomputed" | "entity.reviewed" | "entity.deleted" | "plan.transition" | "revision.frozen" | "revision.reopened" | "export.requested" | "artifact.created" | "artifact.downloaded" | "lease.acquired" | "lease.released" | "auth.login" | "auth.failed" | "access.denied" | "config.changed";
         /**
          * EventOut
          * @description One event exactly as hashed; ``occurred_at`` is UTC ISO 8601 with microseconds.
@@ -483,6 +1157,92 @@ export interface components {
              */
             status: "queued" | "running" | "succeeded" | "failed";
         };
+        /**
+         * Layer
+         * @description One CAD layer with its DXF color as an AutoCAD Color Index (1-255).
+         */
+        Layer: {
+            /** Aci Color */
+            aci_color: number;
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * LeaseOut
+         * @description The valid edit lease of a plan: who holds it and until when.
+         *
+         *     ``display_name`` is the holder's display name, or their username when none is set.
+         */
+        LeaseOut: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * LeaseReleaseOut
+         * @description Outcome of a release: ``released`` is false when the caller held no lease.
+         */
+        LeaseReleaseOut: {
+            /** Released */
+            released: boolean;
+        };
+        /** LineGeometry */
+        LineGeometry: {
+            /** Coords M */
+            coords_m: [
+                number,
+                number
+            ][];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "line";
+        };
+        /**
+         * LocalFrameIn
+         * @description The local frame: origin on paper (mm, Y down), +X axis and North angles in degrees.
+         *
+         *     Angles are counter-clockwise positive: ``x_axis_angle_deg`` from the world +X axis,
+         *     ``north_angle_deg`` from the local +Y axis. They are stored reduced to ``[0, 360)``.
+         */
+        LocalFrameIn: {
+            /** North Angle Deg */
+            north_angle_deg: number;
+            /** Origin Paper Mm */
+            origin_paper_mm: [
+                number,
+                number
+            ];
+            /** X Axis Angle Deg */
+            x_axis_angle_deg: number;
+        };
+        /**
+         * LocalFrameOut
+         * @description The stored ``calibration.local_frame``; angles in ``[0, 360)``.
+         */
+        LocalFrameOut: {
+            /** North Angle Deg */
+            north_angle_deg: number;
+            /** Origin Paper Mm */
+            origin_paper_mm: [
+                number,
+                number
+            ];
+            /** X Axis Angle Deg */
+            x_axis_angle_deg: number;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Password */
@@ -490,6 +1250,177 @@ export interface components {
             /** Username */
             username: string;
         };
+        /**
+         * MetricOrigin
+         * @description Where the metric value of an entity comes from; enforced by ``ck_entity_metric_origin``.
+         * @enum {string}
+         */
+        MetricOrigin: "declared_dimension" | "triangulation" | "baseline_offset" | "scaled_drawing" | "derived" | "trace_only" | "none";
+        /**
+         * MetricStatus
+         * @description Metric quality of a plan; stored as the PostgreSQL enum ``metric_status``.
+         * @enum {string}
+         */
+        MetricStatus: "metric" | "approximate" | "non_metric";
+        /** PlanCreate */
+        PlanCreate: {
+            /**
+             * Primary Source Id
+             * Format: uuid
+             */
+            primary_source_id: string;
+            /** @default schematic_sketch */
+            source_mode: components["schemas"]["SourceMode"];
+            /** Title */
+            title: string;
+        };
+        /**
+         * PlanOut
+         * @description A plan with its active calibration, edit lease and current revision.
+         *
+         *     ``calibration`` is null until a calibration is accepted. ``lease`` is null while no
+         *     user holds a valid (unexpired) edit lease.
+         */
+        PlanOut: {
+            calibration: components["schemas"]["CalibrationOut"] | null;
+            /**
+             * Case File Id
+             * Format: uuid
+             */
+            case_file_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            current_revision: components["schemas"]["RevisionSummaryOut"] | null;
+            /** Current Revision Id */
+            current_revision_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            lease: components["schemas"]["LeaseOut"] | null;
+            metric_status: components["schemas"]["MetricStatus"];
+            /**
+             * Primary Source Id
+             * Format: uuid
+             */
+            primary_source_id: string;
+            source_mode: components["schemas"]["SourceMode"];
+            status: components["schemas"]["PlanStatus"];
+            /** Title */
+            title: string;
+            /** Validated Revision Id */
+            validated_revision_id: string | null;
+        };
+        /**
+         * PlanStatus
+         * @description The nine plan states of spec section 9.2; stored as the PostgreSQL enum ``plan_status``.
+         * @enum {string}
+         */
+        PlanStatus: "CREATED" | "CALIBRATION_PENDING" | "EDITING" | "REVIEW_PENDING" | "IN_REVIEW" | "VALIDATED" | "EXPORTED" | "REJECTED" | "REOPENED";
+        /** PointGeometry */
+        PointGeometry: {
+            /** Coords M */
+            coords_m: [
+                number,
+                number
+            ][];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "point";
+        };
+        /**
+         * PointIn
+         * @description A marked point: image pixel and, when known, its paper position in mm (Y down).
+         */
+        PointIn: {
+            /** Image Px */
+            image_px: [
+                number,
+                number
+            ];
+            /** Paper Mm */
+            paper_mm?: [
+                number,
+                number
+            ] | null;
+        };
+        /**
+         * PolylineGeometry
+         * @description Open polyline of at least 2 vertices; a closed one needs at least 3.
+         */
+        PolylineGeometry: {
+            /**
+             * Closed
+             * @default false
+             */
+            closed: boolean;
+            /** Coords M */
+            coords_m: [
+                number,
+                number
+            ][];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "polyline";
+        };
+        /** ReprojectionErrorOut */
+        ReprojectionErrorOut: {
+            /** Max */
+            max: number;
+            /** Rms */
+            rms: number;
+        };
+        /**
+         * ReviewStatus
+         * @description Review state of an entity; enforced by ``ck_entity_review_status``.
+         * @enum {string}
+         */
+        ReviewStatus: "suggested" | "accepted" | "corrected" | "rejected";
+        /** RevisionSummaryOut */
+        RevisionSummaryOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            /** State */
+            state: string;
+        };
+        /**
+         * ScaleOut
+         * @description Scan scale; ``within_tolerance`` compares the segment with the DPI when both exist.
+         */
+        ScaleOut: {
+            /** Dpi */
+            dpi: number | null;
+            /** Dpi Discrepancy Pct */
+            dpi_discrepancy_pct: number | null;
+            /** Mm Per Px */
+            mm_per_px: number;
+            /** Within Tolerance */
+            within_tolerance: boolean | null;
+        };
+        /**
+         * SourceMethod
+         * @enum {string}
+         */
+        SourceMethod: "manual" | "cv" | "ocr" | "model" | "derived";
+        /**
+         * SourceMode
+         * @description How the source was drawn; stored as the PostgreSQL enum ``source_mode``.
+         * @enum {string}
+         */
+        SourceMode: "scaled_drawing" | "schematic_sketch";
         /** SourceOut */
         SourceOut: {
             /** Byte Size */
@@ -539,6 +1470,111 @@ export interface components {
             uploaded_by: string;
             /** Width Px */
             width_px: number | null;
+        };
+        /**
+         * Symbol
+         * @description One symbol of spec 12.2; ``default_size`` is in mm (``paper_mm``) or m (``world_m``).
+         */
+        Symbol: {
+            /**
+             * Attributes
+             * @default []
+             */
+            attributes: components["schemas"]["SymbolAttribute"][];
+            /** Default Layer */
+            default_layer: string;
+            /** Default Size */
+            default_size: number;
+            dxf_block: components["schemas"]["DxfBlock"];
+            /** Label */
+            label: string;
+            /**
+             * Size Mode
+             * @enum {string}
+             */
+            size_mode: "paper_mm" | "world_m";
+            /** Svg */
+            svg: string;
+            /** Symbol Id */
+            symbol_id: string;
+        };
+        /** SymbolAttribute */
+        SymbolAttribute: {
+            /** Name */
+            name: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "integer" | "number" | "string";
+        };
+        /**
+         * SymbolGeometry
+         * @description A catalog symbol; ``attributes`` holds its block attributes (e.g. ``evidence_number``).
+         */
+        SymbolGeometry: {
+            /** Anchor M */
+            anchor_m: [
+                number,
+                number
+            ];
+            /** Attributes */
+            attributes?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "symbol";
+            /**
+             * Rotation Deg
+             * @default 0
+             */
+            rotation_deg: number;
+            /**
+             * Scale
+             * @default 1
+             */
+            scale: number;
+            /** Symbol Id */
+            symbol_id: string;
+        };
+        /** TextGeometry */
+        TextGeometry: {
+            /** Anchor M */
+            anchor_m: [
+                number,
+                number
+            ];
+            /** Content */
+            content: string;
+            /** Height Mm Paper */
+            height_mm_paper: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "text";
+            /**
+             * Rotation Deg
+             * @default 0
+             */
+            rotation_deg: number;
+        };
+        /**
+         * TransitionIn
+         * @description Requested target status; ``reason`` is required for ``REJECTED``, optional otherwise.
+         */
+        TransitionIn: {
+            /** Reason */
+            reason?: string | null;
+            to: components["schemas"]["PlanStatus"];
         };
         /** UserEnvelope */
         UserEnvelope: {
@@ -877,6 +1913,58 @@ export interface operations {
             };
         };
     };
+    create_case_plan_api_v1_case_files__case_id__plans_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The case file does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body, or the primary source is not a source of the case. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     upload_source_api_v1_case_files__case_id__sources_post: {
         parameters: {
             query?: never;
@@ -933,6 +2021,167 @@ export interface operations {
             };
         };
     };
+    get_active_catalog_api_v1_catalog_active_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No catalog is active. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_entity_api_v1_entities__entity_id__delete: {
+        parameters: {
+            query?: {
+                reason?: string | null;
+            };
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                entity_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityOut"];
+                };
+            };
+            /** @description The user lacks the permission on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision or entity does not exist, or the entity is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body, or a layer or symbol not in the active catalog. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    patch_entity_api_v1_entities__entity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                entity_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityOut"];
+                };
+            };
+            /** @description The user lacks the permission on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision or entity does not exist, or the entity is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body, or a layer or symbol not in the active catalog. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_job_api_v1_jobs__job_id__get: {
         parameters: {
             query?: never;
@@ -977,6 +2226,509 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_plan_api_v1_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description The user lacks ``read`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_calibration_api_v1_plans__plan_id__calibration_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationProposalOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan is past editing, or it has entities (``code`` ``V-08``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body, or inputs that define no calibration for the method. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    accept_calibration_api_v1_plans__plan_id__calibration_accept_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrationAcceptIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan is past editing, it has entities (``code`` ``V-08``), or the user does not hold its edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid inputs, or ``as_metric`` not allowed: method ``none``, a ``scaled_drawing`` without ``paper_scale``, or an error above ``calibration.max_reprojection_error_mm`` (``code`` ``V-05``). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    post_lease_api_v1_plans__plan_id__lease_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaseOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Another user holds a valid lease: ``code`` ``V-12``, ``holder`` and the V-12 message. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_lease_api_v1_plans__plan_id__lease_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaseReleaseOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Another user holds a valid lease: ``code`` ``V-12``, ``holder`` and the V-12 message. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_local_frame_api_v1_plans__plan_id__local_frame_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocalFrameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan has no accepted calibration, its revision is frozen, it is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold its edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    post_transition_api_v1_plans__plan_id__transition_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the plan's case file, or their role may not perform the transition (``code`` ``V-09`` and its message for ``VALIDATED``); both write access.denied. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The pair is not in the spec section 9.2 table (``code`` ``illegal_transition``) or is performed by the system (``system_transition``), both with ``allowed``; another user holds the edit lease (``V-12`` with ``holder``); or the revision cannot be frozen or reopened (``revision_conflict``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body, or a rejection without reason (``code`` ``V-09``). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_revision_entities_api_v1_revisions__revision_id__entities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revision_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityListOut"];
+                };
+            };
+            /** @description The user lacks the permission on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_revision_entities_api_v1_revisions__revision_id__entities_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                revision_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntitiesCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityListOut"];
+                };
+            };
+            /** @description The user lacks the permission on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision or entity does not exist, or the entity is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body, or a layer or symbol not in the active catalog. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
