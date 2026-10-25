@@ -1,7 +1,7 @@
 ---
 id: 001-020
 title: "Add the license allow-list check for the API repository"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-001]
