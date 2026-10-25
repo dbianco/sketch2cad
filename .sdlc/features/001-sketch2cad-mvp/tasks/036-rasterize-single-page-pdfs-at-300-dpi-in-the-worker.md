@@ -1,7 +1,7 @@
 ---
 id: 001-036
 title: "Rasterize single-page PDFs at 300 dpi in the worker"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-034, 001-013]
