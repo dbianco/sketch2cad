@@ -1,7 +1,7 @@
 ---
 id: 001-052
 title: "Implement entity create, read, patch and delete with provenance"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-049]
