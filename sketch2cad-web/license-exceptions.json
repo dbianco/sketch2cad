@@ -1,0 +1,589 @@
+{
+  "$comment": [
+    "Documented license exceptions checked by scripts/check-licenses.mjs (decision DEC-6).",
+    "Every package whose license is not in licenses-allowed.json needs one entry here:",
+    "package = npm package name, version = exact version or \"*\",",
+    "license = the license string reported by license-checker (SPDX expression),",
+    "reason = why it is accepted (required, non-empty),",
+    "status = \"approved\" or \"pending-owner-decision\" (pending entries pass with a WARNING).",
+    "Entries that match no installed package fail the check, so remove them with the dependency.",
+    "GPL and AGPL packages cannot be excepted.",
+    "Order: ISC (existing toolchain), ISC (license-checker-rseidelsohn), BlueOak-1.0.0, MIT-0, Creative Commons data packages, MPL-2.0."
+  ],
+  "exceptions": [
+    {
+      "package": "electron-to-chromium",
+      "version": "*",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by browserslist (@babel/core); not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it. Version '*' because this data package is republished every few days."
+    },
+    {
+      "package": "flatted",
+      "version": "3.4.4",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by eslint (file-entry-cache); not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "glob-parent",
+      "version": "6.0.2",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by eslint; not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "isexe",
+      "version": "2.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by eslint (cross-spawn); not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "lru-cache",
+      "version": "5.1.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by @babel/core (@vitejs/plugin-react, eslint-plugin-react-hooks); not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "minimatch",
+      "version": "5.1.9",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by openapi-typescript (@redocly/openapi-core); not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "picocolors",
+      "version": "1.1.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by @babel/core, vitest, @testing-library/dom and update-browserslist-db; not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "saxes",
+      "version": "6.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by jsdom (test environment); not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "semver",
+      "version": "*",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by @babel/core (@vitejs/plugin-react), typescript-eslint and license-checker-rseidelsohn; not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it. Version '*' because several versions with the same license are installed."
+    },
+    {
+      "package": "which",
+      "version": "*",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by eslint (cross-spawn) and @npmcli/* from license-checker-rseidelsohn; not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it. Version '*' because several versions with the same license are installed."
+    },
+    {
+      "package": "yallist",
+      "version": "*",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by @babel/core (lru-cache 5) and @npmcli/* from license-checker-rseidelsohn; not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it. Version '*' because several versions with the same license are installed."
+    },
+    {
+      "package": "yargs-parser",
+      "version": "21.1.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), development-only dependency pulled by openapi-typescript; not shipped in the web bundle. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@isaacs/fs-minipass",
+      "version": "4.0.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@isaacs/string-locale-compare",
+      "version": "1.1.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/agent",
+      "version": "4.0.2",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/arborist",
+      "version": "9.6.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/fs",
+      "version": "5.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/git",
+      "version": "7.0.2",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/installed-package-contents",
+      "version": "4.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/map-workspaces",
+      "version": "5.0.3",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/metavuln-calculator",
+      "version": "9.0.3",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/name-from-folder",
+      "version": "4.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/node-gyp",
+      "version": "5.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/package-json",
+      "version": "7.0.5",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/promise-spawn",
+      "version": "9.0.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/query",
+      "version": "5.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/redact",
+      "version": "4.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "@npmcli/run-script",
+      "version": "10.0.4",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "abbrev",
+      "version": "*",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it. Version '*' because several versions with the same license are installed."
+    },
+    {
+      "package": "bin-links",
+      "version": "6.0.2",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "cacache",
+      "version": "20.0.4",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "cmd-shim",
+      "version": "8.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "fs-minipass",
+      "version": "3.0.3",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "graceful-fs",
+      "version": "4.2.11",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "hosted-git-info",
+      "version": "9.0.3",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "ignore-walk",
+      "version": "8.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "ini",
+      "version": "6.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "json-stringify-nice",
+      "version": "1.1.4",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "make-fetch-happen",
+      "version": "15.0.6",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "minipass",
+      "version": "3.3.6",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "minipass-collect",
+      "version": "2.0.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "minipass-pipeline",
+      "version": "1.2.4",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "minipass-sized",
+      "version": "2.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "nopt",
+      "version": "*",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it. Version '*' because several versions with the same license are installed."
+    },
+    {
+      "package": "npm-bundled",
+      "version": "5.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "npm-normalize-package-bin",
+      "version": "5.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "npm-package-arg",
+      "version": "13.0.2",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "npm-packlist",
+      "version": "10.0.4",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "npm-pick-manifest",
+      "version": "11.0.3",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "npm-registry-fetch",
+      "version": "19.1.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "pacote",
+      "version": "21.5.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "parse-conflict-json",
+      "version": "5.0.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "proc-log",
+      "version": "6.1.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "proggy",
+      "version": "4.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "promise-all-reject-late",
+      "version": "1.0.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "promise-call-limit",
+      "version": "3.0.2",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "read-cmd-shim",
+      "version": "6.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "signal-exit",
+      "version": "4.1.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "ssri",
+      "version": "13.0.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "treeverse",
+      "version": "3.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "validate-npm-package-name",
+      "version": "7.0.2",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "walk-up-path",
+      "version": "4.0.0",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "write-file-atomic",
+      "version": "7.0.1",
+      "license": "ISC",
+      "status": "pending-owner-decision",
+      "reason": "ISC (permissive, MIT-equivalent wording), npm CLI library pulled by license-checker-rseidelsohn (@npmcli/arborist), the tool that runs this check; development-only. ISC is not literally in the DEC-6 allow-list; owner must decide whether to add it."
+    },
+    {
+      "package": "chownr",
+      "version": "3.0.0",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "common-ancestor-path",
+      "version": "2.0.0",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "glob",
+      "version": "13.0.6",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "isexe",
+      "version": "4.0.0",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "lru-cache",
+      "version": "11.5.3",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of jsdom and license-checker-rseidelsohn. Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "minimatch",
+      "version": "10.2.6",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of eslint, typescript-eslint and license-checker-rseidelsohn. Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "minipass",
+      "version": "7.1.3",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "minipass-flush",
+      "version": "1.0.7",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "path-scurry",
+      "version": "2.0.2",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "tar",
+      "version": "7.5.22",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "yallist",
+      "version": "5.0.0",
+      "license": "BlueOak-1.0.0",
+      "status": "pending-owner-decision",
+      "reason": "Blue Oak Model License 1.0.0 (permissive), development-only dependency of license-checker-rseidelsohn (@npmcli/arborist, pacote). Not in the DEC-6 allow-list; owner must decide whether to add BlueOak-1.0.0."
+    },
+    {
+      "package": "@csstools/color-helpers",
+      "version": "6.1.2",
+      "license": "MIT-0",
+      "status": "pending-owner-decision",
+      "reason": "MIT No Attribution, development-only dependency of jsdom (cssstyle, test environment). Not literally in the allow-list; owner must decide whether to add MIT-0 (the API has the same pending decision for cffi)."
+    },
+    {
+      "package": "@csstools/css-syntax-patches-for-csstree",
+      "version": "1.1.15",
+      "license": "MIT-0",
+      "status": "pending-owner-decision",
+      "reason": "MIT No Attribution, development-only dependency of jsdom (cssstyle, test environment). Not literally in the allow-list; owner must decide whether to add MIT-0 (the API has the same pending decision for cffi)."
+    },
+    {
+      "package": "caniuse-lite",
+      "version": "*",
+      "license": "CC-BY-4.0",
+      "status": "pending-owner-decision",
+      "reason": "CC-BY-4.0 covers a data-only package (no executable code shipped) pulled by browserslist (@babel/core); development-only. Creative Commons licenses are not in the DEC-6 allow-list; owner must decide. Version '*' because this data package is republished every few days."
+    },
+    {
+      "package": "mdn-data",
+      "version": "2.27.1",
+      "license": "CC0-1.0",
+      "status": "pending-owner-decision",
+      "reason": "CC0-1.0 covers a data-only package (no executable code shipped) pulled by jsdom (css-tree); development-only. Creative Commons licenses are not in the DEC-6 allow-list; owner must decide."
+    },
+    {
+      "package": "spdx-exceptions",
+      "version": "2.5.0",
+      "license": "CC-BY-3.0",
+      "status": "pending-owner-decision",
+      "reason": "CC-BY-3.0 covers a data-only package (no executable code shipped) pulled by license-checker-rseidelsohn (spdx-correct, spdx-satisfies); development-only. Creative Commons licenses are not in the DEC-6 allow-list; owner must decide."
+    },
+    {
+      "package": "spdx-license-ids",
+      "version": "3.0.24",
+      "license": "CC0-1.0",
+      "status": "pending-owner-decision",
+      "reason": "CC0-1.0 covers a data-only package (no executable code shipped) pulled by license-checker-rseidelsohn (spdx-correct, spdx-satisfies); development-only. Creative Commons licenses are not in the DEC-6 allow-list; owner must decide."
+    },
+    {
+      "package": "spdx-ranges",
+      "version": "2.1.1",
+      "license": "(MIT AND CC-BY-3.0)",
+      "status": "pending-owner-decision",
+      "reason": "(MIT AND CC-BY-3.0) covers a data-only package (no executable code shipped) pulled by license-checker-rseidelsohn (spdx-correct, spdx-satisfies); development-only. Creative Commons licenses are not in the DEC-6 allow-list; owner must decide."
+    },
+    {
+      "package": "lightningcss",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "status": "pending-owner-decision",
+      "reason": "MPL-2.0 (file-level weak copyleft), CSS transformer used by vite 8 at build time; its code is not included in the web bundle and is used unmodified. Not in the DEC-6 allow-list; owner must decide whether to accept MPL-2.0 for build tools."
+    }
+  ]
+}

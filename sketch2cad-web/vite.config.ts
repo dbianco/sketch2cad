@@ -15,5 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // scripts/*.test.mjs use the Node built-in test runner (node --test).
+    include: ["src/**/*.test.{ts,tsx}"],
   },
 });
