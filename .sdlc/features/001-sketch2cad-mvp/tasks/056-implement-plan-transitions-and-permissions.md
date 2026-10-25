@@ -1,7 +1,7 @@
 ---
 id: 001-056
 title: "Implement plan transitions and permissions"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-054, 001-055]
