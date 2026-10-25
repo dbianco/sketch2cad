@@ -1,7 +1,7 @@
 ---
 id: 001-014
 title: "Add Dockerfile, docker-compose and the smoke script"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-013, 001-012]
