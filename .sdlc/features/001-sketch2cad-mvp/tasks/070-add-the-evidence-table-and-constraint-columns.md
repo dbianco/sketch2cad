@@ -1,7 +1,7 @@
 ---
 id: 001-070
 title: "Add the evidence table and constraint columns"
-status: todo
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-069, 001-056, 001-057]
