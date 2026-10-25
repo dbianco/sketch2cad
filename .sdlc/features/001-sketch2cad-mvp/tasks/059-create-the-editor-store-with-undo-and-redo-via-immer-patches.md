@@ -1,7 +1,7 @@
 ---
 id: 001-059
 title: "Create the editor store with undo and redo via Immer patches"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-058]
