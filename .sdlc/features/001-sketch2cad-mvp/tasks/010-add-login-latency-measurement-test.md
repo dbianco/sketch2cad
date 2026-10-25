@@ -1,7 +1,7 @@
 ---
 id: 001-010
 title: "Add login latency measurement test"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-007]
