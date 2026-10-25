@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest",
     "generate:client": "bash scripts/generate-client.sh",
-    "check:licenses": "node scripts/check-licenses.mjs"
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "spike:svg": "node spikes/svg-perf/run.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
