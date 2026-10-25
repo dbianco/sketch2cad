@@ -1,0 +1,92 @@
+# Local stack: db, api, worker and web. Run from sketch2cad-api/ (see docs/running-locally.md).
+#
+# Credentials come only from the environment (or an untracked .env file next to
+# this file, see .env.example). Required variables have no defaults: compose
+# refuses to start when one is missing. Only `web` is published on the host.
+name: sketch2cad
+
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql+psycopg://sketch2cad:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/sketch2cad
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: sketch2cad
+      POSTGRES_DB: sketch2cad
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # TCP check: the init-time server of the image only listens on the Unix socket.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "sketch2cad", "-d", "sketch2cad"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+  api:
+    build: .
+    image: sketch2cad-api:local
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn --factory sketch2cad.api:create_app --host 0.0.0.0 --port 8000
+    environment:
+      <<: *app-environment
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SIGNING_KEY_PATH: ${SIGNING_KEY_PATH:?SIGNING_KEY_PATH is required}
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+  worker:
+    image: sketch2cad-api:local
+    pull_policy: never
+    command:
+      - sh
+      - -c
+      - python -m sketch2cad.worker.app apply-schema && exec procrastinate --app=sketch2cad.worker.app.app worker
+    environment:
+      <<: *app-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-m", "sketch2cad.worker.health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+  web:
+    build: ../sketch2cad-web
+    image: sketch2cad-web:local
+    ports:
+      - "127.0.0.1:${WEB_PORT:-18080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
