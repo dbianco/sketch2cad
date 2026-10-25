@@ -16,8 +16,10 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import type { StoreApi } from "zustand/vanilla";
 import { useStore } from "zustand";
@@ -95,6 +97,41 @@ export interface EditorCanvasProps {
   imageBounds?: WorldRect;
   /** Called with the camera after every change, for tools that convert pointer coordinates. */
   onViewportChange?: (viewport: Viewport) => void;
+  /**
+   * Active editor tool. Without one the canvas behaves as a viewer: clicking an entity selects
+   * it and a background drag pans. With one, primary-button presses go to the tool first and
+   * pan only when it declines them; the middle button and Space + drag always pan.
+   */
+  tool?: CanvasTool;
+  /** Controlled layer flags; without them the layer panel keeps its own state. */
+  layerFlags?: LayerFlagsByName;
+  onLayerFlagsChange?: (flags: LayerFlagsByName) => void;
+}
+
+/** A pointer event as tools receive it. */
+export interface CanvasPointer {
+  /** World point (m, Y up) under the pointer. */
+  world: Point2;
+  /** Screen pixels per world metre at the time of the event. */
+  scale: number;
+  /** Entity under the pointer, if any. */
+  entityId: EntityId | null;
+  shiftKey: boolean;
+}
+
+/** Handlers of an editor tool; see `EditorCanvasProps.tool`. */
+export interface CanvasTool {
+  /** Primary-button press; return true to take the pointer (no pan) until it is released. */
+  onPointerDown?(pointer: CanvasPointer): boolean;
+  /** Pointer moves, pressed or hovering. */
+  onPointerMove?(pointer: CanvasPointer): void;
+  /** Release of a pointer the tool took. */
+  onPointerUp?(pointer: CanvasPointer): void;
+  onDoubleClick?(pointer: CanvasPointer): void;
+  /** SVG drawn above the entities, in SVG user units (metres, Y down; see `svgPoints`). */
+  preview?: ReactNode;
+  /** HTML laid over the canvas, positioned in screen pixels of `viewport`. */
+  renderOverlay?(viewport: Viewport): ReactNode;
 }
 
 type Camera = Pick<Viewport, "centerX" | "centerY" | "scale">;
@@ -107,6 +144,8 @@ interface SymbolArt {
 
 interface CanvasContextValue {
   store: StoreApi<EditorStore>;
+  /** True when a tool handles presses: entity elements then let them reach the canvas. */
+  delegate: boolean;
   symbols: ReadonlyMap<string, SymbolArt>;
   paperScale: number;
 }
@@ -132,7 +171,8 @@ function svgX(point: Point2): number {
 function svgY(point: Point2): number {
   return -point[1];
 }
-function svgPoints(points: readonly Point2[]): string {
+/** SVG `points` attribute of world points. */
+export function svgPoints(points: readonly Point2[]): string {
   return points.map((p) => `${String(svgX(p))},${String(svgY(p))}`).join(" ");
 }
 
@@ -280,7 +320,7 @@ const EntityElement = memo(function EntityElement({ id }: { id: EntityId }) {
     "data-kind": entity.geometry.kind,
     color: selected ? SELECTION_COLOR : undefined,
     onPointerDown: (event) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || context.delegate) return;
       event.stopPropagation();
       store.getState().select([id]);
     },
@@ -396,21 +436,32 @@ export function EditorCanvas({
   imageUrl,
   imageBounds,
   onViewportChange,
+  tool,
+  layerFlags: controlledFlags,
+  onLayerFlagsChange,
 }: EditorCanvasProps) {
   const { containerRef, width, height } = useContainerSize(fixedWidth, fixedHeight);
   const svgRef = useRef<SVGSVGElement>(null);
   const ids = useStore(store, selectVisibleIds);
   const byId = useStore(store, (state) => state.entities.byId);
-  const [flags, setFlags] = useState<LayerFlagsByName>({});
+  const [localFlags, setLocalFlags] = useState<LayerFlagsByName>({});
+  const flags = controlledFlags ?? localFlags;
+  function setFlags(update: (current: LayerFlagsByName) => LayerFlagsByName) {
+    const next = update(flags);
+    if (controlledFlags === undefined) setLocalFlags(next);
+    onLayerFlagsChange?.(next);
+  }
   const [opacity, setOpacity] = useState(DEFAULT_IMAGE_OPACITY);
   /** `null` until the user moves the camera: meanwhile the canvas fits the content. */
   const [camera, setCamera] = useState<Camera | null>(null);
 
   const groups = useMemo(() => groupByLayer(ids, byId), [ids, byId]);
   const layers = useMemo(() => layerViews(catalog.layers, groups.keys()), [catalog.layers, groups]);
+  const delegate = tool !== undefined;
   const context = useMemo<CanvasContextValue>(
     () => ({
       store,
+      delegate,
       paperScale,
       symbols: new Map(
         catalog.symbols.map((symbol) => [
@@ -419,7 +470,7 @@ export function EditorCanvas({
         ]),
       ),
     }),
-    [store, paperScale, catalog.symbols],
+    [store, delegate, paperScale, catalog.symbols],
   );
 
   const fitted = useMemo(() => {
@@ -443,6 +494,34 @@ export function EditorCanvas({
   });
 
   const pointers = useRef(new Map<number, Point2>());
+  /** Pointers taken by the tool; they never pan. */
+  const toolPointers = useRef(new Set<number>());
+  const spaceHeld = useRef(false);
+
+  useEffect(() => {
+    function onKey(event: globalThis.KeyboardEvent) {
+      if (event.key === " ") spaceHeld.current = event.type === "keydown";
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+    };
+  }, []);
+
+  function canvasPointer(event: PointerEvent<SVGSVGElement> | MouseEvent<SVGSVGElement>) {
+    const svg = event.currentTarget;
+    const target = event.target instanceof Element ? event.target : null;
+    const hit = target?.closest("[data-entity-id]") ?? null;
+    const pointer: CanvasPointer = {
+      world: clientToWorld(svg, viewportRef.current, event.clientX, event.clientY),
+      scale: viewportRef.current.scale,
+      entityId: hit !== null && svg.contains(hit) ? hit.getAttribute("data-entity-id") : null,
+      shiftKey: event.shiftKey,
+    };
+    return pointer;
+  }
 
   function screenPoint(clientX: number, clientY: number): Point2 {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -474,11 +553,25 @@ export function EditorCanvas({
     // Entity elements stop the primary button, so this is a drag on the background, or a
     // middle-button drag anywhere.
     if (event.button !== 0 && event.button !== 1) return;
+    const toolTakes =
+      tool?.onPointerDown !== undefined &&
+      event.button === 0 &&
+      !spaceHeld.current &&
+      tool.onPointerDown(canvasPointer(event));
+    if (toolTakes) {
+      toolPointers.current.add(event.pointerId);
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
     pointers.current.set(event.pointerId, screenPoint(event.clientX, event.clientY));
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
   function onPointerMove(event: PointerEvent<SVGSVGElement>) {
+    if (tool?.onPointerMove !== undefined && !pointers.current.has(event.pointerId)) {
+      tool.onPointerMove(canvasPointer(event));
+      return;
+    }
     const previous = pointers.current.get(event.pointerId);
     if (previous === undefined) return;
     const point = screenPoint(event.clientX, event.clientY);
@@ -500,6 +593,9 @@ export function EditorCanvas({
 
   function onPointerEnd(event: PointerEvent<SVGSVGElement>) {
     pointers.current.delete(event.pointerId);
+    if (toolPointers.current.delete(event.pointerId) && event.type === "pointerup") {
+      tool?.onPointerUp?.(canvasPointer(event));
+    }
   }
 
   function onKeyDown(event: KeyboardEvent<SVGSVGElement>) {
@@ -526,7 +622,11 @@ export function EditorCanvas({
       <div
         ref={containerRef}
         className="editor-canvas-viewport"
-        style={fixedWidth === undefined ? { width: "100%", height: "100%" } : undefined}
+        style={
+          fixedWidth === undefined
+            ? { position: "relative", width: "100%", height: "100%" }
+            : { position: "relative" }
+        }
       >
         <svg
           ref={svgRef}
@@ -542,6 +642,7 @@ export function EditorCanvas({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
           onPointerCancel={onPointerEnd}
+          onDoubleClick={(event) => tool?.onDoubleClick?.(canvasPointer(event))}
           onKeyDown={onKeyDown}
         >
           {showImage && (
@@ -567,7 +668,9 @@ export function EditorCanvas({
               />
             ))}
           </CanvasContext.Provider>
+          {tool?.preview !== undefined && <g pointerEvents="none">{tool.preview}</g>}
         </svg>
+        {tool?.renderOverlay?.(viewport)}
       </div>
       <div className="editor-canvas-controls">
         {showImage && (
