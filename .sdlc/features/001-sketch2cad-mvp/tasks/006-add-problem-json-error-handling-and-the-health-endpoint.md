@@ -1,7 +1,7 @@
 ---
 id: 001-006
 title: "Add problem+json error handling and the health endpoint"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-003]
