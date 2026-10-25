@@ -1,7 +1,7 @@
 ---
 id: 001-035
 title: "Implement original download and preview endpoints"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-034]
