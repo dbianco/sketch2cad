@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     APP_ENV: str
     AUTH_SESSION_TTL_MINUTES: int = Field(default=480, gt=0)
     """Session lifetime (``auth.session_ttl_minutes``); optional, defaults to 8 hours."""
+    AUTH_LOCKOUT_MINUTES: int = Field(default=15, gt=0)
+    """Account lock duration after too many failed logins (``auth.lockout_minutes``)."""
 
 
 def get_settings() -> Settings:

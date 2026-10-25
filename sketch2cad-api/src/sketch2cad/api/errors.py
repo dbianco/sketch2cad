@@ -27,6 +27,7 @@ class ProblemError(Exception):
         detail: str,
         type: str = DEFAULT_PROBLEM_TYPE,
         headers: Mapping[str, str] | None = None,
+        extensions: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(detail)
         self.status = status
@@ -34,6 +35,7 @@ class ProblemError(Exception):
         self.detail = detail
         self.type = type
         self.headers = headers
+        self.extensions = dict(extensions or {})
 
 
 def problem_response(
@@ -65,7 +67,9 @@ def _status_title(status: int) -> str:
 async def _handle_problem(_request: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, ProblemError):
         raise exc
-    return problem_response(exc.status, exc.title, exc.detail, exc.type, exc.headers)
+    return problem_response(
+        exc.status, exc.title, exc.detail, exc.type, exc.headers, **exc.extensions
+    )
 
 
 async def _handle_validation(_request: Request, exc: Exception) -> JSONResponse:

@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, Response
@@ -18,6 +19,7 @@ from sketch2cad.api.deps import (
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
+from sketch2cad.auth.lockout import Clock, get_clock, is_locked, register_failure, reset_failures
 from sketch2cad.auth.passwords import (
     hash_password,
     needs_rehash,
@@ -64,6 +66,15 @@ def _invalid_credentials() -> ProblemError:
     return ProblemError(401, "Unauthorized", "Invalid username or password.")
 
 
+def _account_locked(locked_until: datetime) -> ProblemError:
+    return ProblemError(
+        423,
+        "Locked",
+        "The account is temporarily locked after too many failed login attempts.",
+        extensions={"locked_until": locked_until.astimezone(UTC).isoformat()},
+    )
+
+
 def _secure_cookies(settings: Settings) -> bool:
     return settings.APP_ENV != INSECURE_COOKIE_ENV
 
@@ -74,17 +85,34 @@ def login(
     response: Response,
     db: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_app_settings)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> UserEnvelope:
-    """Check the credentials and open a session; failures never reveal whether a user exists."""
+    """Check the credentials and open a session; failures never reveal whether a user exists.
+
+    A locked account gets 423 even with the right password; the password is still verified
+    first so the response time does not reveal whether it was correct.
+    """
+    now = clock()
     user = db.scalars(select(User).where(User.username == body.username)).one_or_none()
     if user is None:
         verify_dummy_password(body.password)
         raise _invalid_credentials()
-    if not verify_password(user.password_hash, body.password) or not user.is_active:
+    password_ok = verify_password(user.password_hash, body.password)
+    if not user.is_active:
         raise _invalid_credentials()
+    if user.locked_until is not None and is_locked(user, now):
+        logger.info("Login rejected for locked user %s", user.id)
+        raise _account_locked(user.locked_until)
+    if not password_ok:
+        result = register_failure(db, user.id, now, settings.AUTH_LOCKOUT_MINUTES)
+        db.commit()
+        if result.locked_until is not None:
+            logger.warning("User %s locked after %d failed logins", user.id, result.failed_attempts)
+        raise _invalid_credentials()
+    reset_failures(user)
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
-    issued = create_session(db, user, settings.AUTH_SESSION_TTL_MINUTES)
+    issued = create_session(db, user, settings.AUTH_SESSION_TTL_MINUTES, now=now)
     db.commit()
     logger.info("User %s signed in", user.id)
 
