@@ -21,7 +21,7 @@ from sketch2cad.cases.permissions import (
 )
 from sketch2cad.config import Settings, get_settings
 from sketch2cad.db import session as db_session
-from sketch2cad.db.models import CaseFile, Source, User, UserSession
+from sketch2cad.db.models import CaseFile, Plan, Source, User, UserSession
 from sketch2cad.db.session import get_session
 from sketch2cad.storage import FilesystemStorage, Storage
 
@@ -226,5 +226,37 @@ def require_source_permission(permission: str) -> Callable[..., Source]:
         if required not in case_permissions(db, user.id, case_file):
             raise _deny(request, db, audit_factory, user, case_file, required)
         return source
+
+    return dependency
+
+
+def plan_not_found() -> ProblemError:
+    return ProblemError(404, "Not Found", "The plan does not exist.")
+
+
+def require_plan_permission(permission: str) -> Callable[..., Plan]:
+    """Dependency factory: the ``{plan_id}`` plan if the user holds ``permission``.
+
+    The permission is checked on the plan's case file. A missing or malformed plan id
+    gives 404 without an event; a denial is a 403 with ``access.denied`` on that case file.
+    """
+    required = CasePermission(permission).value
+
+    def dependency(
+        plan_id: str,
+        request: Request,
+        db: Annotated[Session, Depends(get_session)],
+        user: Annotated[User, Depends(get_current_user)],
+        audit_factory: Annotated[sessionmaker[Session], Depends(get_audit_session_factory)],
+    ) -> Plan:
+        plan = db.get(Plan, _parse_uuid(plan_id, plan_not_found))
+        if plan is None:
+            raise plan_not_found()
+        case_file = db.get(CaseFile, plan.case_file_id)
+        if case_file is None:  # pragma: no cover - guaranteed by the foreign key
+            raise plan_not_found()
+        if required not in case_permissions(db, user.id, case_file):
+            raise _deny(request, db, audit_factory, user, case_file, required)
+        return plan
 
     return dependency

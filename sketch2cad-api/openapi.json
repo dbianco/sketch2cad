@@ -1,6 +1,103 @@
 {
   "components": {
     "schemas": {
+      "CalibrationOut": {
+        "description": "The active calibration; ``image_to_paper`` is the 3x3 matrix in mm per pixel.",
+        "properties": {
+          "accepted_at": {
+            "format": "date-time",
+            "title": "Accepted At",
+            "type": "string"
+          },
+          "accepted_by": {
+            "format": "uuid",
+            "title": "Accepted By",
+            "type": "string"
+          },
+          "control_points": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Control Points",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_to_paper": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image To Paper"
+          },
+          "local_frame": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Frame"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "reprojection_error_mm": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reprojection Error Mm"
+          }
+        },
+        "required": [
+          "id",
+          "method",
+          "image_to_paper",
+          "control_points",
+          "reprojection_error_mm",
+          "paper_scale",
+          "local_frame",
+          "accepted_by",
+          "accepted_at"
+        ],
+        "title": "CalibrationOut",
+        "type": "object"
+      },
       "CaseFileCreate": {
         "properties": {
           "declared_location": {
@@ -867,6 +964,27 @@
         "title": "Layer",
         "type": "object"
       },
+      "LeaseOut": {
+        "description": "The edit lease of a plan: who holds it and until when.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "expires_at"
+        ],
+        "title": "LeaseOut",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "password": {
@@ -884,6 +1002,198 @@
         ],
         "title": "LoginRequest",
         "type": "object"
+      },
+      "MetricStatus": {
+        "description": "Metric quality of a plan; stored as the PostgreSQL enum ``metric_status``.",
+        "enum": [
+          "metric",
+          "approximate",
+          "non_metric"
+        ],
+        "title": "MetricStatus",
+        "type": "string"
+      },
+      "PlanCreate": {
+        "properties": {
+          "primary_source_id": {
+            "format": "uuid",
+            "title": "Primary Source Id",
+            "type": "string"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode",
+            "default": "schematic_sketch"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "primary_source_id"
+        ],
+        "title": "PlanCreate",
+        "type": "object"
+      },
+      "PlanOut": {
+        "description": "A plan with its active calibration, edit lease and current revision.\n\n``calibration`` is null until a calibration is accepted. ``lease`` is null while no\nuser holds the edit lease.",
+        "properties": {
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalibrationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "case_file_id": {
+            "format": "uuid",
+            "title": "Case File Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RevisionSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Revision Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lease": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeaseOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metric_status": {
+            "$ref": "#/components/schemas/MetricStatus"
+          },
+          "primary_source_id": {
+            "format": "uuid",
+            "title": "Primary Source Id",
+            "type": "string"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PlanStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "validated_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validated Revision Id"
+          }
+        },
+        "required": [
+          "id",
+          "case_file_id",
+          "title",
+          "primary_source_id",
+          "source_mode",
+          "status",
+          "metric_status",
+          "current_revision_id",
+          "validated_revision_id",
+          "created_at",
+          "calibration",
+          "lease",
+          "current_revision"
+        ],
+        "title": "PlanOut",
+        "type": "object"
+      },
+      "PlanStatus": {
+        "description": "The nine plan states of spec section 9.2; stored as the PostgreSQL enum ``plan_status``.",
+        "enum": [
+          "CREATED",
+          "CALIBRATION_PENDING",
+          "EDITING",
+          "REVIEW_PENDING",
+          "IN_REVIEW",
+          "VALIDATED",
+          "EXPORTED",
+          "REJECTED",
+          "REOPENED"
+        ],
+        "title": "PlanStatus",
+        "type": "string"
+      },
+      "RevisionSummaryOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "state"
+        ],
+        "title": "RevisionSummaryOut",
+        "type": "object"
+      },
+      "SourceMode": {
+        "description": "How the source was drawn; stored as the PostgreSQL enum ``source_mode``.",
+        "enum": [
+          "scaled_drawing",
+          "schematic_sketch"
+        ],
+        "title": "SourceMode",
+        "type": "string"
       },
       "SourceOut": {
         "properties": {
@@ -1823,6 +2133,106 @@
         ]
       }
     },
+    "/api/v1/case-files/{case_id}/plans": {
+      "post": {
+        "description": "Create a plan from a source of the case file, in ``CALIBRATION_PENDING``.\n\n``source_mode`` defaults to ``schematic_sketch``. Creates revision 1 in ``draft`` and a\n``plan.created`` event; enqueues no job. Requires ``edit``.",
+        "operationId": "create_case_plan_api_v1_case_files__case_id__plans_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the case file (access.denied)."
+          },
+          "404": {
+            "description": "The case file does not exist."
+          },
+          "422": {
+            "description": "Invalid body, or the primary source is not a source of the case."
+          }
+        },
+        "summary": "Create Case Plan",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
     "/api/v1/case-files/{case_id}/sources": {
       "post": {
         "description": "Ingest one source file (multipart fields ``file`` and ``client_sha256``).\n\nThe size cap is enforced while the body streams in (413). The server SHA-256 must equal\n``client_sha256`` (422) and the content must be a JPEG, PNG, TIFF or single-page PDF by\nits bytes (415); nothing is stored when a rule fails. Requires ``edit``.",
@@ -2055,6 +2465,71 @@
         "summary": "Get Job",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}": {
+      "get": {
+        "description": "A plan with its status, active calibration, lease and current revision.\n\nRequires ``read`` on the plan's case file; others get 403 and an ``access.denied``\nevent.",
+        "operationId": "get_plan_api_v1_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Plan",
+        "tags": [
+          "plans"
         ]
       }
     },
