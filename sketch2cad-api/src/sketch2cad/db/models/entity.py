@@ -60,15 +60,20 @@ METRIC_ORIGIN_CHECK = (
     "'scaled_drawing', 'derived', 'trace_only', 'none')"
 )
 CONFIDENCE_CHECK = "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)"
+CONSTRAINT_KIND_CHECK = (
+    "\"constraint\" IS NULL OR \"constraint\"->>'kind' IN ('triangulation', 'baseline_offset')"
+)
 
 
 class Entity(Base):
     """One entity with its own geometry in metres in the local frame (Y up).
 
     ``deleted_at`` marks a soft delete while the revision is a draft; deleted entities
-    are left out of the frozen snapshot but stay in the events. ``evidence_id`` gets its
-    foreign key in H3, when the ``evidence`` table arrives. ``created_by`` is null for
-    entities created by the system.
+    are left out of the frozen snapshot but stay in the events. ``evidence_id`` points to
+    the case-file evidence the entity places. ``constraint`` holds the metric constraint
+    of an entity fixed by triangulation or baseline plus offset (shapes in
+    ``sketch2cad.entities.constraints``); the database only checks its ``kind``.
+    ``created_by`` is null for entities created by the system.
     """
 
     __tablename__ = "entity"
@@ -77,6 +82,7 @@ class Entity(Base):
         CheckConstraint(REVIEW_STATUS_CHECK, name="review_status"),
         CheckConstraint(METRIC_ORIGIN_CHECK, name="metric_origin"),
         CheckConstraint(CONFIDENCE_CHECK, name="confidence"),
+        CheckConstraint(CONSTRAINT_KIND_CHECK, name="constraint_kind"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -88,7 +94,7 @@ class Entity(Base):
     geometry: Mapped[dict[str, Any]] = mapped_column(JSONB)
     image_region: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
-    evidence_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    evidence_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence.id"), index=True)
     constraint: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     source: Mapped[dict[str, Any]] = mapped_column(JSONB)
     confidence: Mapped[float | None] = mapped_column(Double)

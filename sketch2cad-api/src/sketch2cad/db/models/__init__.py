@@ -6,6 +6,7 @@ from sketch2cad.db.models.case_file import CaseCodeCounter, CaseFile, CaseMember
 from sketch2cad.db.models.catalog import Catalog
 from sketch2cad.db.models.entity import Entity, EntityType, MetricOrigin, ReviewStatus
 from sketch2cad.db.models.event import Event
+from sketch2cad.db.models.evidence import Evidence
 from sketch2cad.db.models.job_meta import JobMeta, JobStatus
 from sketch2cad.db.models.plan import MetricStatus, Plan, PlanStatus, SourceMode
 from sketch2cad.db.models.revision import Revision, RevisionState
@@ -24,6 +25,7 @@ __all__ = [
     "Entity",
     "EntityType",
     "Event",
+    "Evidence",
     "IncidentType",
     "JobMeta",
     "JobStatus",
