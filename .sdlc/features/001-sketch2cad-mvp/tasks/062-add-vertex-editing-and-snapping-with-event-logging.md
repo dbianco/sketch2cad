@@ -1,7 +1,7 @@
 ---
 id: 001-062
 title: "Add vertex editing and snapping with event logging"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-061]
