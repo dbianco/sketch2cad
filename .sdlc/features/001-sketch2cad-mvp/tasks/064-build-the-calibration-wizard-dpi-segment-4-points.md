@@ -1,7 +1,7 @@
 ---
 id: 001-064
 title: "Build the calibration wizard (DPI, segment, 4 points)"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-058, 001-043]
