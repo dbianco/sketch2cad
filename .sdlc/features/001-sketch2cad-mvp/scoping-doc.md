@@ -64,8 +64,8 @@ Nota: los REQ-21 a REQ-24 (P2) quedan fuera de este scoping.
 | Risk | Mitigation |
 |---|---|
 | Una sola persona: cualquier retraso mueve todo el plan (G-6). | H5 es recortable; revisión de plan al cierre de cada hito; medición de 60 fps y spike de DXF en H0. |
-| Dos repositorios obligan a mantener sincronizado el contrato API–web. | Generar el cliente TypeScript desde el esquema OpenAPI de FastAPI en CI y fallar si cambia sin regenerarse. |
-| Dos repositorios duplican configuración de CI y de licencias. | Plantilla compartida de workflows y la misma lista blanca en ambos. |
+| El contrato API–web puede desincronizarse. | Generar el cliente TypeScript desde el esquema OpenAPI de FastAPI en el mismo repositorio y fallar el CI si cambia sin regenerarse. |
+| Un solo repositorio dispara ambos CI en cada cambio. | Filtros `paths:` por carpeta en cada workflow. |
 | El editor SVG no alcanza 60 fps con 2000 entidades. | Medición en H0; si falla, migrar a Konva (REQ-05) antes de H2. |
 | ezdxf no produce DXF idénticos byte a byte. | Spike 2 en H0 documenta cómo fijar handles, `$TDCREATE` y GUIDs; si no es posible, la reproducibilidad se exige sobre el contenido canónico, no sobre los bytes. |
 | Calidad de las sugerencias de IA sobre croquis reales es desconocida. | Las sugerencias son opcionales; validación solo con croquis propios y sintéticos; declarado en el informe de H6. |
@@ -77,7 +77,7 @@ Nota: los REQ-21 a REQ-24 (P2) quedan fuera de este scoping.
 
 | Decision | Options Considered | Chosen Approach | Rationale |
 |---|---|---|---|
-| Organización del código | Monorepo; dos repositorios; pendiente | Dos repositorios: `sketch2cad-api` (API, worker, migraciones, docker-compose) y `sketch2cad-web` (editor) | Decisión del dueño. Se asume el costo de sincronizar el contrato vía OpenAPI. |
+| Organización del código | Monorepo; dos repositorios; pendiente | Un solo repositorio con dos carpetas: `sketch2cad-api/` (API, worker, migraciones, docker-compose) y `sketch2cad-web/` (editor) | Decisión del dueño (2026-10-25), que reemplaza la de dos repositorios. Un solo historial y un solo CI con filtros por ruta. |
 | Tecnología del editor 2D | SVG; Konva; pendiente de spike | SVG | Decisión del dueño. Accesible por teclado y editable. REQ-05 mantiene el criterio de 60 fps con migración a Konva si falla. |
 | Reproducibilidad del DXF | Byte a byte; solo contenido canónico | ⚠️ PENDING DECISION | Depende del spike 2 de H0. Por defecto se intenta byte a byte. |
 | Backend | Java + Python; Python único | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic | ezdxf, OpenCV, shapely y PDF son Python; un solo lenguaje para un desarrollador. |

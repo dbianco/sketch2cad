@@ -20,7 +20,7 @@ Ninguna. Los repositorios de código aún no existen, así que ninguna afirmaci�
 
 | ID | Decision | Options Considered | Chosen Approach | Rationale |
 |---|---|---|---|---|
-| D-1 | Organización del código | Monorepo; dos repositorios | Dos repositorios: `sketch2cad-api` (API, worker, migraciones, docker-compose) y `sketch2cad-web` (editor) | Decisión del dueño (scoping §6). Se acepta el costo de sincronizar el contrato por OpenAPI. |
+| D-1 | Organización del código | Monorepo; dos repositorios | Un solo repositorio (`dbianco/sketch2cad`, el de documentación) con dos carpetas de código: `sketch2cad-api/` (API, worker, migraciones, docker-compose) y `sketch2cad-web/` (editor) | Decisión del dueño (2026-10-25), que reemplaza la de dos repositorios. Un solo historial, un solo CI con filtros por ruta y el contrato OpenAPI se regenera en el mismo commit. |
 | D-2 | Tecnología del editor | SVG; Konva | SVG | Decisión del dueño. Se mide 60 fps con 2000 entidades en H0; si falla, migrar a Konva antes de H2. |
 | D-3 | Reproducibilidad del DXF | Byte a byte; solo contenido canónico | ⚠️ PENDING DECISION: depende del spike 2 de H0. Por defecto se intenta byte a byte. | Se resuelve con el informe `docs/spikes/dxf-reproducibility.md` al cerrar H0. |
 | D-4 | Sesión de usuario | Sesión en servidor + cookie; JWT con refresh | Sesión en servidor (tabla `session`) + cookie `HttpOnly` | Decisión de esta sesión. Revocación inmediata y encaja con el bloqueo tras 10 intentos y el log de auditoría. |
@@ -28,7 +28,7 @@ Ninguna. Los repositorios de código aún no existen, así que ninguna afirmaci�
 | D-6 | Driver de PostgreSQL | psycopg 3; asyncpg | psycopg 3 (LGPL-3.0) | Procrastinate lo exige. Excepción documentada en `license-exceptions.toml` (PRD, DEC-6). |
 | D-7 | Generador del cliente TypeScript desde OpenAPI | openapi-typescript; orval; generador propio | `openapi-typescript` (MIT, solo tipos, sin runtime) | Decisión del dueño (2026-10-24). El cliente se genera desde `openapi.json` y CI falla si el resultado difiere del versionado. |
 | D-8 | Atributo SameSite de la cookie | Strict; Lax | `Lax` más token CSRF obligatorio en toda mutación | Decisión del dueño. §15 de la spec ya dice `Lax`. Las pruebas H0-13 fijan el comportamiento. |
-| D-9 | Dónde corre el E2E | Repositorio web con `API_REF` fijado; repositorio api; tercer repositorio | Repositorio web, que levanta el compose del api en el commit fijado en el archivo `API_REF` | Decisión del dueño (2026-10-24). Un solo lugar para el E2E y versión del api explícita; actualizar `API_REF` es parte de cada cambio de contrato. |
+| D-9 | Dónde corre el E2E | Carpeta web; carpeta api; carpeta raíz | Carpeta `sketch2cad-web/e2e/`, que levanta el compose de `sketch2cad-api/` del mismo commit | Con un solo repositorio ya no hace falta fijar una versión del api (`API_REF` desaparece): el E2E siempre prueba el commit actual. |
 | D-10 | Cola de jobs | Broker; PostgreSQL | Procrastinate sobre PostgreSQL 16 | Decisión del scoping. Sin infraestructura adicional. |
 | D-11 | Almacenamiento | MinIO; S3; disco | Disco direccionado por contenido detrás de `Storage` | Decisión del scoping. MinIO es AGPL. |
 | D-12 | Polling de jobs | WebSocket; polling | Polling cada 2 s a `GET /jobs/{id}` | §9.1. Sin infraestructura adicional. |
@@ -44,7 +44,7 @@ Tres procesos Python que comparten un paquete (`sketch2cad`) y una aplicación w
 - **Worker** (Procrastinate sobre PostgreSQL): `qc`, `rectify`, `suggest_lines`, `ocr_crop`, `export_dxf`, `export_pdf`, `build_package`. Comparte código y base de datos con la API.
 - **Web** (React 18, TypeScript, Vite, Zustand, Immer): editor SVG con `react-zoom-pan-pinch`, pantallas del prototipo (lista de expedientes, carga, calibración, editor, revisión, exportación). Nginx sirve el build.
 - **Storage**: interfaz `Storage` con driver `filesystem` direccionado por contenido (`objects/sha256/ab/cd/<hash>`, write-once a nivel de aplicación) y un driver `s3` solo como stub.
-- **Verificador** `sketch2cad-verify`: script independiente del servidor dentro del repositorio api, que recalcula hashes, cadena de eventos y firma.
+- **Verificador** `sketch2cad-verify`: script independiente del servidor dentro de la carpeta `sketch2cad-api/`, que recalcula hashes, cadena de eventos y firma.
 
 Flujo extremo a extremo: el técnico crea un expediente y sube un croquis. El API calcula SHA-256, guarda el original y encola `qc`. El técnico crea un plano, calibra imagen a papel y fija el sistema local. El worker propone polilíneas (`suggested`). El técnico dibuja y reconstruye posiciones por cotas (fijar longitud, triangulación, base más offset). Pasa el plano a revisión; el revisor valida y se congela un snapshot JSON canónico con hash. Las exportaciones generan DXF, PDF técnico, reporte de auditoría y un manifiesto firmado dentro de un ZIP. Cada acción de dominio escribe un evento encadenado por hashes en la misma transacción.
 
@@ -124,9 +124,9 @@ Criterios por endpoint:
 
 #### 5. System Design (H0)
 
-Repositorio `sketch2cad-api`: `src/sketch2cad/{api,auth,cases,db,storage,worker,config}`, `migrations/`, `tests/`, `docker-compose.yml`, `Dockerfile`, `pyproject.toml`, `uv.lock`, `licenses-allowed.txt`, `license-exceptions.toml`, `.github/workflows/ci.yml`, `docs/spikes/`.
-Repositorio `sketch2cad-web`: `src/{app,pages,editor,api}`, `spikes/svg-perf/`, `e2e/`, `package.json`, `pnpm-lock.yaml`, `Dockerfile` (build + nginx), `API_REF`, `.github/workflows/ci.yml`.
-`docker-compose.yml` (repositorio api): servicios `db` (postgres:16, volumen nombrado), `api` (uvicorn), `worker` (`procrastinate worker`, sin tareas todavía), `web` (build desde `WEB_CONTEXT`, por defecto `../sketch2cad-web`). Todos con `healthcheck`. Secretos solo por variables de entorno (`DATABASE_URL`, `SESSION_SECRET`, `SIGNING_KEY_PATH`), con `.env.example` sin valores reales.
+Carpeta `sketch2cad-api/`: `src/sketch2cad/{api,auth,cases,db,storage,worker,config}`, `migrations/`, `tests/`, `docker-compose.yml`, `Dockerfile`, `pyproject.toml`, `uv.lock`, `licenses-allowed.txt`, `license-exceptions.toml`. Los workflows viven en la raíz del repositorio (`.github/workflows/api-ci.yml`, `web-ci.yml`, `e2e.yml`) con filtros `paths:`; los informes de spikes en `docs/spikes/` de la raíz.
+Carpeta `sketch2cad-web/`: `src/{app,pages,editor,api}`, `spikes/svg-perf/`, `e2e/`, `package.json`, `pnpm-lock.yaml`, `Dockerfile` (build + nginx).
+`docker-compose.yml` (en `sketch2cad-api/`): servicios `db` (postgres:16, volumen nombrado), `api` (uvicorn), `worker` (`procrastinate worker`, sin tareas todavía), `web` (build desde `../sketch2cad-web`). Todos con `healthcheck`. Secretos solo por variables de entorno (`DATABASE_URL`, `SESSION_SECRET`, `SIGNING_KEY_PATH`), con `.env.example` sin valores reales.
 Pantallas H0 (prototipo): inicio de sesión y lista de expedientes con formulario "Nuevo expediente". El cliente TypeScript se genera desde `openapi.json` (decisión D-7).
 
 #### Spike 1 — medición de 60 fps (web)
@@ -139,10 +139,10 @@ Script `spikes/dxf_repro.py` genera con ezdxf un DXF R2013 de un plano fixture (
 API → PostgreSQL (SQLAlchemy). Worker → PostgreSQL (Procrastinate). Web → API por HTTPS y cookies; en desarrollo, proxy de Vite hacia `api`.
 
 #### 9. Deployment Stages (H0)
-1. Crear los dos repositorios y el remoto en GitHub (primer commit con la estructura; `record_commit` tras cada commit).
+1. Crear las carpetas `sketch2cad-api/` y `sketch2cad-web/` en el repositorio existente `dbianco/sketch2cad` (primer commit con la estructura; `record_commit` tras cada commit).
 2. Compose local: `docker compose up` levanta `db`, `api`, `worker`, `web`.
 3. CI en ambos repositorios. Rollback: `git revert`; la base local se recrea con `docker compose down -v`.
-Riesgo: el compose depende de la ruta hermana `../sketch2cad-web`; mitigación: `WEB_CONTEXT` configurable y documentado en el README.
+Riesgo: los dos CI comparten el repositorio y se disparan en cada cambio; mitigación: filtros `paths:` en cada workflow y un job de contrato que corre cuando cambia cualquiera de las dos carpetas.
 
 #### 10. Testing Strategy y Acceptance Criteria (H0)
 
@@ -162,7 +162,7 @@ Riesgo: el compose depende de la ruta hermana `../sketch2cad-web`; mitigación: 
 | H0-13 | La cookie `s2c_session` se emite con `HttpOnly`, `Secure` y `SameSite=Lax`; un `POST`, `PUT`, `PATCH` o `DELETE` sin `X-CSRF-Token` válido devuelve 403, aunque la cookie de sesión sea válida; `GET /auth/me` y `GET /case-files` funcionan sin token. | Integración que inspecciona `Set-Cookie` y prueba cada verbo. |
 | H0-12 | Test E2E con Playwright: iniciar sesión, crear un expediente y verlo en la lista, contra el stack real (api, worker, db, web), no contra `vite preview`. | `e2e/login_case.spec.ts` en CI. |
 
-Harness: el E2E debe ejecutarse contra el compose completo; un servidor estático no puede probar login ni creación. La tarea de CI "levantar el compose del api en el `API_REF` fijado" es parte de H0 (decisión D-9). Pruebas unitarias del api con `pytest` y base real (servicio PostgreSQL de CI); pruebas del web con `vitest`.
+Harness: el E2E debe ejecutarse contra el compose completo; un servidor estático no puede probar login ni creación. La tarea de CI "levantar el compose de `sketch2cad-api/` del mismo commit" es parte de H0 (decisión D-9). Pruebas unitarias del api con `pytest` y base real (servicio PostgreSQL de CI); pruebas del web con `vitest`.
 
 ---
 
@@ -476,7 +476,7 @@ Riesgos y mitigaciones:
 | Riesgo | Mitigación |
 |---|---|
 | Una sola persona: un retraso mueve todo el plan | H5 se recorta; revisión de plan al cierre de cada hito |
-| Contrato API-web desincronizado entre dos repositorios | Cliente generado desde `openapi.json` y CI que falla si difiere |
+| Contrato API-web desincronizado | Cliente generado desde `openapi.json` en el mismo repositorio y CI que falla si difiere |
 | El editor SVG no alcanza el rendimiento | Medición en H0; Konva antes de H2 si falla |
 | DXF no reproducible byte a byte | Spike 2 en H0; alternativa de reproducibilidad por contenido canónico |
 | Calidad de las sugerencias sobre croquis reales desconocida | Sugerencias opcionales; medición declarada interna en H6 |
