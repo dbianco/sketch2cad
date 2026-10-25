@@ -1,6 +1,6 @@
 """Application settings read exclusively from environment variables."""
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     SESSION_SECRET: SecretStr
     SIGNING_KEY_PATH: str
     APP_ENV: str
+    AUTH_SESSION_TTL_MINUTES: int = Field(default=480, gt=0)
+    """Session lifetime (``auth.session_ttl_minutes``); optional, defaults to 8 hours."""
 
 
 def get_settings() -> Settings:

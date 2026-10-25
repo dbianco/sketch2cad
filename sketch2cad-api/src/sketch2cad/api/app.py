@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from sketch2cad.api.errors import register_error_handlers
-from sketch2cad.api.routers import health
+from sketch2cad.api.routers import auth, health
 
 
 def create_app() -> FastAPI:
@@ -11,4 +11,5 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Sketch2CAD API", version="0.1.0")
     register_error_handlers(app)
     app.include_router(health.router)
+    app.include_router(auth.router)
     return app
