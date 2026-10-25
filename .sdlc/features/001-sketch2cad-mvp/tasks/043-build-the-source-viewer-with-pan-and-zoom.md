@@ -1,7 +1,7 @@
 ---
 id: 001-043
 title: "Build the source viewer with pan and zoom"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-042]
