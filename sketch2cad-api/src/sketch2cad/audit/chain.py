@@ -5,11 +5,16 @@
 as ASCII, and the JCS bytes come from :func:`sketch2cad.audit.canonical.canonical_bytes`.
 The first event of a case file uses ``prev_hash = SHA-256(str(case_file_id))``.
 
+Events without a case file (``case_file_id=None``: ``auth.login``, ``auth.failed``) form
+one global auth chain (docs/audit.md) whose first event uses
+``prev_hash = SHA-256(b"auth")``.
+
 The writer serializes concurrent appends on the ``case_file`` row lock
-(``SELECT ... FOR UPDATE``) and takes the event id from the sequence while holding it, so
-ids grow along each chain and the hashed content includes the id. It requires the default
-``READ COMMITTED`` isolation: after the lock is granted, the next statement sees the event
-the previous holder committed.
+(``SELECT ... FOR UPDATE``), or on the transaction-scoped advisory lock
+``AUTH_CHAIN_LOCK_KEY`` for the global chain, and takes the event id from the sequence
+while holding it, so ids grow along each chain and the hashed content includes the id. It
+requires the default ``READ COMMITTED`` isolation: after the lock is granted, the next
+statement sees the event the previous holder committed.
 """
 
 import hashlib
@@ -27,6 +32,10 @@ from sketch2cad.auth.lockout import utc_now
 from sketch2cad.db.models import CaseFile, Event
 
 logger = logging.getLogger(__name__)
+
+# Key of the ``pg_advisory_xact_lock`` that serializes the global auth chain ("S2CAUTH").
+AUTH_CHAIN_LOCK_KEY = 0x5332434155544800
+AUTH_CHAIN_SEED = b"auth"
 
 
 class EventKind(StrEnum):
@@ -71,8 +80,14 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def genesis_hash(case_file_id: uuid.UUID) -> str:
-    """``prev_hash`` of the first event of a case file: ``SHA-256(str(case_file_id))``."""
+def genesis_hash(case_file_id: uuid.UUID | None) -> str:
+    """``prev_hash`` of the first event of a chain.
+
+    ``SHA-256(str(case_file_id))`` for a case file, ``SHA-256(b"auth")`` for the global
+    auth chain (``case_file_id`` is ``None``).
+    """
+    if case_file_id is None:
+        return sha256_hex(AUTH_CHAIN_SEED)
     return sha256_hex(str(case_file_id).encode("ascii"))
 
 
@@ -90,14 +105,25 @@ def lock_case_file(session: Session, case_file_id: uuid.UUID) -> None:
         raise UnknownCaseFileError(f"case file {case_file_id} does not exist")
 
 
-def last_hash(session: Session, case_file_id: uuid.UUID) -> str | None:
-    """Hash of the newest event of ``case_file_id``, or ``None`` when it has none."""
-    return session.scalar(
-        select(Event.hash)
-        .where(Event.case_file_id == case_file_id)
-        .order_by(Event.id.desc())
-        .limit(1)
+def lock_auth_chain(session: Session) -> None:
+    """Take the transaction-scoped advisory lock that serializes the global auth chain."""
+    session.execute(select(func.pg_advisory_xact_lock(AUTH_CHAIN_LOCK_KEY)))
+
+
+def lock_chain(session: Session, case_file_id: uuid.UUID | None) -> None:
+    """Serialize appends to the chain of ``case_file_id`` (``None``: global auth chain)."""
+    if case_file_id is None:
+        lock_auth_chain(session)
+    else:
+        lock_case_file(session, case_file_id)
+
+
+def last_hash(session: Session, case_file_id: uuid.UUID | None) -> str | None:
+    """Hash of the newest event of the chain of ``case_file_id``, or ``None`` when empty."""
+    in_chain = (
+        Event.case_file_id.is_(None) if case_file_id is None else Event.case_file_id == case_file_id
     )
+    return session.scalar(select(Event.hash).where(in_chain).order_by(Event.id.desc()).limit(1))
 
 
 def next_event_id(session: Session) -> int:
@@ -110,7 +136,7 @@ def next_event_id(session: Session) -> int:
 def append_event(
     session: Session,
     *,
-    case_file_id: uuid.UUID,
+    case_file_id: uuid.UUID | None,
     kind: EventKind,
     actor_id: uuid.UUID | None = None,
     actor_role: str | None = None,
@@ -125,13 +151,14 @@ def append_event(
 ) -> Event:
     """Append one event to the chain of ``case_file_id`` in the caller's transaction.
 
-    Locks the case file row until the caller commits or rolls back, links the event to
+    ``case_file_id=None`` appends to the global auth chain. Locks the case file row (or the
+    auth chain advisory lock) until the caller commits or rolls back, links the event to
     the previous hash and flushes the insert. ``occurred_at`` defaults to the current UTC
     time and must be timezone-aware. Raises :class:`UnknownCaseFileError` when the case
     file does not exist and ``rfc8785.CanonicalizationError`` when ``before`` or ``after``
     cannot be canonicalized; nothing is inserted in either case.
     """
-    lock_case_file(session, case_file_id)
+    lock_chain(session, case_file_id)
     prev_hash = last_hash(session, case_file_id) or genesis_hash(case_file_id)
     event = Event(
         id=next_event_id(session),

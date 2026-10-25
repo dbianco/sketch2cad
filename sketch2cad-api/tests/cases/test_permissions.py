@@ -361,7 +361,8 @@ def test_missing_or_malformed_case_is_404_without_events(
     assert_problem(owner_client.get(f"{CASES_URL}/{uuid.uuid4()}"), 404)
     assert_problem(add_member(owner_client, str(uuid.uuid4()), uuid.uuid4(), ["read"]), 404)
     with factory() as db:
-        assert db.scalars(select(Event)).all() == []
+        # Only the owner's auth.login, on the global chain, may exist.
+        assert db.scalars(select(Event).where(Event.case_file_id.is_not(None))).all() == []
 
 
 def test_access_denied_is_committed_apart_from_the_rolled_back_request(

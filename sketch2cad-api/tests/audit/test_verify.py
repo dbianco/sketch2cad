@@ -39,9 +39,13 @@ def build_chain(
     case_file_id: uuid.UUID | None = None,
     ids: Sequence[int] | None = None,
     prev_hash: str | None = None,
+    auth: bool = False,
 ) -> list[EventDict]:
-    """Chain written with the production writer's ``compute_hash``, exported as dicts."""
-    case_file = case_file_id or uuid.uuid4()
+    """Chain written with the production writer's ``compute_hash``, exported as dicts.
+
+    ``auth=True`` builds the global auth chain (``case_file_id`` ``None``).
+    """
+    case_file = None if auth else case_file_id or uuid.uuid4()
     expected_prev = prev_hash or genesis_hash(case_file)
     events: list[EventDict] = []
     for index, event_id in enumerate(ids or range(1, count + 1)):
@@ -151,6 +155,47 @@ def test_event_of_another_case_file_is_rejected() -> None:
     rehash(events[2])
     result = verify_chain(events)
     assert_invalid_at(result, events, 2)
+    assert result.reason is InvalidReason.CASE_FILE_MISMATCH
+
+
+AUTH_GENESIS = hashlib.sha256(b"auth").hexdigest()
+
+
+def test_global_auth_chain_is_anchored_on_the_sha256_of_auth() -> None:
+    events = build_chain(CHAIN_LENGTH, auth=True)
+    assert events[0]["case_file_id"] is None
+    assert events[0]["prev_hash"] == AUTH_GENESIS == genesis_hash(None)
+    assert verify_chain(events) == VerifyResult(valid=True, checked=CHAIN_LENGTH)
+
+
+def test_global_auth_chain_with_another_genesis_is_rejected() -> None:
+    events = build_chain(3, auth=True, prev_hash=genesis_hash(uuid.uuid4()))
+    result = verify_chain(events)
+    assert_invalid_at(result, events, 0)
+    assert result.reason is InvalidReason.PREV_HASH_MISMATCH
+
+
+def test_tampered_global_auth_event_is_reported() -> None:
+    events = build_chain(CHAIN_LENGTH, auth=True)
+    events[6]["after"]["label"] = "forged"
+    result = verify_chain(events)
+    assert_invalid_at(result, events, 6)
+    assert result.reason is InvalidReason.HASH_MISMATCH
+
+
+@pytest.mark.parametrize(
+    ("auth", "foreign_case_file_id"),
+    [(True, str(uuid.uuid4())), (False, None)],
+    ids=["case_event_in_auth_chain", "auth_event_in_case_chain"],
+)
+def test_chains_do_not_mix_case_and_global_events(
+    auth: bool, foreign_case_file_id: str | None
+) -> None:
+    events = build_chain(3, auth=auth)
+    events[1]["case_file_id"] = foreign_case_file_id
+    rehash(events[1])
+    result = verify_chain(events)
+    assert_invalid_at(result, events, 1)
     assert result.reason is InvalidReason.CASE_FILE_MISMATCH
 
 

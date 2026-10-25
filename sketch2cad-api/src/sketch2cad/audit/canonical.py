@@ -5,7 +5,8 @@ Canonicalization Scheme (RFC 8785) through the ``rfc8785`` package. Values that 
 represent natively are normalized first, so a verifier reading the row back from the
 database rebuilds byte-identical content:
 
-- UUIDs become their lowercase hyphenated string (``str(uuid)``).
+- UUIDs become their lowercase hyphenated string (``str(uuid)``); a missing UUID, such as
+  the ``case_file_id`` of a global auth chain event, is JSON ``null``.
 - ``occurred_at`` becomes UTC ISO 8601 with microseconds and a ``Z`` suffix, matching
   PostgreSQL ``timestamptz`` precision.
 - ``before`` and ``after`` are kept as JSON values. JCS rejects integers outside the
@@ -39,7 +40,7 @@ def event_content(event: Event) -> dict[str, Any]:
     """Every stored field of ``event`` except ``hash``, as JSON-ready values."""
     return {
         "id": event.id,
-        "case_file_id": str(event.case_file_id),
+        "case_file_id": format_uuid(event.case_file_id),
         "plan_id": format_uuid(event.plan_id),
         "revision_id": format_uuid(event.revision_id),
         "actor_id": format_uuid(event.actor_id),

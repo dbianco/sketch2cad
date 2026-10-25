@@ -3,9 +3,9 @@
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import Depends, Response
+from fastapi import Depends, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,7 +27,13 @@ from sketch2cad.auth.passwords import (
     verify_dummy_password,
     verify_password,
 )
-from sketch2cad.auth.sessions import create_session, revoke_session
+from sketch2cad.auth.sessions import (
+    LoginFailureCause,
+    create_session,
+    record_login,
+    record_login_failure,
+    revoke_session,
+)
 from sketch2cad.config import Settings
 from sketch2cad.db.models import User, UserRole, UserSession
 from sketch2cad.db.session import get_session
@@ -83,6 +89,7 @@ def _secure_cookies(settings: Settings) -> bool:
 @router.post("/auth/login")
 def login(
     body: LoginRequest,
+    request: Request,
     response: Response,
     db: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_app_settings)],
@@ -93,20 +100,45 @@ def login(
     A locked account gets 423 even with the right password; the password is still verified
     first so the response time does not reveal whether it was correct.
     """
+    # Every attempt writes auth.login or auth.failed to the global auth chain
+    # (docs/audit.md); a failure commits its event before the error is raised.
     now = clock()
+    client_ip = request.client.host if request.client else None
+
+    def fail(cause: LoginFailureCause, failed_user: User | None, **details: Any) -> None:
+        record_login_failure(
+            db,
+            cause,
+            user=failed_user,
+            username=body.username,
+            client_ip=client_ip,
+            now=now,
+            **details,
+        )
+        db.commit()
+
     user = db.scalars(select(User).where(User.username == body.username)).one_or_none()
     if user is None:
         verify_dummy_password(body.password)
+        fail(LoginFailureCause.UNKNOWN_USER, None)
         raise _invalid_credentials()
     password_ok = verify_password(user.password_hash, body.password)
     if not user.is_active:
+        fail(LoginFailureCause.INACTIVE_USER, user)
         raise _invalid_credentials()
     if user.locked_until is not None and is_locked(user, now):
+        locked_until = user.locked_until
         logger.info("Login rejected for locked user %s", user.id)
-        raise _account_locked(user.locked_until)
+        fail(LoginFailureCause.ACCOUNT_LOCKED, user, locked_until=locked_until)
+        raise _account_locked(locked_until)
     if not password_ok:
         result = register_failure(db, user.id, now, settings.AUTH_LOCKOUT_MINUTES)
-        db.commit()
+        fail(
+            LoginFailureCause.INVALID_CREDENTIALS,
+            user,
+            failed_attempts=result.failed_attempts,
+            locked_until=result.locked_until,
+        )
         if result.locked_until is not None:
             logger.warning("User %s locked after %d failed logins", user.id, result.failed_attempts)
         raise _invalid_credentials()
@@ -114,6 +146,7 @@ def login(
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
     issued = create_session(db, user, settings.AUTH_SESSION_TTL_MINUTES, now=now)
+    record_login(db, user, issued.record, client_ip, now)
     db.commit()
     logger.info("User %s signed in", user.id)
 

@@ -4,7 +4,9 @@ Each event is a mapping with exactly the JSON-ready fields of
 :func:`sketch2cad.audit.canonical.event_content` plus ``hash``: UUIDs as lowercase
 hyphenated strings, ``occurred_at`` as UTC ISO 8601 text and ``before``/``after`` as JSON
 values. The verifier rebuilds ``SHA-256(prev_hash || JCS(event without hash))`` itself and
-walks the links from the genesis hash ``SHA-256(case_file_id)``.
+walks the links from the genesis hash ``SHA-256(case_file_id)``. Events whose
+``case_file_id`` is ``None`` (JSON ``null``) belong to the global auth chain, anchored on
+``SHA-256(b"auth")`` (docs/audit.md).
 
 This module depends only on the standard library and ``rfc8785``: it imports nothing from
 SQLAlchemy or the rest of the application, so the standalone ``sketch2cad-verify`` (H4) can
@@ -42,6 +44,7 @@ CONTENT_FIELDS = (
     "prev_hash",
 )
 EVENT_FIELDS = frozenset((*CONTENT_FIELDS, "hash"))
+AUTH_CHAIN_SEED = b"auth"
 
 
 class InvalidReason(StrEnum):
@@ -86,8 +89,13 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def genesis_hash_of(case_file_id: str) -> str:
-    """``prev_hash`` of the first event of the chain of ``case_file_id`` (a UUID string)."""
+def genesis_hash_of(case_file_id: str | None) -> str:
+    """``prev_hash`` of the first event of the chain of ``case_file_id`` (a UUID string).
+
+    ``None`` names the global auth chain, whose genesis hash is ``SHA-256(b"auth")``.
+    """
+    if case_file_id is None:
+        return sha256_hex(AUTH_CHAIN_SEED)
     return sha256_hex(case_file_id.encode("ascii"))
 
 
@@ -113,13 +121,15 @@ def check_shape(event: Mapping[str, Any]) -> None:
     event_id = event["id"]
     if not isinstance(event_id, int) or isinstance(event_id, bool):
         raise ChainError(InvalidReason.MALFORMED, "id is not an integer")
-    for name in ("case_file_id", "prev_hash", "hash"):
+    if event["case_file_id"] is not None and not isinstance(event["case_file_id"], str):
+        raise ChainError(InvalidReason.MALFORMED, "case_file_id is not a string or null")
+    for name in ("prev_hash", "hash"):
         if not isinstance(event[name], str):
             raise ChainError(InvalidReason.MALFORMED, f"{name} is not a string")
 
 
 def check_event(
-    event: Mapping[str, Any], case_file_id: str, previous_id: int | None, expected_prev: str
+    event: Mapping[str, Any], case_file_id: str | None, previous_id: int | None, expected_prev: str
 ) -> None:
     """Raise :class:`ChainError` when ``event`` does not continue the chain."""
     check_shape(event)
@@ -143,9 +153,11 @@ def verify_chain(events: Sequence[Mapping[str, Any]]) -> VerifyResult:
     """Verify the hash chain of one case file, given its events oldest first.
 
     The case file is the one named by the first event; its genesis hash anchors the chain.
+    When the first event has ``case_file_id`` ``None`` the input is the global auth chain,
+    anchored on ``SHA-256(b"auth")``, and every event must have ``case_file_id`` ``None``.
     An empty sequence is a valid, empty chain.
     """
-    case_file_id: str = ""
+    case_file_id: str | None = None
     previous_id: int | None = None
     expected_prev = ""
     for index, event in enumerate(events):

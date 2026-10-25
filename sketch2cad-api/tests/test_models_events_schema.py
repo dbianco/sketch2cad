@@ -16,6 +16,7 @@ ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
 NEW_TABLES = {"source", "event", "job_meta"}
 INITIAL_TABLES = {"user", "session", "case_file", "case_member", "case_code_counter"}
 HASH = "0" * 64
+REVISION = "0002_sources_events"
 
 
 @pytest.fixture
@@ -47,8 +48,8 @@ def schema_engine(database_url: str, migration_schema: str) -> Iterator[Engine]:
 
 @pytest.fixture
 def migrated(migration_schema: str, schema_engine: Engine) -> Engine:
-    """``schema_engine`` after ``alembic upgrade head``."""
-    command.upgrade(alembic_config(migration_schema), "head")
+    """``schema_engine`` after ``alembic upgrade 0002_sources_events``."""
+    command.upgrade(alembic_config(migration_schema), REVISION)
     return schema_engine
 
 
@@ -192,3 +193,66 @@ def test_check_constraints_reject_unknown_values(migrated: Engine, statement: st
 
     with pytest.raises(IntegrityError, match="ck_"), migrated.begin() as connection:
         connection.execute(text(statement), {"hash": HASH})
+
+
+def case_file_id_is_nullable(engine: Engine, schema: str) -> bool:
+    with engine.connect() as connection:
+        nullable = connection.execute(
+            text(
+                "SELECT is_nullable FROM information_schema.columns WHERE table_schema = :schema "
+                "AND table_name = 'event' AND column_name = 'case_file_id'"
+            ),
+            {"schema": schema},
+        ).scalar_one()
+    return nullable == "YES"
+
+
+def insert_global_event(connection: Connection) -> None:
+    connection.execute(
+        text(
+            "INSERT INTO event (kind, after, occurred_at, prev_hash, hash) "
+            "VALUES ('auth.failed', '{\"cause\": \"unknown_user\"}', now(), :hash, :hash)"
+        ),
+        {"hash": HASH},
+    )
+
+
+def test_upgrade_0003_allows_global_events_and_indexes_their_chain(
+    migration_schema: str, schema_engine: Engine
+) -> None:
+    command.upgrade(alembic_config(migration_schema), "0003_global_auth_chain")
+
+    assert case_file_id_is_nullable(schema_engine, migration_schema)
+    with schema_engine.begin() as connection:
+        insert_global_event(connection)
+        definition = connection.execute(
+            text(
+                "SELECT indexdef FROM pg_indexes "
+                "WHERE schemaname = :schema AND indexname = 'ix_event_global_chain_id'"
+            ),
+            {"schema": migration_schema},
+        ).scalar_one()
+    assert "(id) WHERE (case_file_id IS NULL)" in definition
+
+
+def test_downgrade_0003_restores_not_null_on_an_empty_global_chain(
+    migration_schema: str, schema_engine: Engine
+) -> None:
+    config = alembic_config(migration_schema)
+    command.upgrade(config, "0003_global_auth_chain")
+    command.downgrade(config, REVISION)
+
+    assert not case_file_id_is_nullable(schema_engine, migration_schema)
+
+
+def test_downgrade_0003_refuses_while_global_events_exist(
+    migration_schema: str, schema_engine: Engine
+) -> None:
+    config = alembic_config(migration_schema)
+    command.upgrade(config, "0003_global_auth_chain")
+    with schema_engine.begin() as connection:
+        insert_global_event(connection)
+
+    with pytest.raises(RuntimeError, match="global auth chain"):
+        command.downgrade(config, REVISION)
+    assert case_file_id_is_nullable(schema_engine, migration_schema)
