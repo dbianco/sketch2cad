@@ -51,12 +51,20 @@ _COMMON_RESPONSES: dict[int | str, dict[str, Any]] = {
         "description": "The plan is past editing, or it has entities (``code`` ``V-08``).",
     },
 }
+ACCEPT_CONFLICT: dict[int | str, dict[str, Any]] = {
+    409: {
+        "description": "The plan is past editing, it has entities (``code`` ``V-08``), or "
+        "the user does not hold its edit lease (``code`` ``V-12`` with ``holder``, or "
+        "``lease_required``).",
+    },
+}
 PROPOSE_RESPONSES: dict[int | str, dict[str, Any]] = {
     **_COMMON_RESPONSES,
     422: {"description": "Invalid body, or inputs that define no calibration for the method."},
 }
 ACCEPT_RESPONSES: dict[int | str, dict[str, Any]] = {
     **_COMMON_RESPONSES,
+    **ACCEPT_CONFLICT,
     422: {
         "description": "Invalid inputs, or ``as_metric`` not allowed: method ``none``, a "
         "``scaled_drawing`` without ``paper_scale``, or an error above "
@@ -178,7 +186,7 @@ def _rejected(db: Session, plan: Plan, exc: Exception) -> ProblemError:
     db.rollback()
     logger.warning("Rejected calibration of plan %s: %s", plan.id, type(exc).__name__)
     if isinstance(exc, CalibrationConflictError):
-        return _problem(HTTPStatus.CONFLICT, exc, exc.code)
+        return _problem(HTTPStatus.CONFLICT, exc, exc.code, **exc.extensions)
     if isinstance(exc, MetricRejectedError):
         return _problem(HTTPStatus.UNPROCESSABLE_ENTITY, exc, exc.code, **exc.extensions)
     return _problem(HTTPStatus.UNPROCESSABLE_ENTITY, exc)
@@ -223,7 +231,7 @@ def accept_calibration(
 
     Appends ``calibration.proposed`` and ``calibration.accepted``. ``as_metric`` is
     rejected for ``none`` and above the reprojection tolerance (V-05). Method ``none``
-    leaves the plan ``non_metric``. Requires ``edit``.
+    leaves the plan ``non_metric``. Requires ``edit`` and the plan's edit lease.
     """
     tolerances = CalibrationTolerances.from_settings(settings)
     client_ip = request.client.host if request.client else None

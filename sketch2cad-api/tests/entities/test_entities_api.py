@@ -131,6 +131,12 @@ def set_plan(factory: sessionmaker[Session], plan_id: uuid.UUID, **values: Any) 
         db.commit()
 
 
+def acquire_lease(client: TestClient, plan_id: object) -> None:
+    """Take the plan's edit lease, required for every content edit (task 054)."""
+    response = client.post(f"{API_V1_PREFIX}/plans/{plan_id}/lease")
+    assert response.status_code == 200, response.text
+
+
 def make_plan(
     client: TestClient, factory: sessionmaker[Session], case_id: str, owner: User
 ) -> Plan:
@@ -153,6 +159,7 @@ def make_plan(
     assert response.status_code == 201, response.text
     plan_id = uuid.UUID(response.json()["id"])
     set_plan(factory, plan_id, status=PlanStatus.EDITING)
+    acquire_lease(client, plan_id)
     with factory() as db:
         plan = db.get(Plan, plan_id)
         assert plan is not None

@@ -1820,8 +1820,12 @@
         "type": "object"
       },
       "LeaseOut": {
-        "description": "The edit lease of a plan: who holds it and until when.",
+        "description": "The valid edit lease of a plan: who holds it and until when.\n\n``display_name`` is the holder's display name, or their username when none is set.",
         "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
           "expires_at": {
             "format": "date-time",
             "title": "Expires At",
@@ -1835,9 +1839,24 @@
         },
         "required": [
           "user_id",
+          "display_name",
           "expires_at"
         ],
         "title": "LeaseOut",
+        "type": "object"
+      },
+      "LeaseReleaseOut": {
+        "description": "Outcome of a release: ``released`` is false when the caller held no lease.",
+        "properties": {
+          "released": {
+            "title": "Released",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "released"
+        ],
+        "title": "LeaseReleaseOut",
         "type": "object"
       },
       "LineGeometry": {
@@ -2011,7 +2030,7 @@
         "type": "object"
       },
       "PlanOut": {
-        "description": "A plan with its active calibration, edit lease and current revision.\n\n``calibration`` is null until a calibration is accepted. ``lease`` is null while no\nuser holds the edit lease.",
+        "description": "A plan with its active calibration, edit lease and current revision.\n\n``calibration`` is null until a calibration is accepted. ``lease`` is null while no\nuser holds a valid (unexpired) edit lease.",
         "properties": {
           "calibration": {
             "anyOf": [
@@ -3804,7 +3823,7 @@
             "description": "The revision or entity does not exist, or the entity is deleted."
           },
           "409": {
-            "description": "The revision is frozen or the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+            "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
             "description": "Invalid body, or a layer or symbol not in the active catalog."
@@ -3905,7 +3924,7 @@
             "description": "The revision or entity does not exist, or the entity is deleted."
           },
           "409": {
-            "description": "The revision is frozen or the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+            "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
             "description": "Invalid body, or a layer or symbol not in the active catalog."
@@ -4152,7 +4171,7 @@
     },
     "/api/v1/plans/{plan_id}/calibration/accept": {
       "post": {
-        "description": "Store the calibration as the plan's active one and move the plan to ``EDITING``.\n\nAppends ``calibration.proposed`` and ``calibration.accepted``. ``as_metric`` is\nrejected for ``none`` and above the reprojection tolerance (V-05). Method ``none``\nleaves the plan ``non_metric``. Requires ``edit``.",
+        "description": "Store the calibration as the plan's active one and move the plan to ``EDITING``.\n\nAppends ``calibration.proposed`` and ``calibration.accepted``. ``as_metric`` is\nrejected for ``none`` and above the reprojection tolerance (V-05). Method ``none``\nleaves the plan ``non_metric``. Requires ``edit`` and the plan's edit lease.",
         "operationId": "accept_calibration_api_v1_plans__plan_id__calibration_accept_post",
         "parameters": [
           {
@@ -4241,7 +4260,7 @@
             "description": "The plan does not exist."
           },
           "409": {
-            "description": "The plan is past editing, or it has entities (``code`` ``V-08``)."
+            "description": "The plan is past editing, it has entities (``code`` ``V-08``), or the user does not hold its edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
             "description": "Invalid inputs, or ``as_metric`` not allowed: method ``none``, a ``scaled_drawing`` without ``paper_scale``, or an error above ``calibration.max_reprojection_error_mm`` (``code`` ``V-05``)."
@@ -4250,6 +4269,204 @@
         "summary": "Accept Calibration",
         "tags": [
           "calibration"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/lease": {
+      "delete": {
+        "description": "Release the caller's edit lease with ``lease.released``. Requires ``edit``.\n\nOnly the holder releases. ``released`` is false, and nothing is written, when the\ncaller holds no lease; 409 with ``holder`` while another user holds a valid one.",
+        "operationId": "delete_lease_api_v1_plans__plan_id__lease_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaseReleaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "Another user holds a valid lease: ``code`` ``V-12``, ``holder`` and the V-12 message."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Lease",
+        "tags": [
+          "plans"
+        ]
+      },
+      "post": {
+        "description": "Acquire or renew the plan's edit lease for 10 minutes. Requires ``edit``.\n\nA renewal by the holder writes no event; a first acquisition, or one after the lease\nexpired, writes ``lease.acquired`` (``before`` is the previous lease). 409 with\n``holder`` and the V-12 message while another user holds a valid lease.",
+        "operationId": "post_lease_api_v1_plans__plan_id__lease_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "Another user holds a valid lease: ``code`` ``V-12``, ``holder`` and the V-12 message."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Lease",
+        "tags": [
+          "plans"
         ]
       }
     },
@@ -4344,7 +4561,7 @@
             "description": "The plan does not exist."
           },
           "409": {
-            "description": "The plan has no accepted calibration, its revision is frozen, or it is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+            "description": "The plan has no accepted calibration, its revision is frozen, it is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold its edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
             "description": "Invalid body."
@@ -4510,7 +4727,7 @@
             "description": "The revision or entity does not exist, or the entity is deleted."
           },
           "409": {
-            "description": "The revision is frozen or the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+            "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
             "description": "Invalid body, or a layer or symbol not in the active catalog."

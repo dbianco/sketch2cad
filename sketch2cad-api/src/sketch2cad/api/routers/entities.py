@@ -1,6 +1,7 @@
 """Entity endpoints: list, create, edit and soft-delete entities of a revision (REQ-05, US-06).
 
-Every mutating route takes ``EDIT_DEPENDENCIES``; the edit lease (task 054) is added there.
+Every mutating route takes ``EDIT_DEPENDENCIES`` (CSRF); the edit lease is checked in the
+service gate :func:`~sketch2cad.entities.service.ensure_editable`, under the plan row lock.
 """
 
 import logging
@@ -46,8 +47,9 @@ EDIT_RESPONSES: dict[int | str, dict[str, Any]] = {
     403: {"description": _DENIED},
     404: {"description": "The revision or entity does not exist, or the entity is deleted."},
     409: {
-        "description": "The revision is frozen or the plan is not in EDITING or IN_REVIEW "
-        "(``code`` ``V-10`` when validated).",
+        "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW "
+        "(``code`` ``V-10`` when validated), or the user does not hold the plan's edit "
+        "lease (``code`` ``V-12`` with ``holder``, or ``lease_required``).",
     },
     422: {"description": "Invalid body, or a layer or symbol not in the active catalog."},
 }
@@ -94,7 +96,7 @@ def _rejected(db: Session, exc: Exception) -> ProblemError:
     if isinstance(exc, EntityGoneError):
         return ProblemError(404, "Not Found", "The entity does not exist.")
     if isinstance(exc, EntityConflictError):
-        extensions = {} if exc.code is None else {"code": exc.code}
+        extensions = {**exc.extensions, **({} if exc.code is None else {"code": exc.code})}
         return ProblemError(409, HTTPStatus.CONFLICT.phrase, str(exc), extensions=extensions)
     return ProblemError(422, HTTPStatus.UNPROCESSABLE_ENTITY.phrase, str(exc))
 

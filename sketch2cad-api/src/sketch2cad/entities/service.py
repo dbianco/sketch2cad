@@ -5,7 +5,7 @@ event in the caller's transaction. Events carry the entity state (:func:`entity_
 ``after`` for a creation, ``before`` and ``after`` for an edit (``after`` adds the
 ``operation``), ``before`` for a deletion. ``source`` is set once on creation and never
 changed by an edit. Entities are edited only in a ``draft`` revision of a plan in
-``EDITING`` or ``IN_REVIEW`` (the reviewer edits while holding the lease, CU-04).
+``EDITING`` or ``IN_REVIEW``, by the user holding the plan's edit lease (CU-04).
 """
 
 import logging
@@ -33,6 +33,7 @@ from sketch2cad.db.models import (
     User,
 )
 from sketch2cad.entities.schemas import EntityIn, EntityPatch, Geometry, SymbolGeometry
+from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
 from sketch2cad.plans.service import active_calibration
 
 logger = logging.getLogger(__name__)
@@ -45,11 +46,17 @@ EXPORT_ONLY_LAYERS = frozenset({"L_SHEET"})
 
 
 class EntityConflictError(Exception):
-    """The revision or plan does not allow edits now (409); ``code`` names the V-xx rule."""
+    """The revision or plan does not allow edits now (409); ``code`` names the V-xx rule.
 
-    def __init__(self, message: str, code: str | None = None) -> None:
+    ``extensions`` are extra problem details members (the lease ``holder``).
+    """
+
+    def __init__(
+        self, message: str, code: str | None = None, extensions: dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message)
         self.code = code
+        self.extensions = dict(extensions or {})
 
 
 class EntityInputError(ValueError):
@@ -88,20 +95,29 @@ def _check_refs(refs: CatalogRefs, layer: str, geometry: Geometry | None) -> Non
         raise EntityInputError(f"Symbol {geometry.symbol_id} is not in the active catalog.")
 
 
-def ensure_editable(db: Session, revision: Revision) -> Plan:
-    """The plan of ``revision`` if its entities may be edited now, else raise a conflict.
+def ensure_editable(db: Session, revision: Revision, user: User) -> Plan:
+    """The plan of ``revision`` if ``user`` may edit its entities now, else raise a conflict.
 
-    Single gate of every entity mutation: the edit lease check (task 054) belongs here.
+    Single gate of every content edit of a plan. Locks the plan row (``FOR UPDATE``) until
+    the caller's transaction ends, so the lease cannot change hands mid-edit. Checks the
+    plan status, that the revision is a draft and that ``user`` holds a valid edit lease
+    (``code`` ``V-12`` with ``holder`` when another user holds it, else
+    ``lease_required``).
     """
     plan = db.get(Plan, revision.plan_id)
     if plan is None:  # pragma: no cover - guaranteed by the foreign key
         raise EntityConflictError("The revision has no plan.")
+    db.refresh(plan, with_for_update=True)
     if plan.status in VALIDATED_STATUSES:
         raise EntityConflictError(V10_MESSAGE, code="V-10")
     if plan.status not in EDITABLE_STATUSES:
         raise EntityConflictError(f"A plan in status {plan.status.value} cannot be edited.")
     if revision.state != RevisionState.DRAFT.value:
         raise EntityConflictError(f"Revision {revision.number} is frozen and cannot be edited.")
+    try:
+        ensure_lease_holder(db, plan, user)
+    except LeaseConflictError as exc:
+        raise EntityConflictError(str(exc), code=exc.code, extensions=exc.extensions) from None
     return plan
 
 
@@ -182,7 +198,7 @@ def create_entities(
     editable, :class:`EntityInputError` naming the first item whose layer or symbol is not
     in the active catalog. The caller commits.
     """
-    plan = ensure_editable(db, revision)
+    plan = ensure_editable(db, revision, user)
     refs = active_catalog_refs(db)
     for index, item in enumerate(items):
         try:
@@ -217,14 +233,14 @@ def create_entities(
     return entities
 
 
-def _lock_live(db: Session, entity: Entity) -> tuple[Plan, Revision]:
+def _lock_live(db: Session, entity: Entity, user: User) -> tuple[Plan, Revision]:
     """Check the entity is live and editable, then lock its row for the rest of the edit."""
     if entity.deleted_at is not None:
         raise EntityGoneError(f"entity {entity.id} is deleted")
     revision = db.get(Revision, entity.revision_id)
     if revision is None:  # pragma: no cover - guaranteed by the foreign key
         raise EntityGoneError(f"entity {entity.id} has no revision")
-    plan = ensure_editable(db, revision)
+    plan = ensure_editable(db, revision, user)
     db.refresh(entity, with_for_update=True)
     if entity.deleted_at is not None:
         raise EntityGoneError(f"entity {entity.id} is deleted")
@@ -244,7 +260,7 @@ def update_entity(
     :class:`EntityGoneError`, :class:`EntityConflictError` or :class:`EntityInputError`
     (a geometry of another kind, or a layer or symbol not in the active catalog).
     """
-    plan, _ = _lock_live(db, entity)
+    plan, _ = _lock_live(db, entity, user)
     if patch.geometry is not None and patch.geometry.kind != entity.type:
         raise EntityInputError(f"geometry.kind must stay {entity.type}.")
     _check_refs(active_catalog_refs(db), patch.layer or entity.layer, patch.geometry)
@@ -281,7 +297,7 @@ def delete_entity(
     client_ip: str | None = None,
 ) -> Entity:
     """Soft-delete ``entity`` (``deleted_at``) and append ``entity.deleted`` with ``before``."""
-    plan, _ = _lock_live(db, entity)
+    plan, _ = _lock_live(db, entity, user)
     before = entity_state(entity)
     entity.deleted_at = entity.updated_at = utc_now()
     db.flush()

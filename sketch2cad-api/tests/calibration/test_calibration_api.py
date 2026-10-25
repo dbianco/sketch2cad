@@ -138,6 +138,12 @@ def case_id(client: TestClient) -> str:
     return response.json()["id"]
 
 
+def acquire_lease(client: TestClient, plan_id: object) -> None:
+    """Take the plan's edit lease, required for every content edit (task 054)."""
+    response = client.post(f"{API_V1_PREFIX}/plans/{plan_id}/lease")
+    assert response.status_code == 200, response.text
+
+
 def make_plan(
     client: TestClient,
     factory: sessionmaker[Session],
@@ -163,6 +169,7 @@ def make_plan(
     body = {"title": "Plano general", "primary_source_id": source_id, "source_mode": source_mode}
     response = client.post(f"{CASES_URL}/{case_id}/plans", json=body)
     assert response.status_code == 201, response.text
+    acquire_lease(client, response.json()["id"])
     return response.json()["id"]
 
 

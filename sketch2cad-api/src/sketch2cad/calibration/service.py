@@ -48,6 +48,7 @@ from sketch2cad.geometry import (
     scan_dpi_scale,
     scan_segment_scale,
 )
+from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
 from sketch2cad.plans.service import active_calibration
 
 logger = logging.getLogger(__name__)
@@ -88,14 +89,18 @@ class CalibrationInputError(ValueError):
 
 
 class CalibrationConflictError(Exception):
-    """The plan cannot be calibrated now: wrong status or it has entities (409).
+    """The plan cannot be calibrated now: wrong status, it has entities or no lease (409).
 
-    ``code`` is the PRD validation rule (``V-08``) when one applies.
+    ``code`` is the PRD validation rule (``V-08``, ``V-12``) or ``lease_required`` when one
+    applies; ``extensions`` are extra problem details members (the lease ``holder``).
     """
 
-    def __init__(self, message: str, code: str | None = None) -> None:
+    def __init__(
+        self, message: str, code: str | None = None, extensions: dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message)
         self.code = code
+        self.extensions = dict(extensions or {})
 
 
 class MetricRejectedError(ValueError):
@@ -377,7 +382,8 @@ def accept(
 ) -> Calibration:
     """Persist the recomputed proposal as the plan's only active calibration.
 
-    Locks the plan row, rejects a plan that cannot be calibrated (409) and ``as_metric``
+    Locks the plan row, rejects a plan that cannot be calibrated or whose edit lease
+    ``user`` does not hold (409) and ``as_metric``
     when it is not allowed (422), deactivates the previous calibration, moves the plan from
     ``CALIBRATION_PENDING`` to ``EDITING`` and appends ``calibration.proposed`` and
     ``calibration.accepted``. Queues the ``rectify`` job (idempotent on the calibration
@@ -385,6 +391,10 @@ def accept(
     """
     db.refresh(plan, with_for_update=True)
     proposal = propose(db, plan, data, tolerances)
+    try:
+        ensure_lease_holder(db, plan, user)
+    except LeaseConflictError as exc:
+        raise CalibrationConflictError(str(exc), exc.code, exc.extensions) from None
     if as_metric:
         _ensure_metric_allowed(plan, proposal)
     previous = active_calibration(db, plan)

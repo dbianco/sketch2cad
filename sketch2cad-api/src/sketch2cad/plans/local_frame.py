@@ -46,12 +46,16 @@ _GEOMETRY: TypeAdapter[Geometry] = TypeAdapter(Geometry)
 class LocalFrameConflictError(Exception):
     """The frame cannot be set now: no active calibration or the plan is not editable (409).
 
-    ``code`` is the PRD validation rule (``V-10``) when one applies.
+    ``code`` is the PRD validation rule (``V-10``, ``V-12``) or ``lease_required`` when
+    one applies; ``extensions`` are extra problem details members (the lease ``holder``).
     """
 
-    def __init__(self, message: str, code: str | None = None) -> None:
+    def __init__(
+        self, message: str, code: str | None = None, extensions: dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message)
         self.code = code
+        self.extensions = dict(extensions or {})
 
 
 @dataclass(frozen=True)
@@ -98,8 +102,9 @@ def set_local_frame(
     """Store ``frame`` on the active calibration and move the draft entities with it.
 
     Locks the plan row. Raises :class:`LocalFrameConflictError` before writing anything
-    when the plan has no active calibration or its current revision is not editable
-    (same rule as entity edits). Runs in the caller's transaction; the caller commits.
+    when the plan has no active calibration or its current revision is not editable by
+    ``user`` (same rule as entity edits, edit lease included). Runs in the caller's
+    transaction; the caller commits.
     """
     db.refresh(plan, with_for_update=True)
     calibration = active_calibration(db, plan)
@@ -109,9 +114,9 @@ def set_local_frame(
     if revision is None:  # pragma: no cover - every plan is created with revision 1
         raise LocalFrameConflictError("The plan has no current revision.")
     try:
-        ensure_editable(db, revision)
+        ensure_editable(db, revision, user)
     except EntityConflictError as exc:
-        raise LocalFrameConflictError(str(exc), code=exc.code) from None
+        raise LocalFrameConflictError(str(exc), exc.code, exc.extensions) from None
     stored = calibration.local_frame
     previous = None if stored is None else LocalFrame.from_json(stored)
     if previous == frame:

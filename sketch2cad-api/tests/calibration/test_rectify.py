@@ -204,6 +204,12 @@ def client(storage_root: Path, factory: sessionmaker[Session]) -> Iterator[TestC
         yield client
 
 
+def acquire_lease(client: TestClient, plan_id: object) -> None:
+    """Take the plan's edit lease, required for every content edit (task 054)."""
+    response = client.post(f"{API_V1_PREFIX}/plans/{plan_id}/lease")
+    assert response.status_code == 200, response.text
+
+
 @pytest.fixture
 def plan_id(client: TestClient) -> str:
     case = {
@@ -227,6 +233,7 @@ def plan_id(client: TestClient) -> str:
     plan = {"title": "Plano general", "primary_source_id": response.json()["id"]}
     response = client.post(f"{CASES_URL}/{case_id}/plans", json=plan)
     assert response.status_code == 201, response.text
+    acquire_lease(client, response.json()["id"])
     return response.json()["id"]
 
 
