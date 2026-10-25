@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Calibración</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+</style>
+</helmet>
+<div style="width:1200px;height:720px;box-sizing:border-box;background:#F4F6F8;color:#14202B;display:flex;flex-direction:column">
+  <div style="height:56px;background:#14202B;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 32px">
+    <div style="font-weight:700;font-size:18px">Sketch2CAD</div>
+    <div style="font-size:14px;color:#C9D3DC">EXP-2026-0003 · Plano 1 · Calibración</div>
+  </div>
+  <div style="display:flex;flex-grow:1">
+    <div style="flex:1 1 0;padding:24px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:14px;color:#4A5966">Marca las 4 esquinas del patrón de referencia en la fotografía.</div>
+      <div style="flex-grow:1;background:#fff;border:1px solid #D5DCE3;border-radius:8px;position:relative;overflow:hidden">
+        <svg viewBox="0 0 700 520" width="100%" height="100%" role="img" aria-label="Fotografía del croquis con cuatro puntos marcados en las esquinas del patrón">
+          <polygon points="130,70 580,110 560,440 100,400" fill="#EEF2F5" stroke="#7C8B99" stroke-width="2"/>
+          <polyline points="180,150 480,170 470,330" fill="none" stroke="#14202B" stroke-width="3"/>
+          <g fill="#B3261E" stroke="#fff" stroke-width="2">
+            <circle cx="130" cy="70" r="9"/><circle cx="580" cy="110" r="9"/><circle cx="560" cy="440" r="9"/><circle cx="100" cy="400" r="9"/>
+          </g>
+          <g font-size="14" fill="#14202B" font-weight="700"><text x="142" y="62">1</text><text x="592" y="102">2</text><text x="572" y="460">3</text><text x="84" y="424">4</text></g>
+        </svg>
+      </div>
+    </div>
+    <div style="width:340px;background:#fff;border-left:1px solid #D5DCE3;padding:24px;display:flex;flex-direction:column;gap:18px">
+      <h2 style="margin:0;font-size:20px">Calibración</h2>
+      <label style="font-size:13px;display:flex;flex-direction:column;gap:4px">Modo de fuente
+        <select style="height:40px;border:1px solid #9AA8B5;border-radius:6px;padding:0 8px;font-size:14px"><option>Croquis esquemático</option><option>Dibujo a escala</option></select>
+      </label>
+      <label style="font-size:13px;display:flex;flex-direction:column;gap:4px">Método
+        <select style="height:40px;border:1px solid #9AA8B5;border-radius:6px;padding:0 8px;font-size:14px"><option>Fotografía, 4 puntos</option><option>Escaneo con DPI</option><option>Escaneo con segmento</option><option>Sin calibración</option></select>
+      </label>
+      <label style="font-size:13px;display:flex;flex-direction:column;gap:4px">Lado del patrón (mm)
+        <input value="210,0" style="height:40px;border:1px solid #9AA8B5;border-radius:6px;padding:0 12px;font-size:14px">
+      </label>
+      <div style="background:#F4F6F8;border-radius:8px;padding:14px;font-size:14px;line-height:1.6">
+        <div>Error de reproyección máximo: <b>0,6 mm</b></div>
+        <div>Error RMS: <b>0,3 mm</b></div>
+        <div style="color:#145A32;font-weight:600">Dentro del límite de 1,0 mm</div>
+      </div>
+      <div style="font-size:13px;color:#4A5966;line-height:1.45">La calibración no se puede cambiar cuando el plano ya tiene entidades.</div>
+      <div style="display:flex;gap:10px;margin-top:auto">
+        <button style="height:44px;padding:0 16px;background:#fff;color:#14202B;border:1px solid #7C8B99;border-radius:6px;font-size:15px">Repetir puntos</button>
+        <button style="height:44px;padding:0 16px;background:#0B6E8A;color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

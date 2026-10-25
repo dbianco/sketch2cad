@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Carga y control de calidad</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+</style>
+</helmet>
+<div style="width:1200px;height:720px;box-sizing:border-box;background:#F4F6F8;color:#14202B;display:flex;flex-direction:column">
+  <div style="height:56px;background:#14202B;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 32px">
+    <div style="font-weight:700;font-size:18px">Sketch2CAD</div>
+    <div style="font-size:14px;color:#C9D3DC">EXP-2026-0003 · Fuentes</div>
+  </div>
+  <div style="padding:32px;display:flex;gap:32px;flex-grow:1">
+    <div style="flex:1 1 0;display:flex;flex-direction:column;gap:20px">
+      <h1 style="margin:0;font-size:26px">Cargar el croquis</h1>
+      <div style="height:180px;border:2px dashed #7C8B99;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px">
+        <div style="font-size:16px;font-weight:600">Arrastra un archivo o elígelo</div>
+        <div style="font-size:13px;color:#4A5966">JPEG, PNG, TIFF o PDF de una página · máximo 50 MB</div>
+        <button style="height:44px;padding:0 20px;background:#0B6E8A;color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600">Elegir archivo</button>
+      </div>
+      <div style="background:#fff;border:1px solid #D5DCE3;border-radius:8px;padding:16px;font-size:14px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-weight:600">croquis_cruce_01.jpg</div>
+        <div style="color:#4A5966">4032 × 3024 px · 3,2 MB</div>
+        <div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#14202B;word-break:break-all">SHA-256 9f3a…c71e (servidor) = 9f3a…c71e (cliente)</div>
+        <div style="color:#145A32;font-weight:600">Hash verificado. Original guardado sin cambios.</div>
+      </div>
+    </div>
+    <div style="flex:1 1 0;display:flex;flex-direction:column;gap:20px">
+      <h2 style="margin:0;font-size:22px">Control de calidad</h2>
+      <div style="background:#fff;border:1px solid #D5DCE3;border-radius:8px;padding:8px 16px;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #E1E6EB;font-size:14px"><span>Resolución (lado corto)</span><span style="color:#145A32;font-weight:600">● Verde · 3024 px</span></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #E1E6EB;font-size:14px"><span>Nitidez (varianza del Laplaciano)</span><span style="color:#7A3E00;font-weight:600">● Ámbar · 62</span></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:14px"><span>Contraste</span><span style="color:#145A32;font-weight:600">● Verde</span></div>
+      </div>
+      <div style="background:#FFF4DC;border:1px solid #E5B85C;border-radius:8px;padding:14px 16px;font-size:14px;line-height:1.45">Nitidez baja: las sugerencias de líneas pueden fallar. Las advertencias no te impiden continuar.</div>
+      <div style="display:flex;gap:12px;margin-top:auto">
+        <button style="height:44px;padding:0 20px;background:#fff;color:#14202B;border:1px solid #7C8B99;border-radius:6px;font-size:15px">Cargar otra fuente</button>
+        <button style="height:44px;padding:0 20px;background:#0B6E8A;color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600">Continuar a calibración</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

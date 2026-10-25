@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Exportación y paquete</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+</style>
+</helmet>
+<div style="width:1200px;height:720px;box-sizing:border-box;background:#F4F6F8;color:#14202B;display:flex;flex-direction:column">
+  <div style="height:56px;background:#14202B;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 32px">
+    <div style="font-weight:700;font-size:18px">Sketch2CAD</div>
+    <div style="font-size:14px;color:#C9D3DC">EXP-2026-0003 · Plano 1 · Revisión 2 validada</div>
+  </div>
+  <div style="padding:32px;display:flex;gap:32px;flex-grow:1">
+    <div style="flex:3 1 0;display:flex;flex-direction:column;gap:20px">
+      <h1 style="margin:0;font-size:26px">Paquete final</h1>
+      <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #D5DCE3;font-size:14px">
+        <thead><tr style="text-align:left;background:#E8EDF1"><th style="padding:12px 16px">Artefacto</th><th style="padding:12px 16px">SHA-256</th><th style="padding:12px 16px">Estado</th></tr></thead>
+        <tbody>
+          <tr style="border-top:1px solid #D5DCE3"><td style="padding:12px 16px">plano.dxf</td><td style="padding:12px 16px;font-family:ui-monospace,Menlo,monospace;font-size:12px">a41c…09be</td><td style="padding:12px 16px;color:#145A32">audit() sin errores</td></tr>
+          <tr style="border-top:1px solid #D5DCE3"><td style="padding:12px 16px">plano_A3_1-100.pdf</td><td style="padding:12px 16px;font-family:ui-monospace,Menlo,monospace;font-size:12px">77d2…e1a0</td><td style="padding:12px 16px;color:#145A32">Escala 1:100</td></tr>
+          <tr style="border-top:1px solid #D5DCE3"><td style="padding:12px 16px">reporte_auditoria.pdf</td><td style="padding:12px 16px;font-family:ui-monospace,Menlo,monospace;font-size:12px">03fb…5c44</td><td style="padding:12px 16px;color:#145A32">Listo</td></tr>
+          <tr style="border-top:1px solid #D5DCE3"><td style="padding:12px 16px">manifest.json + firma</td><td style="padding:12px 16px;font-family:ui-monospace,Menlo,monospace;font-size:12px">c9e8…2d71</td><td style="padding:12px 16px;color:#145A32">Firmado Ed25519</td></tr>
+        </tbody>
+      </table>
+      <div style="background:#FFF4DC;border:1px solid #E5B85C;border-radius:8px;padding:14px 16px;font-size:14px;line-height:1.5">Borrador técnico, no apto como prueba hasta contar con revisión jurídica. La firma prueba integridad y origen técnico, no autoría pericial.</div>
+    </div>
+    <div style="flex:2 1 0;display:flex;flex-direction:column;gap:16px">
+      <h2 style="margin:0;font-size:20px">Descarga</h2>
+      <div style="font-size:14px;line-height:1.5;color:#33414E">Revisa el contenido y los hashes antes de confirmar. La descarga queda registrada en la auditoría.</div>
+      <button style="height:44px;background:#0B6E8A;color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600">Descargar ZIP del paquete</button>
+      <button style="height:44px;background:#fff;color:#14202B;border:1px solid #7C8B99;border-radius:6px;font-size:15px">Exportar borrador con marca DRAFT</button>
+      <div style="background:#fff;border:1px solid #D5DCE3;border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.5"><b>Verificación independiente</b><br>Un auditor externo comprueba hashes, cadena de eventos y firma con el verificador, sin acceso al servidor.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
