@@ -1,7 +1,7 @@
 ---
 id: 001-057
 title: "Compute the initial metric status and provenance defaults"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-052, 001-050]
