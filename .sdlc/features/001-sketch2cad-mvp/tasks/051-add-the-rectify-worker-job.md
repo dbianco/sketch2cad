@@ -1,7 +1,7 @@
 ---
 id: 001-051
 title: "Add the rectify worker job"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-050]
