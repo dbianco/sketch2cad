@@ -9,7 +9,15 @@ import type { SymbolPickerStore } from "../panels/SymbolPicker";
 import type { EditorStore } from "../store/entities";
 import type { EntityId, Geometry, Point2 } from "../store/types";
 
-export type ToolId = "select" | "vertex" | "line" | "polyline" | "point" | "text" | "symbol";
+export type ToolId =
+  | "select"
+  | "vertex"
+  | "line"
+  | "polyline"
+  | "point"
+  | "text"
+  | "symbol"
+  | "frame";
 
 /** Layer reserved for the export sheet (spec 12.1): never drawn on in the editor. */
 export const SHEET_LAYER = "L_SHEET";

@@ -109,6 +109,8 @@ export interface EditorCanvasProps {
   /** Controlled layer flags; without them the layer panel keeps its own state. */
   layerFlags?: LayerFlagsByName;
   onLayerFlagsChange?: (flags: LayerFlagsByName) => void;
+  /** HTML laid over the canvas at fixed screen positions (e.g. the north arrow). */
+  overlay?: ReactNode;
 }
 
 /** A pointer event as tools receive it. */
@@ -463,6 +465,7 @@ export function EditorCanvas({
   tool,
   layerFlags: controlledFlags,
   onLayerFlagsChange,
+  overlay,
 }: EditorCanvasProps) {
   const { containerRef, width, height } = useContainerSize(fixedWidth, fixedHeight);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -697,6 +700,7 @@ export function EditorCanvas({
           </ZoomContext.Provider>
         </svg>
         {tool?.renderOverlay?.(viewport)}
+        {overlay}
       </div>
       <div className="editor-canvas-controls">
         {showImage && (

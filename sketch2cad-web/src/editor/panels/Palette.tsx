@@ -32,6 +32,7 @@ export const TOOL_BUTTONS: readonly ToolButton[] = [
   { id: "point", label: "Punto", caption: "Punto", shortcut: "O" },
   { id: "text", label: "Texto", caption: "Texto", shortcut: "T" },
   { id: "symbol", label: "Símbolo", caption: "Símbolo", shortcut: "S" },
+  { id: "frame", label: "Sistema local", caption: "Sist. local", shortcut: "F" },
 ];
 
 export const PALETTE_TEXT = {

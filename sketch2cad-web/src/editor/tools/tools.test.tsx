@@ -410,6 +410,7 @@ describe("palette", () => {
       "Punto",
       "Texto",
       "Símbolo",
+      "Sistema local",
     ]);
     for (const [index, button] of buttons.entries()) {
       expect(button.getAttribute("title")).toBe(

@@ -4,18 +4,24 @@
 //
 // Pointer: with the Select tool a press on an entity selects it and a press on the background
 // pans; drawing tools take every primary-button press, so with them the canvas pans with the
-// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S) and the active
-// tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work anywhere except
-// while typing in a field. The snap settings panel configures snapping for every tool.
+// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S, F) and the
+// active tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work anywhere
+// except while typing in a field. The snap settings panel configures snapping for every tool.
+// The plan store (plan/planStore.ts) gives the local frame: the north arrow is drawn over the
+// canvas once a plan is open, and the local frame tool's panel changes the frame.
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
+import type { ApiClient } from "../api/client";
 import { EditorCanvas, type EditorCanvasProps } from "./canvas/EditorCanvas";
+import { NorthArrow } from "./canvas/NorthArrow";
 import { Palette, isTypingTarget } from "./panels/Palette";
 import { SnapSettings, snapSettings, type SnapSettingsStore } from "./panels/SnapSettings";
 import { SymbolPicker, symbolPicker, type SymbolPickerStore } from "./panels/SymbolPicker";
+import { planStore, type PlanStore } from "./plan/planStore";
 import { editorStore, type EditorStore } from "./store/entities";
 import { createLineTool } from "./tools/LineTool";
+import { LocalFramePanel, createLocalFrameTool } from "./tools/LocalFrameTool";
 import { createPointTool, createTextTool } from "./tools/PointTextTools";
 import { createPolylineTool } from "./tools/PolylineTool";
 import { SelectionPanel, createSelectTool } from "./tools/SelectTool";
@@ -37,16 +43,20 @@ export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => E
   point: createPointTool,
   text: createTextTool,
   symbol: createSymbolTool,
+  frame: createLocalFrameTool,
 };
 
 export type EditorWorkspaceProps = Omit<
   EditorCanvasProps,
-  "store" | "tool" | "layerFlags" | "onLayerFlagsChange"
+  "store" | "tool" | "layerFlags" | "onLayerFlagsChange" | "overlay"
 > & {
   store?: StoreApi<EditorStore>;
   ui?: StoreApi<EditorUiStore>;
   snap?: StoreApi<SnapSettingsStore>;
   symbols?: StoreApi<SymbolPickerStore>;
+  plan?: StoreApi<PlanStore>;
+  /** API client of the local frame panel; the same-origin client by default. */
+  api?: ApiClient;
 };
 
 export function EditorWorkspace({
@@ -54,12 +64,16 @@ export function EditorWorkspace({
   ui = editorUi,
   snap = snapSettings,
   symbols = symbolPicker,
+  plan = planStore,
+  api,
   catalog,
   ...canvasProps
 }: EditorWorkspaceProps) {
   const { paperScale } = canvasProps;
   const activeTool = useStore(ui, (state) => state.activeTool);
   const layerFlags = useStore(ui, (state) => state.layerFlags);
+  const planOpen = useStore(plan, (state) => state.planId !== null);
+  const northDeg = useStore(plan, (state) => state.localFrame?.north_angle_deg ?? 0);
   const tool = useMemo(
     () => TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap, symbols, paperScale }),
     [activeTool, store, ui, catalog, snap, symbols, paperScale],
@@ -84,9 +98,11 @@ export function EditorWorkspace({
         tool={tool}
         layerFlags={layerFlags}
         onLayerFlagsChange={(flags) => ui.getState().setLayerFlags(flags)}
+        overlay={planOpen ? <NorthArrow northDeg={northDeg} /> : undefined}
       />
       {activeTool === "select" && <SelectionPanel store={store} ui={ui} catalog={catalog} />}
       {activeTool === "symbol" && <SymbolPicker picker={symbols} catalog={catalog} />}
+      {activeTool === "frame" && <LocalFramePanel ui={ui} store={store} plan={plan} api={api} />}
       <SnapSettings snap={snap} />
     </div>
   );
