@@ -51,7 +51,10 @@ EDIT_RESPONSES: dict[int | str, dict[str, Any]] = {
         "(``code`` ``V-10`` when validated), or the user does not hold the plan's edit "
         "lease (``code`` ``V-12`` with ``holder``, or ``lease_required``).",
     },
-    422: {"description": "Invalid body, or a layer or symbol not in the active catalog."},
+    422: {
+        "description": "Invalid body, a layer or symbol not in the active catalog, or a "
+        "``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0).",
+    },
 }
 
 ReasonQuery = Annotated[str | None, Query(min_length=1)]
@@ -98,7 +101,11 @@ def _rejected(db: Session, exc: Exception) -> ProblemError:
     if isinstance(exc, EntityConflictError):
         extensions = {**exc.extensions, **({} if exc.code is None else {"code": exc.code})}
         return ProblemError(409, HTTPStatus.CONFLICT.phrase, str(exc), extensions=extensions)
-    return ProblemError(422, HTTPStatus.UNPROCESSABLE_ENTITY.phrase, str(exc))
+    code = getattr(exc, "code", None)
+    extensions = {} if code is None else {"code": code}
+    return ProblemError(
+        422, HTTPStatus.UNPROCESSABLE_ENTITY.phrase, str(exc), extensions=extensions
+    )
 
 
 def _revision_number(db: Session, entity: Entity) -> int:

@@ -1108,7 +1108,8 @@
           "snap_endpoint",
           "snap_grid",
           "relabel",
-          "reclassify"
+          "reclassify",
+          "fix_length"
         ],
         "title": "EntityOperation",
         "type": "string"
@@ -1298,8 +1299,20 @@
       },
       "EntityPatch": {
         "additionalProperties": false,
-        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry`` or ``attributes``.",
+        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry`` or ``attributes``. ``fix_length`` (lines and\npolylines) takes only ``anchor_vertex``, ``value_m`` (metres, a number or text with\ndecimal comma or point, > 0 per V-04) and the optional adjacent ``free_vertex``; the\nserver computes the geometry (``sketch2cad.entities.ops_fix_length``).",
         "properties": {
+          "anchor_vertex": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Vertex"
+          },
           "attributes": {
             "anyOf": [
               {
@@ -1331,6 +1344,18 @@
               }
             ],
             "title": "Attributes"
+          },
+          "free_vertex": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Vertex"
           },
           "geometry": {
             "anyOf": [
@@ -1399,6 +1424,20 @@
               }
             ],
             "title": "Reason"
+          },
+          "value_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value M"
           }
         },
         "required": [
@@ -3852,7 +3891,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, or a layer or symbol not in the active catalog."
+            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0)."
           }
         },
         "summary": "Remove Entity",
@@ -3953,7 +3992,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, or a layer or symbol not in the active catalog."
+            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0)."
           }
         },
         "summary": "Patch Entity",
@@ -4859,7 +4898,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, or a layer or symbol not in the active catalog."
+            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0)."
           }
         },
         "summary": "Create Revision Entities",

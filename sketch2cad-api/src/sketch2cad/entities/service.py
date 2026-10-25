@@ -5,9 +5,11 @@ event in the caller's transaction. Events carry the entity state (:func:`entity_
 ``after`` for a creation, ``before`` and ``after`` for an edit (``after`` adds the
 ``operation``), ``before`` for a deletion. ``source`` is set once on creation and never
 changed by an edit. Every mutation also recomputes ``plan.metric_status`` in the same
-transaction (spec section 11.3, REQ-07). Entities are edited only in a ``draft`` revision
-of a plan in ``EDITING`` or ``IN_REVIEW``, by the user holding the plan's edit lease
-(CU-04).
+transaction (spec section 11.3, REQ-07). ``fix_length`` and the declared segment lengths
+it records live in :mod:`sketch2cad.entities.ops_fix_length`; any later geometry edit
+drops the declarations it breaks and updates ``metric_origin`` accordingly. Entities
+are edited only in a ``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by
+the user holding the plan's edit lease (CU-04).
 """
 
 import logging
@@ -34,7 +36,21 @@ from sketch2cad.db.models import (
     RevisionState,
     User,
 )
-from sketch2cad.entities.schemas import EntityIn, EntityPatch, Geometry, SymbolGeometry
+from sketch2cad.entities.ops_fix_length import (
+    DECLARED_SEGMENTS,
+    FixLengthError,
+    declared_origin,
+    fix_length,
+    retained_attributes,
+)
+from sketch2cad.entities.schemas import (
+    Attributes,
+    EntityIn,
+    EntityOperation,
+    EntityPatch,
+    Geometry,
+    SymbolGeometry,
+)
 from sketch2cad.geometry.metric_status import default_metric_origin
 from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
 from sketch2cad.plans.service import active_calibration, recompute_metric_status
@@ -63,7 +79,14 @@ class EntityConflictError(Exception):
 
 
 class EntityInputError(ValueError):
-    """The entity refers to something the active catalog lacks, or changes its kind (422)."""
+    """The entity refers to something the active catalog lacks, or changes its kind (422).
+
+    ``code`` names the V-xx rule when there is one (``V-04`` for a ``fix_length`` value).
+    """
+
+    def __init__(self, message: str, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class EntityGoneError(LookupError):
@@ -89,6 +112,11 @@ def active_catalog_refs(db: Session) -> CatalogRefs:
         layers = [str(layer["name"]) for layer in row.layers]
         symbols = [str(symbol["symbol_id"]) for symbol in row.symbols]
     return CatalogRefs(frozenset(layers) - EXPORT_ONLY_LAYERS, frozenset(symbols))
+
+
+def _check_attributes(attributes: Attributes | None) -> None:
+    if attributes is not None and DECLARED_SEGMENTS in attributes:
+        raise EntityInputError(f"attributes.{DECLARED_SEGMENTS} is set only by fix_length.")
 
 
 def _check_refs(refs: CatalogRefs, layer: str, geometry: Geometry | None) -> None:
@@ -213,6 +241,7 @@ def create_entities(
     for index, item in enumerate(items):
         try:
             _check_refs(refs, item.layer, item.geometry)
+            _check_attributes(item.attributes)
         except EntityInputError as exc:
             raise EntityInputError(f"entities[{index}]: {exc}") from None
     calibration = active_calibration(db, plan)
@@ -267,21 +296,39 @@ def update_entity(
 ) -> Entity:
     """Apply ``patch`` and append ``entity.updated`` with ``operation`` and ``reason``.
 
-    ``source``, ``review_status`` and ``metric_origin`` are left unchanged. Raises
+    ``source`` and ``review_status`` are left unchanged; ``metric_origin`` changes only
+    with the declared segment lengths (:func:`_apply_declarations`). Raises
     :class:`EntityGoneError`, :class:`EntityConflictError` or :class:`EntityInputError`
-    (a geometry of another kind, or a layer or symbol not in the active catalog).
+    (a geometry of another kind, a layer or symbol not in the active catalog, a
+    ``fix_length`` that cannot be applied, ``code`` ``V-04`` for its value).
     """
     plan, _ = _lock_live(db, entity, user)
     if patch.geometry is not None and patch.geometry.kind != entity.type:
         raise EntityInputError(f"geometry.kind must stay {entity.type}.")
     _check_refs(active_catalog_refs(db), patch.layer or entity.layer, patch.geometry)
+    _check_attributes(patch.attributes)
     before = entity_state(entity)
+    old_geometry, old_attributes = entity.geometry, entity.attributes
+    if patch.operation is EntityOperation.FIX_LENGTH:
+        assert patch.anchor_vertex is not None and patch.value_m is not None  # noqa: S101
+        try:
+            fixed = fix_length(
+                entity.geometry,
+                entity.attributes,
+                patch.anchor_vertex,
+                patch.free_vertex,
+                patch.value_m,
+            )
+        except FixLengthError as exc:
+            raise EntityInputError(str(exc), code=exc.code) from None
+        entity.geometry, entity.attributes = fixed.geometry, fixed.attributes
     if patch.geometry is not None:
         entity.geometry = patch.geometry.model_dump(mode="json")
     if patch.attributes is not None:
-        entity.attributes = dict(patch.attributes)
+        entity.attributes = _keep_declarations(patch.attributes, old_attributes)
     if patch.layer is not None:
         entity.layer = patch.layer
+    _apply_declarations(db, plan, entity, old_geometry, patch.operation)
     entity.updated_at = utc_now()
     db.flush()
     after = {**entity_state(entity), "operation": patch.operation.value}
@@ -299,6 +346,45 @@ def update_entity(
     recompute_metric_status(db, plan)
     logger.info("User %s applied %s to entity %s", user.id, patch.operation.value, entity.id)
     return entity
+
+
+def _keep_declarations(attributes: Attributes, current: dict[str, Any]) -> dict[str, Any]:
+    """New ``attributes`` of a relabel; the server-managed declarations are carried over."""
+    result: dict[str, Any] = dict(attributes)
+    if DECLARED_SEGMENTS in current:
+        result[DECLARED_SEGMENTS] = current[DECLARED_SEGMENTS]
+    return result
+
+
+def _apply_declarations(
+    db: Session,
+    plan: Plan,
+    entity: Entity,
+    old_geometry: dict[str, Any],
+    operation: EntityOperation,
+) -> None:
+    """Drop declarations a geometry edit broke and derive ``metric_origin`` from the rest.
+
+    Runs after ``fix_length`` and after any edit that changed a geometry with
+    declarations: every segment declared gives ``declared_dimension``, only some give
+    ``trace_only`` (spec section 8.2); none left gives the hand-drawn default
+    (:func:`initial_metric_origin`) for a manual entity and ``trace_only`` otherwise.
+    """
+    if operation is not EntityOperation.FIX_LENGTH:
+        if entity.geometry == old_geometry:
+            return
+        attributes = retained_attributes(old_geometry, entity.geometry, entity.attributes)
+        if attributes == entity.attributes:
+            return
+        entity.attributes = attributes
+    origin = declared_origin(entity.geometry, entity.attributes)
+    if origin is None:
+        if entity.source.get("method") == "manual":
+            calibration = active_calibration(db, plan)
+            origin = initial_metric_origin(plan, calibration, entity.type).value
+        else:
+            origin = MetricOrigin.TRACE_ONLY.value
+    entity.metric_origin = origin
 
 
 def delete_entity(

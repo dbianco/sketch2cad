@@ -47,6 +47,7 @@ class EntityOperation(StrEnum):
     SNAP_GRID = "snap_grid"
     RELABEL = "relabel"
     RECLASSIFY = "reclassify"
+    FIX_LENGTH = "fix_length"
 
 
 GEOMETRY_OPERATIONS = frozenset(
@@ -165,17 +166,31 @@ class EntityPatch(_Strict):
     """An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.
 
     ``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs
-    ``layer``; ``relabel`` needs ``geometry`` or ``attributes``.
+    ``layer``; ``relabel`` needs ``geometry`` or ``attributes``. ``fix_length`` (lines and
+    polylines) takes only ``anchor_vertex``, ``value_m`` (metres, a number or text with
+    decimal comma or point, > 0 per V-04) and the optional adjacent ``free_vertex``; the
+    server computes the geometry (``sketch2cad.entities.ops_fix_length``).
     """
 
     operation: EntityOperation
     geometry: Geometry | None = None
     attributes: Attributes | None = None
     layer: LayerName | None = None
+    anchor_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
+    free_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
+    value_m: Number | StrictStr | None = None
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
 
     @model_validator(mode="after")
     def _operation_has_its_fields(self) -> "EntityPatch":
+        fix_fields = (self.anchor_vertex, self.free_vertex, self.value_m)
+        if self.operation is EntityOperation.FIX_LENGTH:
+            if self.anchor_vertex is None or self.value_m is None:
+                raise ValueError("fix_length needs anchor_vertex and value_m")
+            if (self.geometry, self.attributes, self.layer) != (None, None, None):
+                raise ValueError("fix_length takes no geometry, attributes or layer")
+        elif any(field is not None for field in fix_fields):
+            raise ValueError("anchor_vertex, free_vertex and value_m are for fix_length only")
         if self.operation in GEOMETRY_OPERATIONS and self.geometry is None:
             raise ValueError(f"{self.operation.value} needs geometry")
         if self.operation is EntityOperation.RECLASSIFY and self.layer is None:
