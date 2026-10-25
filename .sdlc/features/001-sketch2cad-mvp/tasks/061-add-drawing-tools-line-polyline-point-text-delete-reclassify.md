@@ -1,7 +1,7 @@
 ---
 id: 001-061
 title: "Add drawing tools: line, polyline, point, text, delete, reclassify"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-060]
