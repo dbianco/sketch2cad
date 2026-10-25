@@ -1,0 +1,19 @@
+"""Declarative base shared by every ORM model."""
+
+from sqlalchemy import MetaData
+from sqlalchemy.orm import DeclarativeBase
+
+NAMING_CONVENTION: dict[str, str] = {
+    "pk": "pk_%(table_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_N_name)s_%(referred_table_name)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+    "ix": "ix_%(table_name)s_%(column_0_N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+}
+"""Deterministic constraint names so Alembic migrations can reference them."""
+
+
+class Base(DeclarativeBase):
+    """Base class for ORM models; its metadata applies ``NAMING_CONVENTION``."""
+
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
