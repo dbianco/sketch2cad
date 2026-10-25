@@ -27,7 +27,6 @@ from sketch2cad.db.models import (
     Calibration,
     CalibrationMethod,
     Entity,
-    MetricStatus,
     Plan,
     PlanStatus,
     Revision,
@@ -49,7 +48,7 @@ from sketch2cad.geometry import (
     scan_segment_scale,
 )
 from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
-from sketch2cad.plans.service import active_calibration
+from sketch2cad.plans.service import active_calibration, recompute_metric_status
 
 logger = logging.getLogger(__name__)
 
@@ -357,20 +356,6 @@ def _ensure_metric_allowed(plan: Plan, proposal: Proposal) -> None:
         raise MetricRejectedError("A metric calibration of a scaled_drawing needs paper_scale.")
 
 
-def metric_status_for(plan: Plan, method: CalibrationMethod, as_metric: bool) -> MetricStatus:
-    """Metric status of a plan right after acceptance, when it has no entities yet.
-
-    ``none`` leaves it ``non_metric``. It is ``metric`` only for a ``scaled_drawing`` whose
-    calibration is accepted as metric: in ``schematic_sketch`` the metric truth comes from
-    dimensions (spec section 11.3), so any other accepted calibration is ``approximate``.
-    """
-    if method is CalibrationMethod.NONE:
-        return MetricStatus.NON_METRIC
-    if as_metric and plan.source_mode is SourceMode.SCALED_DRAWING:
-        return MetricStatus.METRIC
-    return MetricStatus.APPROXIMATE
-
-
 def accept(
     db: Session,
     plan: Plan,
@@ -415,8 +400,7 @@ def accept(
     before = {"status": plan.status.value, "metric_status": plan.metric_status.value}
     if plan.status is PlanStatus.CALIBRATION_PENDING:
         plan.status = PlanStatus.EDITING
-    plan.metric_status = metric_status_for(plan, proposal.method, as_metric)
-    db.flush()
+    recompute_metric_status(db, plan)
     db.refresh(calibration)
     _append(
         db,

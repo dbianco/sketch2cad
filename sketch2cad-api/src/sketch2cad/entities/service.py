@@ -4,8 +4,10 @@ Every mutation appends its ``entity.created``, ``entity.updated`` or ``entity.de
 event in the caller's transaction. Events carry the entity state (:func:`entity_state`):
 ``after`` for a creation, ``before`` and ``after`` for an edit (``after`` adds the
 ``operation``), ``before`` for a deletion. ``source`` is set once on creation and never
-changed by an edit. Entities are edited only in a ``draft`` revision of a plan in
-``EDITING`` or ``IN_REVIEW``, by the user holding the plan's edit lease (CU-04).
+changed by an edit. Every mutation also recomputes ``plan.metric_status`` in the same
+transaction (spec section 11.3, REQ-07). Entities are edited only in a ``draft`` revision
+of a plan in ``EDITING`` or ``IN_REVIEW``, by the user holding the plan's edit lease
+(CU-04).
 """
 
 import logging
@@ -21,6 +23,7 @@ from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.auth.lockout import utc_now
 from sketch2cad.catalog import default_catalog
 from sketch2cad.db.models import (
+    Calibration,
     Catalog,
     Entity,
     MetricOrigin,
@@ -29,12 +32,12 @@ from sketch2cad.db.models import (
     ReviewStatus,
     Revision,
     RevisionState,
-    SourceMode,
     User,
 )
 from sketch2cad.entities.schemas import EntityIn, EntityPatch, Geometry, SymbolGeometry
+from sketch2cad.geometry.metric_status import default_metric_origin
 from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
-from sketch2cad.plans.service import active_calibration
+from sketch2cad.plans.service import active_calibration, recompute_metric_status
 
 logger = logging.getLogger(__name__)
 
@@ -145,17 +148,24 @@ def list_entities(db: Session, revision: Revision) -> list[Entity]:
     return list(db.scalars(query.order_by(Entity.id)))
 
 
-def initial_metric_origin(db: Session, plan: Plan) -> MetricOrigin:
+def initial_metric_origin(
+    plan: Plan, calibration: Calibration | None, entity_type: str
+) -> MetricOrigin:
     """``scaled_drawing`` for hand-drawn entities of a metric scaled drawing, else ``none``.
 
     Spec section 11.3: in ``scaled_drawing`` with a calibration accepted as metric, entities
     drawn by hand are ``scaled_drawing``; otherwise a hand-placed entity without a
-    dimension counts as ``none``.
+    dimension counts as ``none`` (:func:`default_metric_origin`). ``calibration`` is the
+    plan's active calibration.
     """
-    calibration = active_calibration(db, plan)
-    if plan.source_mode is SourceMode.SCALED_DRAWING and calibration and calibration.as_metric:
-        return MetricOrigin.SCALED_DRAWING
-    return MetricOrigin.NONE
+    return MetricOrigin(
+        default_metric_origin(
+            plan.source_mode.value,
+            None if calibration is None else calibration.method,
+            calibration is not None and calibration.as_metric,
+            entity_type,
+        )
+    )
 
 
 def _record(
@@ -205,7 +215,7 @@ def create_entities(
             _check_refs(refs, item.layer, item.geometry)
         except EntityInputError as exc:
             raise EntityInputError(f"entities[{index}]: {exc}") from None
-    origin = initial_metric_origin(db, plan).value
+    calibration = active_calibration(db, plan)
     now = utc_now()
     entities = [
         Entity(
@@ -217,7 +227,7 @@ def create_entities(
             attributes=dict(item.attributes),
             source={"method": "manual", "job_id": None, "parent_entity_id": None},
             review_status=ReviewStatus.ACCEPTED.value,
-            metric_origin=origin,
+            metric_origin=initial_metric_origin(plan, calibration, item.type.value).value,
             created_by=user.id,
             updated_at=now,
         )
@@ -229,6 +239,7 @@ def create_entities(
         _record(
             db, plan, entity, user, EventKind.ENTITY_CREATED, client_ip, after=entity_state(entity)
         )
+    recompute_metric_status(db, plan)
     logger.info("User %s created %d entities in revision %s", user.id, len(entities), revision.id)
     return entities
 
@@ -285,6 +296,7 @@ def update_entity(
         after=after,
         reason=patch.reason,
     )
+    recompute_metric_status(db, plan)
     logger.info("User %s applied %s to entity %s", user.id, patch.operation.value, entity.id)
     return entity
 
@@ -304,5 +316,6 @@ def delete_entity(
     _record(
         db, plan, entity, user, EventKind.ENTITY_DELETED, client_ip, before=before, reason=reason
     )
+    recompute_metric_status(db, plan)
     logger.info("User %s deleted entity %s", user.id, entity.id)
     return entity

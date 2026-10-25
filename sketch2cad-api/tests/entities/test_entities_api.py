@@ -418,6 +418,39 @@ def test_hand_drawn_entities_of_a_metric_scaled_drawing_are_scaled_drawing(
     assert entity["metric_origin"] == "scaled_drawing"
 
 
+def plan_metric_status(factory: sessionmaker[Session], plan_id: uuid.UUID) -> str:
+    with factory() as db:
+        plan = db.get(Plan, plan_id)
+        assert plan is not None
+        return plan.metric_status.value
+
+
+def test_entity_changes_recompute_the_plan_metric_status(
+    client: TestClient, revision_id: str, plan: Plan, owner: User, factory: sessionmaker[Session]
+) -> None:
+    with factory() as db:
+        db.add(Calibration(plan_id=plan.id, method="scan_dpi", accepted_by=owner.id))
+        db.commit()
+    wall = create_one(client, revision_id, entity_body(POLYLINE))
+    assert (wall["metric_origin"], plan_metric_status(factory, plan.id)) == ("none", "approximate")
+    with factory() as db:
+        row = db.get(Entity, uuid.UUID(wall["id"]))
+        assert row is not None
+        row.metric_origin = "declared_dimension"
+        db.commit()
+
+    door = create_one(client, revision_id, entity_body(POLYLINE, layer="L_ACCESS"))
+    assert plan_metric_status(factory, plan.id) == "approximate"
+    relabel = {"operation": "reclassify", "layer": "L_ANNOTATIONS"}
+    assert patch(client, door["id"], **relabel).status_code == 200
+    assert plan_metric_status(factory, plan.id) == "metric"
+
+    gate = create_one(client, revision_id, entity_body(POLYLINE, layer="L_ACCESS"))
+    assert plan_metric_status(factory, plan.id) == "approximate"
+    assert client.delete(f"{ENTITIES_URL}/{gate['id']}").status_code == 200
+    assert plan_metric_status(factory, plan.id) == "metric"
+
+
 @pytest.mark.parametrize(
     "item",
     [

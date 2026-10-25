@@ -6,6 +6,10 @@ the system transition on creation (spec section 9.2), so no plan is ever left in
 and appends ``plan.created`` in the caller's transaction. It enqueues no job:
 ``suggest_lines`` is enqueued only when the calibration is accepted or ``non_metric`` is
 chosen.
+
+:func:`recompute_metric_status` refreshes ``plan.metric_status`` from the active
+calibration and the live entities of the current revision (spec section 11.3); callers run
+it in the same transaction as every change that can alter it.
 """
 
 import logging
@@ -19,6 +23,8 @@ from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.db.models import (
     Calibration,
     CaseFile,
+    Entity,
+    MetricStatus,
     Plan,
     PlanStatus,
     Revision,
@@ -26,6 +32,11 @@ from sketch2cad.db.models import (
     Source,
     SourceMode,
     User,
+)
+from sketch2cad.geometry.metric_status import (
+    MetricEntity,
+    MetricStatusResult,
+    compute_metric_status,
 )
 
 logger = logging.getLogger(__name__)
@@ -123,3 +134,42 @@ def current_revision(db: Session, plan: Plan) -> Revision | None:
     if plan.current_revision_id is None:
         return None
     return db.get(Revision, plan.current_revision_id)
+
+
+def metric_status_of(db: Session, plan: Plan) -> MetricStatusResult:
+    """Metric status of ``plan`` from its active calibration and current live entities."""
+    calibration = active_calibration(db, plan)
+    entities: list[MetricEntity] = []
+    if plan.current_revision_id is not None:
+        query = select(Entity).where(
+            Entity.revision_id == plan.current_revision_id, Entity.deleted_at.is_(None)
+        )
+        entities = [
+            MetricEntity(
+                id=str(entity.id),
+                type=entity.type,
+                layer=entity.layer,
+                metric_origin=entity.metric_origin,
+                references_evidence=entity.evidence_id is not None,
+            )
+            for entity in db.scalars(query.order_by(Entity.id))
+        ]
+    return compute_metric_status(
+        plan.source_mode.value,
+        None if calibration is None else calibration.method,
+        calibration is not None and calibration.as_metric,
+        entities,
+    )
+
+
+def recompute_metric_status(db: Session, plan: Plan) -> MetricStatusResult:
+    """Store the metric status of ``plan`` in ``plan.metric_status`` and return it.
+
+    Appends no event. Runs in the caller's transaction (after its pending writes are
+    flushed); the caller commits.
+    """
+    db.flush()
+    result = metric_status_of(db, plan)
+    plan.metric_status = MetricStatus(result.status)
+    db.flush()
+    return result
