@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     """Laplacian variance below which QC is red (``qc.min_laplacian_var_red``)."""
     QC_MIN_CONTRAST_AMBER: float = Field(default=60.0, gt=0)
     """Gray-level spread p95 - p5 below which QC is amber (``qc.min_contrast_amber``)."""
+    CALIBRATION_MAX_REPROJECTION_ERROR_MM: float = Field(default=1.0, gt=0)
+    """Largest reprojection error accepted as metric (``calibration.max_reprojection_error_mm``)."""
+    CALIBRATION_MAX_SCALE_DISCREPANCY_PCT: float = Field(default=1.0, gt=0)
+    """Largest scale discrepancy within tolerance (``calibration.max_scale_discrepancy_pct``)."""
 
 
 def get_settings() -> Settings:

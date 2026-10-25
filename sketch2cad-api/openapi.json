@@ -1,6 +1,146 @@
 {
   "components": {
     "schemas": {
+      "CalibrationAcceptIn": {
+        "description": "Calibration inputs plus whether to accept the calibration as metric.",
+        "properties": {
+          "as_metric": {
+            "title": "As Metric",
+            "type": "boolean"
+          },
+          "check_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "title": "Check Points",
+            "type": "array"
+          },
+          "control_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "maxItems": 4,
+            "title": "Control Points",
+            "type": "array"
+          },
+          "known_dimensions_mm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DimensionsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "$ref": "#/components/schemas/CalibrationMethod"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "segment_mm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Mm"
+          }
+        },
+        "required": [
+          "method",
+          "as_metric"
+        ],
+        "title": "CalibrationAcceptIn",
+        "type": "object"
+      },
+      "CalibrationIn": {
+        "description": "Calibration inputs.\n\n- ``scan_dpi``: nothing; the scale comes from the source DPI.\n- ``scan_segment``: 2 ``control_points`` and ``segment_mm``, their distance on paper.\n- ``photo_homography_4pt``: 4 ``control_points`` in order around the quadrilateral;\n  each needs ``paper_mm`` unless ``known_dimensions_mm`` is given, which defaults them\n  to the corners TL, TR, BR, BL.\n- ``none``: nothing.\n\n``check_points`` (each with ``paper_mm``) do not take part in the fit; when present,\n``reprojection_error_mm`` is measured on them. ``paper_scale`` (``100`` for 1:100)\napplies only to ``scaled_drawing`` plans.",
+        "properties": {
+          "check_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "title": "Check Points",
+            "type": "array"
+          },
+          "control_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "maxItems": 4,
+            "title": "Control Points",
+            "type": "array"
+          },
+          "known_dimensions_mm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DimensionsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "$ref": "#/components/schemas/CalibrationMethod"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "segment_mm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Mm"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "title": "CalibrationIn",
+        "type": "object"
+      },
+      "CalibrationMethod": {
+        "description": "Calibration methods; enforced by the ``ck_calibration_method`` check constraint.",
+        "enum": [
+          "scan_dpi",
+          "scan_segment",
+          "photo_homography_4pt",
+          "none"
+        ],
+        "title": "CalibrationMethod",
+        "type": "string"
+      },
       "CalibrationOut": {
         "description": "The active calibration; ``image_to_paper`` is the 3x3 matrix in mm per pixel.",
         "properties": {
@@ -13,6 +153,10 @@
             "format": "uuid",
             "title": "Accepted By",
             "type": "string"
+          },
+          "as_metric": {
+            "title": "As Metric",
+            "type": "boolean"
           },
           "control_points": {
             "items": {
@@ -92,10 +236,155 @@
           "reprojection_error_mm",
           "paper_scale",
           "local_frame",
+          "as_metric",
           "accepted_by",
           "accepted_at"
         ],
         "title": "CalibrationOut",
+        "type": "object"
+      },
+      "CalibrationPointOut": {
+        "description": "A stored point: ``role`` ``control`` or ``check``; ``error_mm`` is its residual.",
+        "properties": {
+          "error_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Mm"
+          },
+          "image_px": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Image Px",
+            "type": "array"
+          },
+          "paper_mm": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Mm"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "image_px",
+          "paper_mm",
+          "error_mm"
+        ],
+        "title": "CalibrationPointOut",
+        "type": "object"
+      },
+      "CalibrationProposalOut": {
+        "description": "A computed calibration that is not stored.\n\n``image_to_paper`` is the 3x3 matrix (px to paper mm), null for ``none``.\n``reprojection_error_basis`` says whether the error is measured on ``check_points`` or\n``control_points``; both are null when there is no error to report. ``meets_tolerance``\ntells whether ``as_metric`` would be accepted on the error.",
+        "properties": {
+          "control_points": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationPointOut"
+            },
+            "title": "Control Points",
+            "type": "array"
+          },
+          "image_to_paper": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image To Paper"
+          },
+          "max_reprojection_error_mm": {
+            "title": "Max Reprojection Error Mm",
+            "type": "number"
+          },
+          "meets_tolerance": {
+            "title": "Meets Tolerance",
+            "type": "boolean"
+          },
+          "method": {
+            "$ref": "#/components/schemas/CalibrationMethod"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "reprojection_error_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reprojection Error Basis"
+          },
+          "reprojection_error_mm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReprojectionErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScaleOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "method",
+          "image_to_paper",
+          "control_points",
+          "reprojection_error_mm",
+          "reprojection_error_basis",
+          "meets_tolerance",
+          "max_reprojection_error_mm",
+          "paper_scale",
+          "scale"
+        ],
+        "title": "CalibrationProposalOut",
         "type": "object"
       },
       "CaseFileCreate": {
@@ -321,6 +610,27 @@
           "id"
         ],
         "title": "CatalogOut",
+        "type": "object"
+      },
+      "DimensionsIn": {
+        "description": "Paper size of the rectangle whose corners are the 4 control points.",
+        "properties": {
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "number"
+          }
+        },
+        "required": [
+          "width",
+          "height"
+        ],
+        "title": "DimensionsIn",
         "type": "object"
       },
       "DxfArc": {
@@ -1162,6 +1472,69 @@
         "title": "PlanStatus",
         "type": "string"
       },
+      "PointIn": {
+        "description": "A marked point: image pixel and, when known, its paper position in mm (Y down).",
+        "properties": {
+          "image_px": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Image Px",
+            "type": "array"
+          },
+          "paper_mm": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Mm"
+          }
+        },
+        "required": [
+          "image_px"
+        ],
+        "title": "PointIn",
+        "type": "object"
+      },
+      "ReprojectionErrorOut": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "rms": {
+            "title": "Rms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "max",
+          "rms"
+        ],
+        "title": "ReprojectionErrorOut",
+        "type": "object"
+      },
       "RevisionSummaryOut": {
         "properties": {
           "id": {
@@ -1184,6 +1557,56 @@
           "state"
         ],
         "title": "RevisionSummaryOut",
+        "type": "object"
+      },
+      "ScaleOut": {
+        "description": "Scan scale; ``within_tolerance`` compares the segment with the DPI when both exist.",
+        "properties": {
+          "dpi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dpi"
+          },
+          "dpi_discrepancy_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dpi Discrepancy Pct"
+          },
+          "mm_per_px": {
+            "title": "Mm Per Px",
+            "type": "number"
+          },
+          "within_tolerance": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Within Tolerance"
+          }
+        },
+        "required": [
+          "mm_per_px",
+          "dpi",
+          "dpi_discrepancy_pct",
+          "within_tolerance"
+        ],
+        "title": "ScaleOut",
         "type": "object"
       },
       "SourceMode": {
@@ -2530,6 +2953,212 @@
         "summary": "Get Plan",
         "tags": [
           "plans"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/calibration": {
+      "put": {
+        "description": "Compute the matrix, the reprojection error and ``meets_tolerance``; store nothing.\n\nRequires ``edit``. 409 when the plan is past ``EDITING`` or has entities (V-08).",
+        "operationId": "propose_calibration_api_v1_plans__plan_id__calibration_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationProposalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The plan is past editing, or it has entities (``code`` ``V-08``)."
+          },
+          "422": {
+            "description": "Invalid body, or inputs that define no calibration for the method."
+          }
+        },
+        "summary": "Propose Calibration",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/calibration/accept": {
+      "post": {
+        "description": "Store the calibration as the plan's active one and move the plan to ``EDITING``.\n\nAppends ``calibration.proposed`` and ``calibration.accepted``. ``as_metric`` is\nrejected for ``none`` and above the reprojection tolerance (V-05). Method ``none``\nleaves the plan ``non_metric``. Requires ``edit``.",
+        "operationId": "accept_calibration_api_v1_plans__plan_id__calibration_accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationAcceptIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The plan is past editing, or it has entities (``code`` ``V-08``)."
+          },
+          "422": {
+            "description": "Invalid inputs, or ``as_metric`` not allowed: method ``none``, a ``scaled_drawing`` without ``paper_scale``, or an error above ``calibration.max_reprojection_error_mm`` (``code`` ``V-05``)."
+          }
+        },
+        "summary": "Accept Calibration",
+        "tags": [
+          "calibration"
         ]
       }
     },

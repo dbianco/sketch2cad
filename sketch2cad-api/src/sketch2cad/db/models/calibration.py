@@ -72,6 +72,8 @@ class Calibration(Base):
     paper_scale: Mapped[int | None] = mapped_column(Integer)
     local_frame: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    as_metric: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    """Whether the technician accepted the calibration as metric (spec section 11.3)."""
     accepted_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id"))
     accepted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -71,6 +71,7 @@ class CalibrationOut(BaseModel):
     reprojection_error_mm: dict[str, Any] | None
     paper_scale: int | None
     local_frame: dict[str, Any] | None
+    as_metric: bool
     accepted_by: uuid.UUID
     accepted_at: datetime
 
@@ -121,6 +122,7 @@ def _calibration_out(calibration: Calibration | None) -> CalibrationOut | None:
         reprojection_error_mm=calibration.reprojection_error_mm,
         paper_scale=calibration.paper_scale,
         local_frame=calibration.local_frame,
+        as_metric=calibration.as_metric,
         accepted_by=calibration.accepted_by,
         accepted_at=calibration.accepted_at,
     )
@@ -149,6 +151,11 @@ def _out(plan: Plan, calibration: Calibration | None, revision: Revision | None)
         lease=None,
         current_revision=_revision_out(revision),
     )
+
+
+def plan_out(db: Session, plan: Plan) -> PlanOut:
+    """The API form of ``plan`` with its active calibration and current revision."""
+    return _out(plan, active_calibration(db, plan), current_revision(db, plan))
 
 
 @router.post(
@@ -198,4 +205,4 @@ def get_plan(
     Requires ``read`` on the plan's case file; others get 403 and an ``access.denied``
     event.
     """
-    return _out(plan, active_calibration(db, plan), current_revision(db, plan))
+    return plan_out(db, plan)
