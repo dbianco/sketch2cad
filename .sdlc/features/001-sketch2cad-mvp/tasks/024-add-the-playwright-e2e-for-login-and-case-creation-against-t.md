@@ -1,7 +1,8 @@
 ---
 id: 001-024
 title: "Add the Playwright E2E for login and case creation against the full stack"
-status: todo
+status: partial
+unmet: ["e2e GitHub workflow green on main and uploads the Playwright report (needs GitHub; actionlint passes)"]
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-022, 001-019]
