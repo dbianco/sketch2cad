@@ -26,6 +26,7 @@ dev = [
     "httpx2>=2.16.0",
     "pip-licenses>=5.5.5",
     "pip-audit>=2.7",
+    "hypothesis>=6.170.9",
 ]
 
 [build-system]
