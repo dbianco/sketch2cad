@@ -12,7 +12,15 @@ from sqlalchemy import Engine, text
 from sketch2cad.db.session import create_db_engine
 
 ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
-APPLICATION_TABLES = {"user", "session", "case_file", "case_member"}
+APPLICATION_TABLES = {
+    "user",
+    "session",
+    "case_file",
+    "case_member",
+    "source",
+    "event",
+    "job_meta",
+}
 SUPPORT_TABLES = {"alembic_version", "case_code_counter"}
 ENUM_TYPES = {"user_role", "incident_type"}
 
