@@ -7,7 +7,11 @@ event in the caller's transaction. Events carry the entity state (:func:`entity_
 changed by an edit. Every mutation also recomputes ``plan.metric_status`` in the same
 transaction (spec section 11.3, REQ-07). ``fix_length`` and the declared segment lengths
 it records live in :mod:`sketch2cad.entities.ops_fix_length`; any later geometry edit
-drops the declarations it breaks and updates ``metric_origin`` accordingly. Entities
+drops the declarations it breaks and updates ``metric_origin`` accordingly.
+``triangulate`` and ``baseline_offset`` (:func:`_apply_constraint`) place a point or symbol
+from two metric references of the same revision, store its ``constraint`` and set
+``metric_origin``; moving such an entity by hand drops the constraint and sets
+``metric_origin = none`` (spec section 11.3). Entities
 are edited only in a ``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by
 the user holding the plan's edit lease (CU-04).
 """
@@ -36,6 +40,14 @@ from sketch2cad.db.models import (
     RevisionState,
     User,
 )
+from sketch2cad.entities.constraints import (
+    V07_MESSAGE,
+    ConstraintOperationError,
+    constraint_to_json,
+    point_position,
+    with_position,
+)
+from sketch2cad.entities.ops_baseline import baseline_offset_position
 from sketch2cad.entities.ops_fix_length import (
     DECLARED_SEGMENTS,
     FixLengthError,
@@ -43,6 +55,7 @@ from sketch2cad.entities.ops_fix_length import (
     fix_length,
     retained_attributes,
 )
+from sketch2cad.entities.ops_triangulate import triangulate_position
 from sketch2cad.entities.schemas import (
     Attributes,
     EntityIn,
@@ -51,7 +64,9 @@ from sketch2cad.entities.schemas import (
     Geometry,
     SymbolGeometry,
 )
-from sketch2cad.geometry.metric_status import default_metric_origin
+from sketch2cad.geometry.constraints import would_create_cycle
+from sketch2cad.geometry.homography import Point
+from sketch2cad.geometry.metric_status import METRIC_ORIGINS, default_metric_origin
 from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
 from sketch2cad.plans.service import active_calibration, recompute_metric_status
 
@@ -81,7 +96,9 @@ class EntityConflictError(Exception):
 class EntityInputError(ValueError):
     """The entity refers to something the active catalog lacks, or changes its kind (422).
 
-    ``code`` names the V-xx rule when there is one (``V-04`` for a ``fix_length`` value).
+    ``code`` names the V-xx rule when there is one: ``V-04`` for a distance, ``V-06`` for
+    circles that do not cross, ``V-07`` for a reference that is not metric or depends on
+    the entity being fixed.
     """
 
     def __init__(self, message: str, code: str | None = None) -> None:
@@ -91,6 +108,15 @@ class EntityInputError(ValueError):
 
 class EntityGoneError(LookupError):
     """The entity is soft-deleted (404)."""
+
+
+@dataclass(frozen=True)
+class EntityUpdate:
+    """An edited entity; ``candidates`` and ``chosen`` are set by ``triangulate`` only."""
+
+    entity: Entity
+    candidates: tuple[Point, ...] | None = None
+    chosen: int | None = None
 
 
 @dataclass(frozen=True)
@@ -293,14 +319,17 @@ def update_entity(
     user: User,
     patch: EntityPatch,
     client_ip: str | None = None,
-) -> Entity:
+) -> EntityUpdate:
     """Apply ``patch`` and append ``entity.updated`` with ``operation`` and ``reason``.
 
-    ``source`` and ``review_status`` are left unchanged; ``metric_origin`` changes only
-    with the declared segment lengths (:func:`_apply_declarations`). Raises
-    :class:`EntityGoneError`, :class:`EntityConflictError` or :class:`EntityInputError`
-    (a geometry of another kind, a layer or symbol not in the active catalog, a
-    ``fix_length`` that cannot be applied, ``code`` ``V-04`` for its value).
+    ``source`` and ``review_status`` are left unchanged; ``metric_origin`` changes with
+    the declared segment lengths (:func:`_apply_declarations`), with a constraint
+    operation (:func:`_apply_constraint`) and when a constrained entity is moved by hand
+    (:func:`_drop_moved_constraint`). Raises :class:`EntityGoneError`,
+    :class:`EntityConflictError` or :class:`EntityInputError` (a geometry of another kind,
+    a layer or symbol not in the active catalog, a ``fix_length``, ``triangulate`` or
+    ``baseline_offset`` that cannot be applied, with ``code`` when a V-xx rule applies)
+    before changing anything.
     """
     plan, _ = _lock_live(db, entity, user)
     if patch.geometry is not None and patch.geometry.kind != entity.type:
@@ -309,6 +338,9 @@ def update_entity(
     _check_attributes(patch.attributes)
     before = entity_state(entity)
     old_geometry, old_attributes = entity.geometry, entity.attributes
+    update = EntityUpdate(entity)
+    if patch.operation in CONSTRAINT_OPERATIONS:
+        update = _apply_constraint(db, entity, patch)
     if patch.operation is EntityOperation.FIX_LENGTH:
         assert patch.anchor_vertex is not None and patch.value_m is not None  # noqa: S101
         try:
@@ -328,6 +360,8 @@ def update_entity(
         entity.attributes = _keep_declarations(patch.attributes, old_attributes)
     if patch.layer is not None:
         entity.layer = patch.layer
+    if patch.operation not in CONSTRAINT_OPERATIONS:
+        _drop_moved_constraint(entity, old_geometry)
     _apply_declarations(db, plan, entity, old_geometry, patch.operation)
     entity.updated_at = utc_now()
     db.flush()
@@ -345,7 +379,107 @@ def update_entity(
     )
     recompute_metric_status(db, plan)
     logger.info("User %s applied %s to entity %s", user.id, patch.operation.value, entity.id)
-    return entity
+    return update
+
+
+CONSTRAINT_OPERATIONS = frozenset({EntityOperation.TRIANGULATE, EntityOperation.BASELINE_OFFSET})
+CONSTRAINT_ORIGINS = {
+    EntityOperation.TRIANGULATE: MetricOrigin.TRIANGULATION,
+    EntityOperation.BASELINE_OFFSET: MetricOrigin.BASELINE_OFFSET,
+}
+
+
+def _apply_constraint(db: Session, entity: Entity, patch: EntityPatch) -> EntityUpdate:
+    """Place ``entity`` by ``triangulate`` or ``baseline_offset`` and store its constraint.
+
+    Validates the references (:func:`_reference_positions`) and computes the position
+    before writing anything, so a rejection leaves the entity unchanged.
+    """
+    position = point_position(entity.geometry)
+    if position is None:
+        raise EntityInputError(f"{patch.operation.value} applies to points and symbols only.")
+    if patch.operation is EntityOperation.TRIANGULATE:
+        assert patch.ref_a and patch.ref_b and patch.d_a_m is not None  # noqa: S101
+        assert patch.d_b_m is not None  # noqa: S101
+        a, b = _reference_positions(db, entity, (patch.ref_a, patch.ref_b))
+        try:
+            fixed = triangulate_position(
+                position, a, b, patch.d_a_m, patch.d_b_m, patch.solution or "nearest"
+            )
+        except ConstraintOperationError as exc:
+            raise EntityInputError(str(exc), code=exc.code) from None
+        point, constraint = fixed.point, fixed.constraint
+        update = EntityUpdate(entity, fixed.candidates, fixed.chosen)
+    else:
+        assert patch.base_a and patch.base_b and patch.side is not None  # noqa: S101
+        assert patch.s_m is not None and patch.d_m is not None  # noqa: S101
+        a, b = _reference_positions(db, entity, (patch.base_a, patch.base_b))
+        try:
+            placed = baseline_offset_position(a, b, patch.s_m, patch.d_m, patch.side)
+        except ConstraintOperationError as exc:
+            raise EntityInputError(str(exc), code=exc.code) from None
+        point, constraint = placed.point, placed.constraint
+        update = EntityUpdate(entity)
+    entity.geometry = with_position(entity.geometry, point)
+    entity.constraint = constraint_to_json(constraint)
+    entity.metric_origin = CONSTRAINT_ORIGINS[patch.operation].value
+    return update
+
+
+def _constraint_graph(db: Session, revision_id: uuid.UUID) -> dict[uuid.UUID, list[uuid.UUID]]:
+    """``entity -> refs`` of the live constrained entities of the revision."""
+    query = select(Entity.id, Entity.constraint).where(
+        Entity.revision_id == revision_id,
+        Entity.deleted_at.is_(None),
+        Entity.constraint.is_not(None),
+    )
+    graph: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for entity_id, constraint in db.execute(query):
+        refs: list[Any] = constraint.get("refs", []) if isinstance(constraint, dict) else []
+        graph[entity_id] = [uuid.UUID(str(ref)) for ref in refs]
+    return graph
+
+
+def _reference_positions(
+    db: Session, entity: Entity, ref_ids: tuple[uuid.UUID, uuid.UUID]
+) -> list[tuple[uuid.UUID, Point]]:
+    """``(id, position)`` of each reference after checking it may constrain ``entity``.
+
+    A reference must be a live entity of the same revision, must not be ``entity`` nor
+    depend on it through ``constraint.refs`` (no cycles) and must be a point or symbol
+    whose ``metric_origin`` is metric; the last two give ``code`` ``V-07``.
+    """
+    refs: list[Entity] = []
+    for ref_id in ref_ids:
+        ref = db.get(Entity, ref_id)
+        if ref is None or ref.revision_id != entity.revision_id or ref.deleted_at is not None:
+            raise EntityInputError(f"Reference {ref_id} is not a live entity of this revision.")
+        refs.append(ref)
+    if would_create_cycle(_constraint_graph(db, entity.revision_id), entity.id, ref_ids):
+        raise EntityInputError(V07_MESSAGE, code="V-07")
+    positions: list[tuple[uuid.UUID, Point]] = []
+    for ref in refs:
+        position = point_position(ref.geometry)
+        if position is None:
+            raise EntityInputError(f"Reference {ref.id} must be a point or a symbol.")
+        if ref.metric_origin not in METRIC_ORIGINS:
+            raise EntityInputError(V07_MESSAGE, code="V-07")
+        positions.append((ref.id, position))
+    return positions
+
+
+def _drop_moved_constraint(entity: Entity, old_geometry: dict[str, Any]) -> None:
+    """A hand edit that moves a constrained entity removes its constraint (spec 11.3).
+
+    The position no longer follows the references, so ``metric_origin`` becomes ``none``.
+    Edits that keep the position (rotation, attributes, layer) keep the constraint.
+    """
+    if entity.constraint is None:
+        return
+    if point_position(entity.geometry) == point_position(old_geometry):
+        return
+    entity.constraint = None
+    entity.metric_origin = MetricOrigin.NONE.value
 
 
 def _keep_declarations(attributes: Attributes, current: dict[str, Any]) -> dict[str, Any]:

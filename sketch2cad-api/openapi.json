@@ -1109,7 +1109,9 @@
           "snap_grid",
           "relabel",
           "reclassify",
-          "fix_length"
+          "fix_length",
+          "triangulate",
+          "baseline_offset"
         ],
         "title": "EntityOperation",
         "type": "string"
@@ -1299,7 +1301,7 @@
       },
       "EntityPatch": {
         "additionalProperties": false,
-        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry`` or ``attributes``. ``fix_length`` (lines and\npolylines) takes only ``anchor_vertex``, ``value_m`` (metres, a number or text with\ndecimal comma or point, > 0 per V-04) and the optional adjacent ``free_vertex``; the\nserver computes the geometry (``sketch2cad.entities.ops_fix_length``).",
+        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry`` or ``attributes``. Moving a point or symbol\nthat has a ``constraint`` removes the constraint and sets ``metric_origin`` to\n``none`` (spec section 11.3).\n\nThe other operations take only their own fields and the server computes the geometry:\n\n- ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and\n  the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).\n- ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances\n  ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is\n  the candidate closest to the current position; ``alt`` is the other one).\n- ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,\n  ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.",
         "properties": {
           "anchor_vertex": {
             "anyOf": [
@@ -1344,6 +1346,72 @@
               }
             ],
             "title": "Attributes"
+          },
+          "base_a": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base A"
+          },
+          "base_b": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base B"
+          },
+          "d_a_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "D A M"
+          },
+          "d_b_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "D B M"
+          },
+          "d_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "D M"
           },
           "free_vertex": {
             "anyOf": [
@@ -1425,6 +1493,74 @@
             ],
             "title": "Reason"
           },
+          "ref_a": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref A"
+          },
+          "ref_b": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref B"
+          },
+          "s_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "S M"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "enum": [
+                  "left",
+                  "right"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "solution": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nearest",
+                  "alt"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solution"
+          },
           "value_m": {
             "anyOf": [
               {
@@ -1444,6 +1580,224 @@
           "operation"
         ],
         "title": "EntityPatch",
+        "type": "object"
+      },
+      "EntityPatchOut": {
+        "description": "The edited entity; ``triangulate`` also returns its candidate positions.\n\n``candidates`` holds the 1 (tangent circles) or 2 intersection points, the first to the\nleft of the direction from ``ref_a`` to ``ref_b``; ``chosen_candidate`` is the index of\nthe one applied. Both are null for every other operation.",
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "candidates": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidates"
+          },
+          "chosen_candidate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chosen Candidate"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "constraint": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraint"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "geometry": {
+            "discriminator": {
+              "mapping": {
+                "dimension": "#/components/schemas/DimensionGeometry",
+                "line": "#/components/schemas/LineGeometry",
+                "point": "#/components/schemas/PointGeometry",
+                "polyline": "#/components/schemas/PolylineGeometry",
+                "symbol": "#/components/schemas/SymbolGeometry",
+                "text": "#/components/schemas/TextGeometry"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PolylineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PointGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/TextGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/DimensionGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/SymbolGeometry"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_region": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Region"
+          },
+          "layer": {
+            "title": "Layer",
+            "type": "string"
+          },
+          "metric_origin": {
+            "$ref": "#/components/schemas/MetricOrigin"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "review_status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EntitySource"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EntityType"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision_id",
+          "revision_number",
+          "type",
+          "layer",
+          "geometry",
+          "image_region",
+          "attributes",
+          "evidence_id",
+          "constraint",
+          "source",
+          "confidence",
+          "model_version",
+          "review_status",
+          "metric_origin",
+          "created_by",
+          "updated_at",
+          "deleted_at"
+        ],
+        "title": "EntityPatchOut",
         "type": "object"
       },
       "EntitySource": {
@@ -3891,7 +4245,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0)."
+            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
           }
         },
         "summary": "Remove Entity",
@@ -3900,7 +4254,7 @@
         ]
       },
       "patch": {
-        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. Requires ``edit``.",
+        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``\nand set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires\n``edit``.",
         "operationId": "patch_entity_api_v1_entities__entity_id__patch",
         "parameters": [
           {
@@ -3976,7 +4330,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EntityOut"
+                  "$ref": "#/components/schemas/EntityPatchOut"
                 }
               }
             },
@@ -3992,7 +4346,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0)."
+            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
           }
         },
         "summary": "Patch Entity",
@@ -4898,7 +5252,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0)."
+            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
           }
         },
         "summary": "Create Revision Entities",

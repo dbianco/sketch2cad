@@ -21,7 +21,13 @@ from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
 from sketch2cad.db.models import Entity, Revision, User
 from sketch2cad.db.session import get_session
-from sketch2cad.entities.schemas import EntitiesCreate, EntityListOut, EntityOut, EntityPatch
+from sketch2cad.entities.schemas import (
+    EntitiesCreate,
+    EntityListOut,
+    EntityOut,
+    EntityPatch,
+    EntityPatchOut,
+)
 from sketch2cad.entities.service import (
     EntityConflictError,
     EntityGoneError,
@@ -53,7 +59,10 @@ EDIT_RESPONSES: dict[int | str, dict[str, Any]] = {
     },
     422: {
         "description": "Invalid body, a layer or symbol not in the active catalog, or a "
-        "``fix_length`` that cannot be applied (``code`` ``V-04`` for a value <= 0).",
+        "``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: "
+        "``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not "
+        "cross, ``V-07`` when a reference is not metric or depends on the entity. "
+        "Nothing changes.",
     },
 }
 
@@ -156,18 +165,24 @@ def patch_entity(
     entity: Annotated[Entity, Depends(require_entity_permission("edit"))],
     db: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_current_user)],
-) -> EntityOut:
+) -> EntityPatchOut:
     """Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.
 
     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
-    optional ``reason``. Requires ``edit``.
+    optional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``
+    and set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires
+    ``edit``.
     """
     try:
-        update_entity(db, entity, user, body, _client_ip(request))
+        update = update_entity(db, entity, user, body, _client_ip(request))
     except (EntityGoneError, EntityConflictError, EntityInputError) as exc:
         raise _rejected(db, exc) from None
     db.commit()
-    return entity_out(entity, _revision_number(db, entity))
+    out = entity_out(entity, _revision_number(db, entity))
+    candidates = None if update.candidates is None else [list(c) for c in update.candidates]
+    return EntityPatchOut.model_validate(
+        {**out.model_dump(), "candidates": candidates, "chosen_candidate": update.chosen}
+    )
 
 
 @router.delete("/entities/{entity_id}", dependencies=EDIT_DEPENDENCIES, responses=EDIT_RESPONSES)

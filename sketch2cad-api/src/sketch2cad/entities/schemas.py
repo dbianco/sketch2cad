@@ -48,6 +48,8 @@ class EntityOperation(StrEnum):
     RELABEL = "relabel"
     RECLASSIFY = "reclassify"
     FIX_LENGTH = "fix_length"
+    TRIANGULATE = "triangulate"
+    BASELINE_OFFSET = "baseline_offset"
 
 
 GEOMETRY_OPERATIONS = frozenset(
@@ -162,14 +164,33 @@ class EntitiesCreate(_Strict):
     entities: Annotated[list[EntityIn], Field(min_length=1, max_length=MAX_ENTITIES_PER_REQUEST)]
 
 
+# Body fields of the server-computed operations: (required, optional) per operation.
+OPERATION_FIELDS: dict[EntityOperation, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    EntityOperation.FIX_LENGTH: (("anchor_vertex", "value_m"), ("free_vertex",)),
+    EntityOperation.TRIANGULATE: (("ref_a", "ref_b", "d_a_m", "d_b_m"), ("solution",)),
+    EntityOperation.BASELINE_OFFSET: (("base_a", "base_b", "s_m", "d_m", "side"), ()),
+}
+LengthValue = Number | StrictStr
+"""Metres as a JSON number or as text with decimal comma or point (V-04)."""
+
+
 class EntityPatch(_Strict):
     """An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.
 
     ``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs
-    ``layer``; ``relabel`` needs ``geometry`` or ``attributes``. ``fix_length`` (lines and
-    polylines) takes only ``anchor_vertex``, ``value_m`` (metres, a number or text with
-    decimal comma or point, > 0 per V-04) and the optional adjacent ``free_vertex``; the
-    server computes the geometry (``sketch2cad.entities.ops_fix_length``).
+    ``layer``; ``relabel`` needs ``geometry`` or ``attributes``. Moving a point or symbol
+    that has a ``constraint`` removes the constraint and sets ``metric_origin`` to
+    ``none`` (spec section 11.3).
+
+    The other operations take only their own fields and the server computes the geometry:
+
+    - ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and
+      the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).
+    - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances
+      ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is
+      the candidate closest to the current position; ``alt`` is the other one).
+    - ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,
+      ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.
     """
 
     operation: EntityOperation
@@ -178,19 +199,22 @@ class EntityPatch(_Strict):
     layer: LayerName | None = None
     anchor_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
     free_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
-    value_m: Number | StrictStr | None = None
+    value_m: LengthValue | None = None
+    ref_a: uuid.UUID | None = None
+    ref_b: uuid.UUID | None = None
+    d_a_m: LengthValue | None = None
+    d_b_m: LengthValue | None = None
+    solution: Literal["nearest", "alt"] | None = None
+    base_a: uuid.UUID | None = None
+    base_b: uuid.UUID | None = None
+    s_m: LengthValue | None = None
+    d_m: LengthValue | None = None
+    side: Literal["left", "right"] | None = None
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
 
     @model_validator(mode="after")
     def _operation_has_its_fields(self) -> "EntityPatch":
-        fix_fields = (self.anchor_vertex, self.free_vertex, self.value_m)
-        if self.operation is EntityOperation.FIX_LENGTH:
-            if self.anchor_vertex is None or self.value_m is None:
-                raise ValueError("fix_length needs anchor_vertex and value_m")
-            if (self.geometry, self.attributes, self.layer) != (None, None, None):
-                raise ValueError("fix_length takes no geometry, attributes or layer")
-        elif any(field is not None for field in fix_fields):
-            raise ValueError("anchor_vertex, free_vertex and value_m are for fix_length only")
+        self._check_computed_fields()
         if self.operation in GEOMETRY_OPERATIONS and self.geometry is None:
             raise ValueError(f"{self.operation.value} needs geometry")
         if self.operation is EntityOperation.RECLASSIFY and self.layer is None:
@@ -200,6 +224,25 @@ class EntityPatch(_Strict):
         ):
             raise ValueError("relabel needs geometry or attributes")
         return self
+
+    def _check_computed_fields(self) -> None:
+        for operation, (required, optional) in OPERATION_FIELDS.items():
+            if operation is self.operation:
+                missing = [name for name in required if getattr(self, name) is None]
+                if missing:
+                    raise ValueError(f"{operation.value} needs {', '.join(required)}")
+                if (self.geometry, self.attributes, self.layer) != (None, None, None):
+                    raise ValueError(f"{operation.value} takes no geometry, attributes or layer")
+            elif any(getattr(self, name) is not None for name in (*required, *optional)):
+                raise ValueError(
+                    f"{', '.join((*required, *optional))} are for {operation.value} only"
+                )
+        pair = {
+            EntityOperation.TRIANGULATE: (self.ref_a, self.ref_b),
+            EntityOperation.BASELINE_OFFSET: (self.base_a, self.base_b),
+        }.get(self.operation)
+        if pair is not None and pair[0] == pair[1]:
+            raise ValueError("the two references must be different entities")
 
 
 class EntitySource(BaseModel):
@@ -231,6 +274,18 @@ class EntityOut(BaseModel):
     created_by: uuid.UUID | None
     updated_at: datetime
     deleted_at: datetime | None
+
+
+class EntityPatchOut(EntityOut):
+    """The edited entity; ``triangulate`` also returns its candidate positions.
+
+    ``candidates`` holds the 1 (tangent circles) or 2 intersection points, the first to the
+    left of the direction from ``ref_a`` to ``ref_b``; ``chosen_candidate`` is the index of
+    the one applied. Both are null for every other operation.
+    """
+
+    candidates: list[Coordinate] | None = None
+    chosen_candidate: int | None = None
 
 
 class EntityListOut(BaseModel):
