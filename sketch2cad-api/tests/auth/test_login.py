@@ -15,6 +15,7 @@ from sketch2cad.api.deps import CSRF_COOKIE, SESSION_COOKIE
 from sketch2cad.api.errors import PROBLEM_CONTENT_TYPE
 from sketch2cad.api.routers import API_V1_PREFIX
 from sketch2cad.api.routers import auth as auth_router
+from sketch2cad.auth.csrf import CSRF_HEADER
 from sketch2cad.auth.passwords import hash_password, needs_rehash, verify_password
 from sketch2cad.auth.sessions import hash_token
 from sketch2cad.db.base import Base
@@ -268,7 +269,7 @@ def test_logout_revokes_the_session_and_clears_cookies(
     user = insert_user(factory)
     token = login(client, user.username)
 
-    response = client.post(LOGOUT_URL)
+    response = client.post(LOGOUT_URL, headers={CSRF_HEADER: client.cookies[CSRF_COOKIE]})
 
     assert response.status_code == 204
     assert find_session(factory, token).revoked_at is not None

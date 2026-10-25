@@ -16,6 +16,7 @@ from sketch2cad.api.deps import (
     get_app_settings,
     get_current_session,
     get_current_user,
+    require_csrf,
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
@@ -139,7 +140,7 @@ def login(
     return _envelope(user)
 
 
-@router.post("/auth/logout", status_code=204)
+@router.post("/auth/logout", status_code=204, dependencies=[Depends(require_csrf)])
 def logout(
     response: Response,
     db: Annotated[Session, Depends(get_session)],
