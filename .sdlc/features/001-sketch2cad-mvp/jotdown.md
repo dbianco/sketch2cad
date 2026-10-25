@@ -143,7 +143,7 @@ Errores: `application/problem+json` con `type`, `title`, `status`, `detail`. Aut
 | `GET /api/v1/auth/me` | — | 200 el mismo objeto `user` | 401 |
 | `POST /api/v1/case-files` | `{ "incident_type", "incident_date", "description", "declared_location" }` | 201 el `case_file` con `code` | 401; 403 sin CSRF; 422 validación |
 | `GET /api/v1/case-files` | `?q=&incident_type=` | 200 lista de los expedientes donde el usuario es miembro o creador | 401 |
-| `GET /api/v1/case-files/{id}` | — | 200 `case_file` | 401; 404 si no es miembro (no se distingue de inexistente) |
+| `GET /api/v1/case-files/{id}` | — | 200 `case_file` | 401; 403 si no es miembro, con evento `access.denied` (decisión de la tarea 001-035); 404 si no existe |
 | `GET /healthz` | — | 200 `{ "status": "ok", "db": "ok" }` | 503 si la base no responde |
 
 Reglas de autenticación (valores configurables con estos defaults): Argon2id con los parámetros por defecto de `argon2-cffi`; bloqueo de 15 minutos tras 10 intentos fallidos consecutivos; sesión con expiración fija de 8 horas desde el login (sin renovación por actividad; decisión del dueño 2026-10-25) (`auth.session_ttl_minutes = 480`); `Secure` desactivable solo con `APP_ENV=dev`.
@@ -151,7 +151,7 @@ Reglas de autenticación (valores configurables con estos defaults): Argon2id co
 Criterios por endpoint:
 - `login` con credenciales correctas devuelve 200 y cookies con los atributos indicados; con 10 contraseñas incorrectas seguidas la solicitud 11 devuelve 423 aunque la contraseña sea correcta.
 - `POST /case-files` sin cabecera `X-CSRF-Token` devuelve 403.
-- `GET /case-files/{id}` de un expediente ajeno devuelve 404.
+- `GET /case-files/{id}` de un expediente ajeno devuelve 403 (desde la tarea 001-035; antes 404); uno inexistente, 404.
 
 #### 5. System Design (H0)
 

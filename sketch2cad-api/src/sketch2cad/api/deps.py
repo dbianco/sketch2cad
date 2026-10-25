@@ -17,12 +17,11 @@ from sketch2cad.cases.permissions import (
     can_manage_members,
     case_permissions,
     find_case,
-    is_member,
     record_access_denied,
 )
 from sketch2cad.config import Settings, get_settings
 from sketch2cad.db import session as db_session
-from sketch2cad.db.models import CaseFile, User, UserSession
+from sketch2cad.db.models import CaseFile, Source, User, UserSession
 from sketch2cad.db.session import get_session
 from sketch2cad.storage import FilesystemStorage, Storage
 
@@ -123,14 +122,14 @@ def _deny(
     case_file: CaseFile,
     permission: str,
 ) -> ProblemError:
-    """Record ``access.denied`` and return the error to raise.
+    """Record ``access.denied`` and return the 403 to raise.
 
-    A non-member gets the same 404 as for a missing case file, so the response does not
-    reveal that it exists; a member lacking ``permission`` gets 403. The request session is
-    rolled back first: it releases any row lock the event writer would wait on, and nothing
-    of a denied request may be committed.
+    Members lacking ``permission`` and non-members alike get 403 (H1-5, H6-3); only a
+    missing or malformed id gives 404. The request session is rolled back first: it
+    releases any row lock the event writer would wait on, and nothing of a denied request
+    may be committed.
     """
-    error = _forbidden() if is_member(db, user.id, case_file) else case_not_found()
+    error = _forbidden()
     case_file_id, actor_id, actor_role = case_file.id, user.id, user.role.value
     db.rollback()
     record_access_denied(
@@ -147,12 +146,19 @@ def _deny(
     return error
 
 
-def _existing_case(db: Session, case_id: str) -> CaseFile:
+def source_not_found() -> ProblemError:
+    return ProblemError(404, "Not Found", "The source does not exist.")
+
+
+def _parse_uuid(value: str, not_found: Callable[[], ProblemError]) -> uuid.UUID:
     try:
-        parsed = uuid.UUID(case_id)
+        return uuid.UUID(value)
     except ValueError:
-        raise case_not_found() from None
-    case_file = find_case(db, parsed)
+        raise not_found() from None
+
+
+def _existing_case(db: Session, case_id: str) -> CaseFile:
+    case_file = find_case(db, _parse_uuid(case_id, case_not_found))
     if case_file is None:
         raise case_not_found()
     return case_file
@@ -162,7 +168,8 @@ def require_case_permission(permission: str) -> Callable[..., CaseFile]:
     """Dependency factory: the ``{case_id}`` case file if the user holds ``permission``.
 
     Missing or malformed ids give 404 without an event (there is no chain to write to).
-    Every other denial writes one ``access.denied`` event committed on its own.
+    Every other denial, member or not, is a 403 that writes one ``access.denied`` event
+    committed on its own.
     """
     required = CasePermission(permission).value
 
@@ -193,3 +200,31 @@ def require_case_manager(
     if not can_manage_members(user, case_file):
         raise _deny(request, db, audit_factory, user, case_file, MANAGE_MEMBERS)
     return case_file
+
+
+def require_source_permission(permission: str) -> Callable[..., Source]:
+    """Dependency factory: the ``{source_id}`` source if the user holds ``permission``.
+
+    The permission is checked on the source's case file. A missing or malformed source id
+    gives 404 without an event; a denial is a 403 with ``access.denied`` on that case file.
+    """
+    required = CasePermission(permission).value
+
+    def dependency(
+        source_id: str,
+        request: Request,
+        db: Annotated[Session, Depends(get_session)],
+        user: Annotated[User, Depends(get_current_user)],
+        audit_factory: Annotated[sessionmaker[Session], Depends(get_audit_session_factory)],
+    ) -> Source:
+        source = db.get(Source, _parse_uuid(source_id, source_not_found))
+        if source is None:
+            raise source_not_found()
+        case_file = db.get(CaseFile, source.case_file_id)
+        if case_file is None:  # pragma: no cover - guaranteed by the foreign key
+            raise source_not_found()
+        if required not in case_permissions(db, user.id, case_file):
+            raise _deny(request, db, audit_factory, user, case_file, required)
+        return source
+
+    return dependency

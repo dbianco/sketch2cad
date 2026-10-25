@@ -75,6 +75,21 @@ def test_stored_file_is_read_only_and_get_matches_hash(storage: FilesystemStorag
     assert data == CONTENT
 
 
+def test_open_streams_the_stored_bytes(storage: FilesystemStorage) -> None:
+    result = storage.put(io.BytesIO(CONTENT))
+    missing = hashlib.sha256(b"missing").hexdigest()
+
+    with storage.open(result.key) as stream:
+        chunks = list(iter(lambda: stream.read(4096), b""))
+
+    assert len(chunks) > 1
+    assert b"".join(chunks) == CONTENT
+    with pytest.raises(ObjectNotFoundError):
+        storage.open(f"sha256/{missing[:2]}/{missing[2:4]}/{missing}")
+    with pytest.raises(InvalidKeyError):
+        storage.open("../../etc/passwd")
+
+
 def test_put_of_failing_stream_leaves_no_file(storage: FilesystemStorage, tmp_path: Path) -> None:
     with pytest.raises(OSError, match="mid-upload"):
         storage.put(FailingStream([b"partial ", b"content"]))
@@ -164,3 +179,5 @@ def test_s3_driver_is_a_stub() -> None:
         driver.get(key)
     with pytest.raises(NotImplementedError):
         driver.exists(key)
+    with pytest.raises(NotImplementedError):
+        driver.open(key)

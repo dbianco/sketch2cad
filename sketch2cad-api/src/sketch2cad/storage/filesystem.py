@@ -5,6 +5,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import BinaryIO
 
 from sketch2cad.storage.base import (
     CHUNK_SIZE,
@@ -74,6 +75,13 @@ class FilesystemStorage(Storage):
         path = self._path_for(key)
         try:
             return path.read_bytes()
+        except FileNotFoundError as exc:
+            raise ObjectNotFoundError(key) from exc
+
+    def open(self, key: str) -> BinaryIO:
+        path = self._path_for(key)
+        try:
+            return path.open("rb")
         except FileNotFoundError as exc:
             raise ObjectNotFoundError(key) from exc
 

@@ -201,16 +201,13 @@ READ_EDIT_DOWNLOAD = [
 ]
 
 
-def test_non_member_gets_404_and_one_access_denied_per_attempt(
+def test_non_member_gets_403_and_one_access_denied_per_attempt(
     other_client: TestClient, other: User, case_id: str, factory: sessionmaker[Session]
 ) -> None:
-    missing = other_client.get(f"{CASES_URL}/{uuid.uuid4()}")
-
     for attempt, (method, path, permission, route) in enumerate(READ_EDIT_DOWNLOAD, start=1):
         response = call(other_client, method, path, case_id)
 
-        assert_problem(response, 404)
-        assert response.json() == missing.json()
+        assert_problem(response, 403)
         denied = events(factory, case_id, EventKind.ACCESS_DENIED)
         assert len(denied) == attempt
         event = denied[-1]
@@ -221,7 +218,7 @@ def test_non_member_gets_404_and_one_access_denied_per_attempt(
             "method": method,
             "route": route,
             "permission": permission,
-            "status": 404,
+            "status": 403,
         }
 
 
@@ -293,12 +290,12 @@ def test_only_admin_or_creator_may_add_members(
     by_admin = add_member(signed_in(app, stack, admin), case_id, other.id, ["read"])
 
     assert_problem(by_member, 403)
-    assert_problem(by_stranger, 404)
+    assert_problem(by_stranger, 403)
     assert by_admin.status_code == 201
     denied = events(factory, case_id, EventKind.ACCESS_DENIED)
     assert [(e.actor_id, (e.after or {})["status"]) for e in denied] == [
         (editor.id, 403),
-        (stranger.id, 404),
+        (stranger.id, 403),
     ]
     assert all((e.after or {})["permission"] == "manage_members" for e in denied)
     added = events(factory, case_id, EventKind.MEMBER_ADDED)
@@ -310,7 +307,7 @@ def test_admin_role_grants_no_case_permission(
 ) -> None:
     admin_client = signed_in(app, stack, insert_user(factory, UserRole.ADMIN))
 
-    assert_problem(admin_client.get(f"{CASES_URL}/{case_id}"), 404)
+    assert_problem(admin_client.get(f"{CASES_URL}/{case_id}"), 403)
     assert len(events(factory, case_id, EventKind.ACCESS_DENIED)) == 1
 
 
@@ -371,7 +368,7 @@ def test_access_denied_is_committed_apart_from_the_rolled_back_request(
     # The request session holds the case row lock and an uncommitted insert when denied.
     response = call(other_client, "PATCH", DIRTY_PROBE, case_id)
 
-    assert_problem(response, 404)
+    assert_problem(response, 403)
     denied = events(factory, case_id, EventKind.ACCESS_DENIED)
     assert [e.actor_id for e in denied] == [other.id]
     with factory() as db:
@@ -386,7 +383,7 @@ def test_denial_stands_when_the_event_cannot_be_written(
 
     app.dependency_overrides[get_audit_session_factory] = lambda: broken_factory
 
-    assert_problem(other_client.get(f"{CASES_URL}/{case_id}"), 404)
+    assert_problem(other_client.get(f"{CASES_URL}/{case_id}"), 403)
     assert events(factory, case_id, EventKind.ACCESS_DENIED) == []
 
 

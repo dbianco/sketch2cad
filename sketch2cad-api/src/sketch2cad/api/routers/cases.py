@@ -161,10 +161,10 @@ def list_case_files(
 def get_case_file(
     case_file: Annotated[CaseFile, Depends(require_case_permission("read"))],
 ) -> CaseFileOut:
-    """Return a case file; 404 when it is missing, malformed or not visible to the user.
+    """Return a case file; 404 when it is missing or malformed.
 
-    A member without ``read`` gets 403; every denial on an existing case file is logged as
-    ``access.denied``.
+    A user without ``read`` (member or not) gets 403; every denial on an existing case file
+    is logged as ``access.denied``.
     """
     return _out(case_file)
 
@@ -178,7 +178,7 @@ def add_case_member(
 ) -> CaseMemberOut:
     """Add a member with explicit permissions; only an ``admin`` or the creator may do it.
 
-    Other members get 403 and non-members 404, both logged as ``access.denied``; an unknown
+    Anyone else gets 403, logged as ``access.denied``; an unknown
     ``user_id`` gives 422 and an existing member 409.
     """
     try:

@@ -2,7 +2,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Protocol
+from typing import BinaryIO, NamedTuple, Protocol
 
 HASH_ALGORITHM = "sha256"
 """Hash algorithm that names every object; it is also the first segment of each key."""
@@ -77,6 +77,13 @@ class Storage(ABC):
     @abstractmethod
     def get(self, key: str) -> bytes:
         """Return the bytes stored under ``key``; raise ``ObjectNotFoundError`` if absent."""
+
+    @abstractmethod
+    def open(self, key: str) -> BinaryIO:
+        """Open the object under ``key`` for streaming reads; raise ``ObjectNotFoundError``.
+
+        The caller must close the returned stream.
+        """
 
     @abstractmethod
     def exists(self, key: str) -> bool:

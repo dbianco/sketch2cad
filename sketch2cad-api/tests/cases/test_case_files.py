@@ -268,7 +268,7 @@ def test_code_year_uses_utc(client: TestClient, clock: FakeClock) -> None:
     assert create(client)["code"] == "EXP-2027-0001"
 
 
-def test_non_member_gets_404_and_does_not_see_the_case(
+def test_non_member_gets_403_and_does_not_see_the_case(
     app: FastAPI, stack: ExitStack, client: TestClient, factory: sessionmaker[Session]
 ) -> None:
     case_id = create(client)["id"]
@@ -277,9 +277,9 @@ def test_non_member_gets_404_and_does_not_see_the_case(
     response = outsider.get(f"{CASES_URL}/{case_id}")
     missing = outsider.get(f"{CASES_URL}/{uuid.uuid4()}")
 
-    assert_not_found(response)
+    assert response.status_code == 403
+    assert response.headers["content-type"] == PROBLEM_CONTENT_TYPE
     assert_not_found(missing)
-    assert response.json() == missing.json()
     assert listed_codes(outsider) == []
 
 

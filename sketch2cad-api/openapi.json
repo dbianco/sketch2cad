@@ -810,7 +810,7 @@
     },
     "/api/v1/case-files/{case_id}": {
       "get": {
-        "description": "Return a case file; 404 when it is missing, malformed or not visible to the user.\n\nA member without ``read`` gets 403; every denial on an existing case file is logged as\n``access.denied``.",
+        "description": "Return a case file; 404 when it is missing or malformed.\n\nA user without ``read`` (member or not) gets 403; every denial on an existing case file\nis logged as ``access.denied``.",
         "operationId": "get_case_file_api_v1_case_files__case_id__get",
         "parameters": [
           {
@@ -869,7 +869,7 @@
     },
     "/api/v1/case-files/{case_id}/members": {
       "post": {
-        "description": "Add a member with explicit permissions; only an ``admin`` or the creator may do it.\n\nOther members get 403 and non-members 404, both logged as ``access.denied``; an unknown\n``user_id`` gives 422 and an existing member 409.",
+        "description": "Add a member with explicit permissions; only an ``admin`` or the creator may do it.\n\nAnyone else gets 403, logged as ``access.denied``; an unknown\n``user_id`` gives 422 and an existing member 409.",
         "operationId": "add_case_member_api_v1_case_files__case_id__members_post",
         "parameters": [
           {
@@ -1077,6 +1077,151 @@
           }
         },
         "summary": "Upload Source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/api/v1/sources/{source_id}/original": {
+      "get": {
+        "description": "Stream the original bytes exactly as stored, with ``X-Content-SHA256``.\n\nWrites ``source.downloaded`` before the first byte is sent. Requires ``read``; others\nget 403 and an ``access.denied`` event.",
+        "operationId": "download_original_api_v1_sources__source_id__original_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The original bytes, unmodified, as an attachment.",
+            "headers": {
+              "X-Content-SHA256": {
+                "description": "SHA-256 registered at ingestion (lowercase hex).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the source's case file (access.denied)."
+          },
+          "404": {
+            "description": "The source does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Original",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/api/v1/sources/{source_id}/preview": {
+      "get": {
+        "description": "Derived JPEG of the source whose longest side is at most ``max`` (256 to 4096).\n\nPDFs are rendered from page 1; no EXIF is carried over. Requires ``read``.",
+        "operationId": "preview_source_api_v1_sources__source_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max",
+            "required": false,
+            "schema": {
+              "default": 2048,
+              "maximum": 4096,
+              "minimum": 256,
+              "title": "Max",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Derived JPEG whose longest side is at most ``max`` pixels."
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the source's case file (access.denied)."
+          },
+          "404": {
+            "description": "The source does not exist."
+          },
+          "422": {
+            "description": "``max`` is outside 256..4096."
+          }
+        },
+        "summary": "Preview Source",
         "tags": [
           "sources"
         ]

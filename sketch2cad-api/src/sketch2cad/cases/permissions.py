@@ -1,9 +1,10 @@
 """Per case file authorization, membership management and ``access.denied`` recording.
 
 The creator of a case file holds every permission; any other user holds exactly the
-permissions of their ``case_member`` row. A user with neither is not a member and must not
-learn that the case file exists. The ``admin`` role grants no case permission (spec
-section 3) but may add members to any case file, as may its creator.
+permissions of their ``case_member`` row. A user with neither is not a member and holds no
+permission; a denial is reported as 403 whether or not the user is a member. The ``admin``
+role grants no case permission (spec section 3) but may add members to any case file, as
+may its creator.
 """
 
 import logging
@@ -55,13 +56,6 @@ def case_permissions(db: Session, user_id: uuid.UUID, case_file: CaseFile) -> fr
         return frozenset(permission.value for permission in CasePermission)
     member = db.get(CaseMember, (case_file.id, user_id))
     return frozenset(member.permissions) if member is not None else frozenset()
-
-
-def is_member(db: Session, user_id: uuid.UUID, case_file: CaseFile) -> bool:
-    """Whether ``user_id`` created ``case_file`` or has a membership row for it."""
-    if case_file.created_by == user_id:
-        return True
-    return db.get(CaseMember, (case_file.id, user_id)) is not None
 
 
 def can_manage_members(user: User, case_file: CaseFile) -> bool:

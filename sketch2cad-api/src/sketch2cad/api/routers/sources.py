@@ -1,13 +1,16 @@
-"""Source endpoints: multipart ingestion into a case file (REQ-02, V-01..V-03)."""
+"""Source endpoints: ingestion (REQ-02, V-01..V-03), original download and preview."""
 
 import logging
 import re
 import uuid
+from collections.abc import Iterator
 from datetime import datetime
 from http import HTTPStatus
-from typing import Annotated, Any
+from typing import Annotated, Any, BinaryIO
+from urllib.parse import quote
 
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -17,10 +20,12 @@ from sketch2cad.api.deps import (
     get_storage,
     require_case_permission,
     require_csrf,
+    require_source_permission,
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
-from sketch2cad.db.models import CaseFile, JobMeta, Source, User
+from sketch2cad.audit.chain import EventKind, append_event
+from sketch2cad.db.models import CaseFile, JobMeta, MediaType, Source, User
 from sketch2cad.db.session import get_session
 from sketch2cad.sources.ingest import (
     ALTERED_MESSAGE,
@@ -31,6 +36,14 @@ from sketch2cad.sources.ingest import (
     InvalidSourceTypeError,
     ingest_source,
 )
+from sketch2cad.sources.preview import (
+    DEFAULT_PREVIEW_SIDE,
+    MAX_PREVIEW_SIDE,
+    MIN_PREVIEW_SIDE,
+    PREVIEW_MEDIA_TYPE,
+    PreviewError,
+    render_preview,
+)
 from sketch2cad.sources.upload import (
     FILE_FIELD,
     MalformedUploadError,
@@ -38,7 +51,8 @@ from sketch2cad.sources.upload import (
     UploadTooLargeError,
     read_upload,
 )
-from sketch2cad.storage import Storage
+from sketch2cad.storage import ObjectNotFoundError, Storage
+from sketch2cad.storage.base import CHUNK_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +81,36 @@ UPLOAD_ERRORS: dict[int | str, dict[str, Any]] = {
     413: {"description": "The file exceeds 50 MB (V-02)."},
     415: {"description": "Not a JPEG, PNG, TIFF or single-page PDF by content (V-01)."},
     422: {"description": "Malformed upload, or client_sha256 differs from the server (V-03)."},
+}
+
+CONTENT_SHA256_HEADER = "X-Content-SHA256"
+
+ACCESS_ERRORS: dict[int | str, dict[str, Any]] = {
+    403: {"description": "The user lacks ``read`` on the source's case file (access.denied)."},
+    404: {"description": "The source does not exist."},
+}
+
+ORIGINAL_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "The original bytes, unmodified, as an attachment.",
+        "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
+        "headers": {
+            CONTENT_SHA256_HEADER: {
+                "description": "SHA-256 registered at ingestion (lowercase hex).",
+                "schema": {"type": "string"},
+            }
+        },
+    },
+    **ACCESS_ERRORS,
+}
+
+PREVIEW_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "Derived JPEG whose longest side is at most ``max`` pixels.",
+        "content": {PREVIEW_MEDIA_TYPE: {"schema": {"type": "string", "format": "binary"}}},
+    },
+    **ACCESS_ERRORS,
+    422: {"description": "``max`` is outside 256..4096."},
 }
 
 
@@ -194,3 +238,95 @@ async def upload_source(
         return await run_in_threadpool(_ingest, db, storage, case_file, user, upload, client_ip)
     finally:
         upload.close()
+
+
+def _open_original(storage: Storage, source: Source) -> BinaryIO:
+    try:
+        return storage.open(source.storage_key)
+    except ObjectNotFoundError:
+        logger.error("Stored object of source %s is missing", source.id)
+        raise ProblemError(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
+            "The stored original is not available.",
+        ) from None
+
+
+def _chunks(stream: BinaryIO) -> Iterator[bytes]:
+    with stream:
+        while chunk := stream.read(CHUNK_SIZE):
+            yield chunk
+
+
+def _attachment(filename: str) -> str:
+    """``Content-Disposition`` value with an ASCII fallback and the RFC 5987 UTF-8 name."""
+    fallback = "".join(
+        c if c.isascii() and c.isprintable() and c not in '"\\' else "_" for c in filename
+    )
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
+@router.get(
+    "/sources/{source_id}/original", response_class=StreamingResponse, responses=ORIGINAL_RESPONSES
+)
+def download_original(
+    request: Request,
+    source: Annotated[Source, Depends(require_source_permission("read"))],
+    db: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+    storage: Annotated[Storage, Depends(get_storage)],
+) -> StreamingResponse:
+    """Stream the original bytes exactly as stored, with ``X-Content-SHA256``.
+
+    Writes ``source.downloaded`` before the first byte is sent. Requires ``read``; others
+    get 403 and an ``access.denied`` event.
+    """
+    stream = _open_original(storage, source)
+    try:
+        append_event(
+            db,
+            case_file_id=source.case_file_id,
+            kind=EventKind.SOURCE_DOWNLOADED,
+            actor_id=user.id,
+            actor_role=user.role.value,
+            entity_id=source.id,
+            after={"sha256": source.sha256, "byte_size": source.byte_size},
+            client_ip=request.client.host if request.client else None,
+        )
+        db.commit()
+    except Exception:
+        stream.close()
+        raise
+    logger.info("User %s downloaded source %s", user.id, source.id)
+    headers = {
+        CONTENT_SHA256_HEADER: source.sha256,
+        "Content-Length": str(source.byte_size),
+        "Content-Disposition": _attachment(source.original_filename),
+        "X-Content-Type-Options": "nosniff",
+    }
+    return StreamingResponse(_chunks(stream), media_type=source.media_type, headers=headers)
+
+
+@router.get("/sources/{source_id}/preview", response_class=Response, responses=PREVIEW_RESPONSES)
+def preview_source(
+    source: Annotated[Source, Depends(require_source_permission("read"))],
+    storage: Annotated[Storage, Depends(get_storage)],
+    max_side: Annotated[
+        int, Query(alias="max", ge=MIN_PREVIEW_SIDE, le=MAX_PREVIEW_SIDE)
+    ] = DEFAULT_PREVIEW_SIDE,
+) -> Response:
+    """Derived JPEG of the source whose longest side is at most ``max`` (256 to 4096).
+
+    PDFs are rendered from page 1; no EXIF is carried over. Requires ``read``.
+    """
+    with _open_original(storage, source) as stream:
+        try:
+            content = render_preview(stream, MediaType(source.media_type), max_side)
+        except PreviewError:
+            logger.error("Could not render a preview of source %s", source.id)
+            raise ProblemError(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
+                "The preview could not be generated.",
+            ) from None
+    return Response(content=content, media_type=PREVIEW_MEDIA_TYPE)
