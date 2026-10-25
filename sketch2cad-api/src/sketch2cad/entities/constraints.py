@@ -4,7 +4,7 @@ An entity fixed by triangulation or by baseline plus offset keeps the definition
 computed from, so it can be recomputed when a reference moves::
 
     {"kind": "triangulation", "refs": [A, B],
-     "params": {"d_a_m": 2.10, "d_b_m": 3.45, "solution": "nearest"}}
+     "params": {"d_a_m": 2.10, "d_b_m": 3.45, "solution": "nearest", "side": "left"}}
     {"kind": "baseline_offset", "refs": [A, B],
      "params": {"s_m": 1.50, "d_m": 0.80, "side": "left"}}
 
@@ -53,11 +53,18 @@ class _ConstraintBase(_Strict):
 
 
 class TriangulationParams(_Strict):
-    """Distances from the fixed point to references A and B and the chosen solution."""
+    """Distances from the fixed point to references A and B and the chosen solution.
+
+    ``solution`` is what the user asked for, relative to the position of P at that time.
+    ``side`` is the candidate actually applied, to the ``left`` or ``right`` of A→B, so a
+    recompute keeps P on the same side (:mod:`sketch2cad.entities.recompute`); it is left
+    out when the circles were tangent and in constraints stored before it existed.
+    """
 
     d_a_m: PositiveNumber
     d_b_m: PositiveNumber
     solution: Literal["nearest", "alt"]
+    side: Literal["left", "right"] | None = None
 
 
 class TriangulationConstraint(_ConstraintBase):
@@ -95,8 +102,8 @@ def parse_constraint(value: Any) -> TriangulationConstraint | BaselineOffsetCons
 def constraint_to_json(
     constraint: TriangulationConstraint | BaselineOffsetConstraint,
 ) -> dict[str, Any]:
-    """JSON-ready dict for the ``entity.constraint`` column."""
-    return constraint.model_dump(mode="json")
+    """JSON-ready dict for the ``entity.constraint`` column; a null ``side`` is left out."""
+    return constraint.model_dump(mode="json", exclude_none=True)
 
 
 class ConstraintOperationError(ValueError):

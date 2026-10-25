@@ -294,7 +294,7 @@ def test_3_4_5_triangulation_returns_both_candidates_and_applies_the_nearest(
     expected = {
         "kind": "triangulation",
         "refs": list(corners),
-        "params": {"d_a_m": 3.0, "d_b_m": 4.0, "solution": "nearest"},
+        "params": {"d_a_m": 3.0, "d_b_m": 4.0, "solution": "nearest", "side": "left"},
     }
     assert body["constraint"] == expected
     row = entity_row(factory, target["id"])
@@ -317,7 +317,13 @@ def test_nearest_follows_the_current_position_and_alt_picks_the_other_candidate(
     assert alt.status_code == 200, alt.text
     assert alt.json()["chosen_candidate"] == 0
     assert alt.json()["geometry"]["coords_m"][0] == pytest.approx([1.8, 2.4], abs=TOLERANCE)
-    assert alt.json()["constraint"]["params"] == {"d_a_m": 3.0, "d_b_m": 4.0, "solution": "alt"}
+    assert alt.json()["constraint"]["params"] == {
+        "d_a_m": 3.0,
+        "d_b_m": 4.0,
+        "solution": "alt",
+        "side": "left",
+    }
+    assert nearest.json()["constraint"]["params"]["side"] == "right"
 
 
 @pytest.mark.parametrize("solution", ["nearest", "alt"])
@@ -624,9 +630,8 @@ def test_moving_a_constrained_point_by_hand_drops_the_constraint(
     target = create_one(client, plan, point(1.0, 2.0))
     assert triangulate(client, target["id"], *corners, 3.0, 4.0).status_code == 200
 
-    response = client.patch(
-        f"{ENTITIES_URL}/{target['id']}", json={"operation": "move_vertex", "geometry": point(2, 2)}
-    )
+    body = {"operation": "move_vertex", "geometry": point(2, 2), "confirm_constraint_removal": True}
+    response = client.patch(f"{ENTITIES_URL}/{target['id']}", json=body)
 
     assert response.status_code == 200, response.text
     assert (response.json()["constraint"], response.json()["metric_origin"]) == (None, "none")

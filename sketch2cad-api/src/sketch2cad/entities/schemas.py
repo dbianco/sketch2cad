@@ -179,8 +179,9 @@ class EntityPatch(_Strict):
 
     ``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs
     ``layer``; ``relabel`` needs ``geometry`` or ``attributes``. Moving a point or symbol
-    that has a ``constraint`` removes the constraint and sets ``metric_origin`` to
-    ``none`` (spec section 11.3).
+    that has a ``constraint`` needs ``confirm_constraint_removal = true`` (409
+    ``constraint_removal_required`` otherwise); it removes the constraint and sets
+    ``metric_origin`` to ``none`` (spec section 11.3).
 
     The other operations take only their own fields and the server computes the geometry:
 
@@ -211,6 +212,7 @@ class EntityPatch(_Strict):
     d_m: LengthValue | None = None
     side: Literal["left", "right"] | None = None
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    confirm_constraint_removal: StrictBool = False
 
     @model_validator(mode="after")
     def _operation_has_its_fields(self) -> "EntityPatch":

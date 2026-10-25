@@ -10,10 +10,13 @@ it records live in :mod:`sketch2cad.entities.ops_fix_length`; any later geometry
 drops the declarations it breaks and updates ``metric_origin`` accordingly.
 ``triangulate`` and ``baseline_offset`` (:func:`_apply_constraint`) place a point or symbol
 from two metric references of the same revision, store its ``constraint`` and set
-``metric_origin``; moving such an entity by hand drops the constraint and sets
-``metric_origin = none`` (spec section 11.3). Entities
-are edited only in a ``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by
-the user holding the plan's edit lease (CU-04).
+``metric_origin``; moving such an entity by hand needs ``confirm_constraint_removal``
+(409 ``constraint_removal_required`` otherwise), then drops the constraint and sets
+``metric_origin = none`` (spec section 11.3). After any edit or deletion that changes an
+entity, the entities that depend on it through ``constraint.refs`` are recomputed
+(:mod:`sketch2cad.entities.recompute`), each with an ``entity.recomputed`` event in the
+same transaction. Entities are edited only in a ``draft`` revision of a plan in
+``EDITING`` or ``IN_REVIEW``, by the user holding the plan's edit lease (CU-04).
 """
 
 import logging
@@ -56,6 +59,7 @@ from sketch2cad.entities.ops_fix_length import (
     retained_attributes,
 )
 from sketch2cad.entities.ops_triangulate import triangulate_position
+from sketch2cad.entities.recompute import CONSTRAINT_ERROR, constraint_graph, recompute_dependents
 from sketch2cad.entities.schemas import (
     Attributes,
     EntityIn,
@@ -75,6 +79,13 @@ logger = logging.getLogger(__name__)
 EDITABLE_STATUSES = frozenset({PlanStatus.EDITING, PlanStatus.IN_REVIEW})
 VALIDATED_STATUSES = frozenset({PlanStatus.VALIDATED, PlanStatus.EXPORTED})
 V10_MESSAGE = "Este plano está validado. Reábrelo para editarlo."
+CONSTRAINT_REMOVAL_MESSAGE = (
+    "Este punto está fijado por una restricción métrica. Si lo mueves a mano se eliminará "
+    "la restricción y dejará de ser métrico. Confirma para continuar."
+)
+"""409 ``constraint_removal_required``: a constrained entity moved without confirmation."""
+# Attributes managed by the server; requests may not set them and relabels keep them.
+SERVER_ATTRIBUTES = (DECLARED_SEGMENTS, CONSTRAINT_ERROR)
 # L_SHEET holds the title block and frame, drawn only on export (spec section 12.1).
 EXPORT_ONLY_LAYERS = frozenset({"L_SHEET"})
 
@@ -141,8 +152,12 @@ def active_catalog_refs(db: Session) -> CatalogRefs:
 
 
 def _check_attributes(attributes: Attributes | None) -> None:
-    if attributes is not None and DECLARED_SEGMENTS in attributes:
+    if attributes is None:
+        return
+    if DECLARED_SEGMENTS in attributes:
         raise EntityInputError(f"attributes.{DECLARED_SEGMENTS} is set only by fix_length.")
+    if CONSTRAINT_ERROR in attributes:
+        raise EntityInputError(f"attributes.{CONSTRAINT_ERROR} is set only by the server.")
 
 
 def _check_refs(refs: CatalogRefs, layer: str, geometry: Geometry | None) -> None:
@@ -328,14 +343,17 @@ def update_entity(
     (:func:`_drop_moved_constraint`). Raises :class:`EntityGoneError`,
     :class:`EntityConflictError` or :class:`EntityInputError` (a geometry of another kind,
     a layer or symbol not in the active catalog, a ``fix_length``, ``triangulate`` or
-    ``baseline_offset`` that cannot be applied, with ``code`` when a V-xx rule applies)
-    before changing anything.
+    ``baseline_offset`` that cannot be applied, with ``code`` when a V-xx rule applies;
+    :class:`EntityConflictError` ``constraint_removal_required`` when a constrained entity
+    would move without ``confirm_constraint_removal``) before changing anything. When the
+    geometry changed, the dependents are recomputed (:func:`_recompute_dependents`).
     """
     plan, _ = _lock_live(db, entity, user)
     if patch.geometry is not None and patch.geometry.kind != entity.type:
         raise EntityInputError(f"geometry.kind must stay {entity.type}.")
     _check_refs(active_catalog_refs(db), patch.layer or entity.layer, patch.geometry)
     _check_attributes(patch.attributes)
+    _check_constraint_removal(entity, patch)
     before = entity_state(entity)
     old_geometry, old_attributes = entity.geometry, entity.attributes
     update = EntityUpdate(entity)
@@ -377,6 +395,8 @@ def update_entity(
         after=after,
         reason=patch.reason,
     )
+    if entity.geometry != old_geometry:
+        _recompute_dependents(db, plan, entity, user, client_ip)
     recompute_metric_status(db, plan)
     logger.info("User %s applied %s to entity %s", user.id, patch.operation.value, entity.id)
     return update
@@ -423,21 +443,54 @@ def _apply_constraint(db: Session, entity: Entity, patch: EntityPatch) -> Entity
     entity.geometry = with_position(entity.geometry, point)
     entity.constraint = constraint_to_json(constraint)
     entity.metric_origin = CONSTRAINT_ORIGINS[patch.operation].value
+    entity.attributes = _without_constraint_error(entity.attributes)
     return update
 
 
-def _constraint_graph(db: Session, revision_id: uuid.UUID) -> dict[uuid.UUID, list[uuid.UUID]]:
-    """``entity -> refs`` of the live constrained entities of the revision."""
-    query = select(Entity.id, Entity.constraint).where(
-        Entity.revision_id == revision_id,
-        Entity.deleted_at.is_(None),
-        Entity.constraint.is_not(None),
-    )
-    graph: dict[uuid.UUID, list[uuid.UUID]] = {}
-    for entity_id, constraint in db.execute(query):
-        refs: list[Any] = constraint.get("refs", []) if isinstance(constraint, dict) else []
-        graph[entity_id] = [uuid.UUID(str(ref)) for ref in refs]
-    return graph
+def _without_constraint_error(attributes: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in attributes.items() if k != CONSTRAINT_ERROR}
+
+
+def _check_constraint_removal(entity: Entity, patch: EntityPatch) -> None:
+    """A hand edit may move a constrained entity only with ``confirm_constraint_removal``."""
+    if entity.constraint is None or patch.geometry is None or patch.confirm_constraint_removal:
+        return
+    new_position = point_position(patch.geometry.model_dump(mode="json"))
+    if new_position != point_position(entity.geometry):
+        raise EntityConflictError(CONSTRAINT_REMOVAL_MESSAGE, code="constraint_removal_required")
+
+
+def _recompute_dependents(
+    db: Session, plan: Plan, changed: Entity, user: User, client_ip: str | None
+) -> None:
+    """Recompute the dependents of ``changed`` with one ``entity.recomputed`` event each.
+
+    ``after`` adds ``trigger_entity_id`` and ``constraint_error`` (``None`` on success).
+    """
+    for item in recompute_dependents(db, changed, entity_state):
+        item.entity.updated_at = utc_now()
+        after = {
+            **entity_state(item.entity),
+            "trigger_entity_id": str(changed.id),
+            "constraint_error": item.error,
+        }
+        _record(
+            db,
+            plan,
+            item.entity,
+            user,
+            EventKind.ENTITY_RECOMPUTED,
+            client_ip,
+            before=item.before,
+            after=after,
+        )
+        if item.error is not None:
+            logger.warning(
+                "Entity %s could not be recomputed after %s changed: %s",
+                item.entity.id,
+                changed.id,
+                item.error,
+            )
 
 
 def _reference_positions(
@@ -455,7 +508,7 @@ def _reference_positions(
         if ref is None or ref.revision_id != entity.revision_id or ref.deleted_at is not None:
             raise EntityInputError(f"Reference {ref_id} is not a live entity of this revision.")
         refs.append(ref)
-    if would_create_cycle(_constraint_graph(db, entity.revision_id), entity.id, ref_ids):
+    if would_create_cycle(constraint_graph(db, entity.revision_id), entity.id, ref_ids):
         raise EntityInputError(V07_MESSAGE, code="V-07")
     positions: list[tuple[uuid.UUID, Point]] = []
     for ref in refs:
@@ -469,10 +522,11 @@ def _reference_positions(
 
 
 def _drop_moved_constraint(entity: Entity, old_geometry: dict[str, Any]) -> None:
-    """A hand edit that moves a constrained entity removes its constraint (spec 11.3).
+    """A confirmed hand edit that moves a constrained entity removes its constraint.
 
-    The position no longer follows the references, so ``metric_origin`` becomes ``none``.
-    Edits that keep the position (rotation, attributes, layer) keep the constraint.
+    Spec section 11.3: the position no longer follows the references, so ``metric_origin``
+    becomes ``none``. Edits that keep the position (rotation, attributes, layer) keep the
+    constraint; :func:`_check_constraint_removal` has already required the confirmation.
     """
     if entity.constraint is None:
         return
@@ -480,13 +534,15 @@ def _drop_moved_constraint(entity: Entity, old_geometry: dict[str, Any]) -> None
         return
     entity.constraint = None
     entity.metric_origin = MetricOrigin.NONE.value
+    entity.attributes = _without_constraint_error(entity.attributes)
 
 
 def _keep_declarations(attributes: Attributes, current: dict[str, Any]) -> dict[str, Any]:
     """New ``attributes`` of a relabel; the server-managed declarations are carried over."""
     result: dict[str, Any] = dict(attributes)
-    if DECLARED_SEGMENTS in current:
-        result[DECLARED_SEGMENTS] = current[DECLARED_SEGMENTS]
+    for name in SERVER_ATTRIBUTES:
+        if name in current:
+            result[name] = current[name]
     return result
 
 
@@ -528,7 +584,11 @@ def delete_entity(
     reason: str | None = None,
     client_ip: str | None = None,
 ) -> Entity:
-    """Soft-delete ``entity`` (``deleted_at``) and append ``entity.deleted`` with ``before``."""
+    """Soft-delete ``entity`` (``deleted_at``) and append ``entity.deleted`` with ``before``.
+
+    Entities fixed from it can no longer be recomputed: they keep their position and are
+    marked (``constraint_error`` ``reference_missing``, ``metric_origin`` ``none``).
+    """
     plan, _ = _lock_live(db, entity, user)
     before = entity_state(entity)
     entity.deleted_at = entity.updated_at = utc_now()
@@ -536,6 +596,7 @@ def delete_entity(
     _record(
         db, plan, entity, user, EventKind.ENTITY_DELETED, client_ip, before=before, reason=reason
     )
+    _recompute_dependents(db, plan, entity, user, client_ip)
     recompute_metric_status(db, plan)
     logger.info("User %s deleted entity %s", user.id, entity.id)
     return entity

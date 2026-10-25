@@ -58,9 +58,12 @@ def triangulate_position(
     candidates = result.candidates
     nearest = result.nearest_index
     chosen = nearest if solution == "nearest" or len(candidates) == 1 else 1 - nearest
+    side: Literal["left", "right"] | None = None
+    if len(candidates) == 2:
+        side = "left" if chosen == 0 else "right"
     constraint = TriangulationConstraint(
         kind="triangulation",
         refs=[id_a, id_b],
-        params=TriangulationParams(d_a_m=d_a, d_b_m=d_b, solution=solution),
+        params=TriangulationParams(d_a_m=d_a, d_b_m=d_b, solution=solution, side=side),
     )
     return Triangulated(result.point, candidates, chosen, constraint)
