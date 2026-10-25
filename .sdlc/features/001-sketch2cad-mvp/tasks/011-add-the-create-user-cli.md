@@ -1,7 +1,7 @@
 ---
 id: 001-011
 title: "Add the create-user CLI"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-007]
