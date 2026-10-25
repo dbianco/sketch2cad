@@ -1,7 +1,7 @@
 ---
 id: 001-033
 title: "Record auth.login and auth.failed events"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-030, 001-008]
