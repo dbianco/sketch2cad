@@ -51,8 +51,14 @@ function runScript(args) {
 }
 
 describe("allow-list file", () => {
-  test("contains exactly the DEC-6 licenses", () => {
-    assert.deepEqual([...ALLOWED].sort(), ["Apache-2.0", "BSD", "BSD-2-Clause", "BSD-3-Clause", "MIT", "PSF-2.0"]);
+  test("contains exactly the DEC-6 licenses plus the owner extension of 2026-10-25", () => {
+    assert.deepEqual(
+      [...ALLOWED].sort(),
+      [
+        "0BSD", "Apache-2.0", "BSD", "BSD-2-Clause", "BSD-3-Clause", "BlueOak-1.0.0", "CC-BY-3.0",
+        "CC-BY-4.0", "CC0-1.0", "ISC", "MIT", "MIT-0", "MPL-2.0", "PSF-2.0", "Zlib",
+      ].sort(),
+    );
   });
 
   test("rejects a non-array licenses field", () => {
@@ -80,7 +86,7 @@ describe("classify", () => {
   test("OR takes the best option and AND the worst", () => {
     assert.equal(classify("(MIT OR CC0-1.0)", ALLOWED), "allowed");
     assert.equal(classify("(MIT OR GPL-3.0-only)", ALLOWED), "allowed");
-    assert.equal(classify("(MIT AND CC-BY-3.0)", ALLOWED), "needs-exception");
+    assert.equal(classify("(MIT AND EUPL-1.2)", ALLOWED), "needs-exception");
     assert.equal(classify("MIT AND GPL-3.0-only", ALLOWED), "forbidden");
     assert.equal(classify("(ISC OR (MIT AND Apache-2.0))", ALLOWED), "allowed");
   });
@@ -92,8 +98,8 @@ describe("classify", () => {
   });
 
   test("requires an exception for LGPL and every other license", () => {
-    const others = ["LGPL-3.0-only", "LGPL-2.1-or-later", "ISC", "MIT-0", "0BSD", "MPL-2.0", "CC0-1.0"];
-    for (const license of [...others, "Unlicense", "Public Domain", "UNKNOWN", "UNLICENSED", "BlueOak-1.0.0"]) {
+    const others = ["LGPL-3.0-only", "LGPL-2.1-or-later", "EUPL-1.2", "CDDL-1.0"];
+    for (const license of [...others, "Unlicense", "Public Domain", "UNKNOWN", "UNLICENSED"]) {
       assert.equal(classify(license, ALLOWED), "needs-exception", license);
     }
   });
@@ -152,11 +158,11 @@ describe("evaluate", () => {
 
   test("an exception for another version or license does not match and is stale", () => {
     const packages = [pkg("lgpl-lib", "2.0.0", "LGPL-3.0-only")];
-    const report = evaluate(packages, ALLOWED, [exception(), exception({ version: "*", license: "ISC" })]);
+    const report = evaluate(packages, ALLOWED, [exception(), exception({ version: "*", license: "EUPL-1.2" })]);
     assert.equal(report.errors.length, 3);
     assert.match(report.errors[0], /lgpl-lib 2\.0\.0/);
     assert.match(report.errors[1], /stale exception: lgpl-lib 1\.0\.0 \(LGPL-3\.0-only\)/);
-    assert.match(report.errors[2], /stale exception: lgpl-lib \* \(ISC\)/);
+    assert.match(report.errors[2], /stale exception: lgpl-lib \* \(EUPL-1\.2\)/);
   });
 
   test("an exception for an allowed package is stale", () => {
@@ -180,16 +186,16 @@ describe("parsePackages", () => {
   test("splits scoped names, joins license arrays with AND and skips the project", () => {
     const payload = JSON.stringify({
       "@scope/lib@1.2.3": { licenses: "MIT" },
-      "multi@0.1.0": { licenses: ["MIT", "ISC"] },
+      "multi@0.1.0": { licenses: ["MIT", "EUPL-1.2"] },
       "bare@1.0.0": {},
       "sketch2cad-web@0.1.0": { licenses: "UNLICENSED" },
     });
     assert.deepEqual(parsePackages(payload, new Set(["sketch2cad-web"])), [
       pkg("@scope/lib", "1.2.3", "MIT"),
-      pkg("multi", "0.1.0", "(MIT) AND (ISC)"),
+      pkg("multi", "0.1.0", "(MIT) AND (EUPL-1.2)"),
       pkg("bare", "1.0.0", "UNKNOWN"),
     ]);
-    assert.equal(classify("(MIT) AND (ISC)", ALLOWED), "needs-exception");
+    assert.equal(classify("(MIT) AND (EUPL-1.2)", ALLOWED), "needs-exception");
   });
 });
 
