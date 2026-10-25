@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     Both subdirectories must live on one filesystem, since objects are published with a
     hard link. Relative paths resolve against the working directory (``/app`` in the image).
     """
+    QC_MIN_SHORT_SIDE_AMBER: int = Field(default=1500, gt=0)
+    """Short image side in px below which QC is amber (``qc.min_short_side_amber``)."""
+    QC_MIN_SHORT_SIDE_RED: int = Field(default=900, gt=0)
+    """Short image side in px below which QC is red (``qc.min_short_side_red``)."""
+    QC_MIN_LAPLACIAN_VAR_AMBER: float = Field(default=100.0, gt=0)
+    """Laplacian variance below which QC is amber (``qc.min_laplacian_var_amber``)."""
+    QC_MIN_LAPLACIAN_VAR_RED: float = Field(default=40.0, gt=0)
+    """Laplacian variance below which QC is red (``qc.min_laplacian_var_red``)."""
+    QC_MIN_CONTRAST_AMBER: float = Field(default=60.0, gt=0)
+    """Gray-level spread p95 - p5 below which QC is amber (``qc.min_contrast_amber``)."""
 
 
 def get_settings() -> Settings:
