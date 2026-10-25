@@ -1,4 +1,4 @@
-"""Source endpoints: ingestion (REQ-02, V-01..V-03), original download and preview."""
+"""Source endpoints: ingestion (REQ-02, V-01..V-03), metadata, original download and preview."""
 
 import logging
 import re
@@ -12,6 +12,7 @@ from urllib.parse import quote
 from fastapi import Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -27,6 +28,7 @@ from sketch2cad.api.routers import api_v1_router
 from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.db.models import CaseFile, JobMeta, Source, User
 from sketch2cad.db.session import get_session
+from sketch2cad.jobs.service import QC_JOB_KIND
 from sketch2cad.sources.ingest import (
     ALTERED_MESSAGE,
     INVALID_TYPE_MESSAGE,
@@ -132,7 +134,7 @@ class SourceOut(BaseModel):
     uploaded_at: datetime
 
 
-def _out(source: Source, job: JobMeta) -> SourceOut:
+def _out(source: Source, qc_job_id: uuid.UUID) -> SourceOut:
     return SourceOut(
         id=source.id,
         case_file_id=source.case_file_id,
@@ -145,7 +147,7 @@ def _out(source: Source, job: JobMeta) -> SourceOut:
         dpi=float(source.dpi) if source.dpi is not None else None,
         exif=source.exif,
         qc=source.qc,
-        qc_job_id=job.id,
+        qc_job_id=qc_job_id,
         uploaded_by=source.uploaded_by,
         uploaded_at=source.uploaded_at,
     )
@@ -196,7 +198,7 @@ def _ingest(
             INVALID_TYPE_MESSAGE,
         ) from None
     db.commit()
-    return _out(source, job)
+    return _out(source, job.id)
 
 
 @router.post(
@@ -239,6 +241,37 @@ async def upload_source(
         return await run_in_threadpool(_ingest, db, storage, case_file, user, upload, client_ip)
     finally:
         upload.close()
+
+
+def _qc_job_id(db: Session, source: Source) -> uuid.UUID:
+    """Id of the latest ``qc`` job of ``source``; 500 if ingestion left none."""
+    job_id = db.scalars(
+        select(JobMeta.id)
+        .where(JobMeta.source_id == source.id, JobMeta.kind == QC_JOB_KIND)
+        .order_by(JobMeta.started_at.desc().nulls_first(), JobMeta.id)
+        .limit(1)
+    ).first()
+    if job_id is None:
+        logger.error("Source %s has no qc job", source.id)
+        raise ProblemError(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
+            "The quality check of the source is not available.",
+        )
+    return job_id
+
+
+@router.get("/sources/{source_id}", responses=ACCESS_ERRORS)
+def get_source(
+    source: Annotated[Source, Depends(require_source_permission("read"))],
+    db: Annotated[Session, Depends(get_session)],
+) -> SourceOut:
+    """Metadata of a source, including ``qc`` once its quality job has finished.
+
+    ``qc`` is null while the job is queued or running. Requires ``read``; others get 403
+    and an ``access.denied`` event.
+    """
+    return _out(source, _qc_job_id(db, source))
 
 
 def _open_original(storage: Storage, source: Source, key: str | None = None) -> BinaryIO:

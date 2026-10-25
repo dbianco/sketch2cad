@@ -21,7 +21,7 @@ export const UPLOAD_MESSAGES = {
   altered: "El archivo se alteró durante la subida. Vuelve a cargarlo.", // V-03
   generic: "No se pudo subir el archivo. Inténtalo de nuevo.",
   pollFailed: "No se pudo consultar el control de calidad. Recarga la página para reintentar.",
-  qcUnavailable: "El control de calidad terminó, pero su resultado aún no está disponible.",
+  qcUnavailable: "El control de calidad terminó, pero no se pudo obtener su resultado.",
 } as const;
 
 const ACCEPTED_TYPES = ".jpg,.jpeg,.png,.tif,.tiff,.pdf,image/jpeg,image/png,image/tiff,application/pdf";
@@ -47,7 +47,7 @@ type Phase =
 
 type JobState =
   | { kind: "pending"; status: Job["status"] }
-  | { kind: "done"; job: Job }
+  | { kind: "done"; job: Job; source: Source | null }
   | { kind: "unreachable" };
 
 const styles = {
@@ -133,14 +133,27 @@ function uploadErrorMessage(error: unknown): string {
   return UPLOAD_MESSAGES.generic;
 }
 
-/** Poll the QC job every `JOB_POLL_INTERVAL_MS` until it succeeds or fails. */
-function useJobStatus(jobId: string | null): JobState | null {
+/** `GET /sources/{id}` after the QC job succeeded; `null` when it cannot be fetched. */
+async function fetchFinishedSource(sourceId: string, signal: AbortSignal): Promise<Source | null> {
+  try {
+    return await api.get("/api/v1/sources/{source_id}", { path: { source_id: sourceId }, signal });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Poll the QC job every `JOB_POLL_INTERVAL_MS` until it succeeds or fails; on success,
+ * fetch the source once to get its finished `qc`.
+ */
+function useJobStatus(jobId: string | null, sourceId: string | null): JobState | null {
   const [state, setState] = useState<{ jobId: string; value: JobState } | null>(null);
 
   useEffect(() => {
-    if (jobId === null) {
+    if (jobId === null || sourceId === null) {
       return;
     }
+    const finishedSourceId = sourceId;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -152,7 +165,10 @@ function useJobStatus(jobId: string | null): JobState | null {
         });
         if (controller.signal.aborted) return;
         if (TERMINAL_JOB_STATUSES.has(job.status)) {
-          setState({ jobId: id, value: { kind: "done", job } });
+          const finished =
+            job.status === "succeeded" ? await fetchFinishedSource(finishedSourceId, controller.signal) : null;
+          if (controller.signal.aborted) return;
+          setState({ jobId: id, value: { kind: "done", job, source: finished } });
           return;
         }
         setState({ jobId: id, value: { kind: "pending", status: job.status } });
@@ -169,9 +185,9 @@ function useJobStatus(jobId: string | null): JobState | null {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [jobId]);
+  }, [jobId, sourceId]);
 
-  if (jobId === null) return null;
+  if (jobId === null || sourceId === null) return null;
   return state?.jobId === jobId ? state.value : { kind: "pending", status: "queued" };
 }
 
@@ -218,9 +234,10 @@ export function UploadPage() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const source = phase.kind === "uploaded" ? phase.source : null;
-  const job = useJobStatus(source?.qc_job_id ?? null);
-  // `qc` is null in the 201 until the job runs; no endpoint returns it afterwards yet.
-  const qc = parseQc(source?.qc ?? null);
+  const job = useJobStatus(source?.qc_job_id ?? null, source?.id ?? null);
+  // `qc` is null in the 201 until the job runs; the finished source carries it afterwards.
+  const finishedQc = job?.kind === "done" && job.source !== null ? job.source.qc : null;
+  const qc = parseQc(finishedQc ?? source?.qc ?? null);
   const busy = phase.kind === "hashing" || phase.kind === "uploading";
 
   async function upload(file: File): Promise<void> {

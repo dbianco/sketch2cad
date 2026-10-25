@@ -1565,6 +1565,71 @@
         ]
       }
     },
+    "/api/v1/sources/{source_id}": {
+      "get": {
+        "description": "Metadata of a source, including ``qc`` once its quality job has finished.\n\n``qc`` is null while the job is queued or running. Requires ``read``; others get 403\nand an ``access.denied`` event.",
+        "operationId": "get_source_api_v1_sources__source_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the source's case file (access.denied)."
+          },
+          "404": {
+            "description": "The source does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
     "/api/v1/sources/{source_id}/original": {
       "get": {
         "description": "Stream the original bytes exactly as stored, with ``X-Content-SHA256``.\n\nWrites ``source.downloaded`` before the first byte is sent. Requires ``read``; others\nget 403 and an ``access.denied`` event.",

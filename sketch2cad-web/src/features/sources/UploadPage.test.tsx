@@ -16,6 +16,7 @@ const SOURCE_ID = "00000000-0000-4000-8000-0000000000s1";
 const JOB_ID = "00000000-0000-4000-8000-0000000000j1";
 const UPLOAD_URL = `/api/v1/case-files/${CASE_ID}/sources`;
 const JOB_URL = `/api/v1/jobs/${JOB_ID}`;
+const SOURCE_URL = `/api/v1/sources/${SOURCE_ID}`;
 
 const FILE_BYTES = new TextEncoder().encode("croquis de prueba");
 const FILE_SHA256 = sha256Hex(FILE_BYTES);
@@ -91,8 +92,15 @@ function problem(status: number, detail: string): Response {
 
 const fetchMock = vi.fn<typeof fetch>();
 
-/** Serve the upload with `uploadResponse` and the job polls with `jobs`, in order. */
-function mockApi(uploadResponse: () => Response, jobs: Job[] = []): void {
+/**
+ * Serve the upload with `uploadResponse`, the job polls with `jobs`, in order, and
+ * `GET /sources/{id}` with `sourceResponse` (404 by default).
+ */
+function mockApi(
+  uploadResponse: () => Response,
+  jobs: Job[] = [],
+  sourceResponse: () => Response = () => problem(404, "Not found"),
+): void {
   const queue = [...jobs];
   fetchMock.mockImplementation((input, init) => {
     const url = String(input);
@@ -103,12 +111,19 @@ function mockApi(uploadResponse: () => Response, jobs: Job[] = []): void {
       const next = queue.length > 1 ? queue.shift() : queue[0];
       return Promise.resolve(next === undefined ? problem(404, "Not found") : jsonResponse(next));
     }
+    if (url === SOURCE_URL) {
+      return Promise.resolve(sourceResponse());
+    }
     return Promise.resolve(problem(404, "Not found"));
   });
 }
 
+function callsTo(url: string): number {
+  return fetchMock.mock.calls.filter(([input]) => String(input) === url).length;
+}
+
 function jobCalls(): number {
-  return fetchMock.mock.calls.filter(([input]) => String(input) === JOB_URL).length;
+  return callsTo(JOB_URL);
 }
 
 function renderPage() {
@@ -277,6 +292,69 @@ describe("UploadPage", () => {
     expect(alert.textContent).toContain(error.cause);
     expect(alert.textContent).toContain(error.action);
     expect(continueButton().disabled).toBe(true);
+  });
+
+  it("fetches the source once the job succeeds and shows its finished amber result", async () => {
+    mockApi(
+      () => jsonResponse(source(), 201),
+      [job("running"), job("succeeded")],
+      () => jsonResponse(source({ qc: { ...AMBER_QC } })),
+    );
+    renderPage();
+
+    chooseFile();
+    await settle();
+    await settle(JOB_POLL_INTERVAL_MS);
+    expect(callsTo(SOURCE_URL)).toBe(0);
+    expect(screen.getByText("Analizando la calidad de la imagen…")).toBeTruthy();
+    expect(continueButton().disabled).toBe(true);
+
+    await settle(JOB_POLL_INTERVAL_MS);
+    expect(jobCalls()).toBe(2);
+    expect(callsTo(SOURCE_URL)).toBe(1);
+    expect(screen.getByText("Resultado: Ámbar")).toBeTruthy();
+    const reasons = screen.getByRole("list", { name: "Motivos" });
+    expect(within(reasons).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Imagen algo borrosa: algunos trazos o cotas pueden no leerse.",
+    ]);
+    expect(continueButton().disabled).toBe(false);
+
+    await settle(JOB_POLL_INTERVAL_MS * 5);
+    expect(jobCalls()).toBe(2);
+    expect(callsTo(SOURCE_URL)).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("falls back to a notice when the finished source cannot be fetched", async () => {
+    mockApi(
+      () => jsonResponse(source(), 201),
+      [job("succeeded")],
+      () => problem(500, "Internal Server Error"),
+    );
+    renderPage();
+
+    chooseFile();
+    await settle();
+    await settle(JOB_POLL_INTERVAL_MS);
+
+    expect(callsTo(SOURCE_URL)).toBe(1);
+    expect(screen.getByText(UPLOAD_MESSAGES.qcUnavailable)).toBeTruthy();
+    expect(continueButton().disabled).toBe(false);
+    await settle(JOB_POLL_INTERVAL_MS * 5);
+    expect(jobCalls()).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not fetch the source when the job fails", async () => {
+    mockApi(() => jsonResponse(source(), 201), [job("failed", null)]);
+    renderPage();
+
+    chooseFile();
+    await settle();
+    await settle(JOB_POLL_INTERVAL_MS);
+
+    expect(jobCalls()).toBe(1);
+    expect(callsTo(SOURCE_URL)).toBe(0);
   });
 
   it("shows the amber reasons and keeps the continue button enabled", async () => {
