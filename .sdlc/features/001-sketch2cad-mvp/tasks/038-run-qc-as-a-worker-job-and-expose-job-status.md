@@ -1,7 +1,7 @@
 ---
 id: 001-038
 title: "Run QC as a worker job and expose job status"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-037, 001-036]
@@ -22,4 +22,4 @@ Implements: REQ-02, REQ-15
 
 - [ ] After ingesting a sharp image and running the worker once, `GET /jobs/{id}` returns `succeeded` and `source.qc.status == "green"` (`tests/jobs/test_qc_job.py`).
 - [ ] A corrupt JPEG yields job `failed` with non-empty `error.cause` and `error.action`, and `source.qc` is not green.
-- [ ] A job for a source in another case returns 404 to a non-member.
+- [ ] A job for a source in another case returns 403 to a non-member and writes `access.denied` (corrected 2026-10-25: non-members get 403, not 404, as everywhere else; see `api/deps.py`).
