@@ -1,7 +1,7 @@
 ---
 id: 001-046
 title: "Add the plans, calibration, revisions, entities, catalog and artifacts migration"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-040, 001-045, 001-044]
