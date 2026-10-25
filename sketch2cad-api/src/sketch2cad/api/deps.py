@@ -21,7 +21,7 @@ from sketch2cad.cases.permissions import (
 )
 from sketch2cad.config import Settings, get_settings
 from sketch2cad.db import session as db_session
-from sketch2cad.db.models import CaseFile, Plan, Source, User, UserSession
+from sketch2cad.db.models import CaseFile, Entity, Plan, Revision, Source, User, UserSession
 from sketch2cad.db.session import get_session
 from sketch2cad.storage import FilesystemStorage, Storage
 
@@ -258,5 +258,87 @@ def require_plan_permission(permission: str) -> Callable[..., Plan]:
         if required not in case_permissions(db, user.id, case_file):
             raise _deny(request, db, audit_factory, user, case_file, required)
         return plan
+
+    return dependency
+
+
+def revision_not_found() -> ProblemError:
+    return ProblemError(404, "Not Found", "The revision does not exist.")
+
+
+def entity_not_found() -> ProblemError:
+    return ProblemError(404, "Not Found", "The entity does not exist.")
+
+
+def _ensure_plan_permission(
+    request: Request,
+    db: Session,
+    audit_factory: sessionmaker[Session],
+    user: User,
+    plan_id: uuid.UUID,
+    required: str,
+    not_found: Callable[[], ProblemError],
+) -> None:
+    """Check ``required`` on the case file of plan ``plan_id``; 403 with ``access.denied``."""
+    plan = db.get(Plan, plan_id)
+    case_file = None if plan is None else db.get(CaseFile, plan.case_file_id)
+    if case_file is None:  # pragma: no cover - guaranteed by the foreign keys
+        raise not_found()
+    if required not in case_permissions(db, user.id, case_file):
+        raise _deny(request, db, audit_factory, user, case_file, required)
+
+
+def require_revision_permission(permission: str) -> Callable[..., Revision]:
+    """Dependency factory: the ``{revision_id}`` revision if the user holds ``permission``.
+
+    The permission is checked on the case file of the revision's plan. A missing or
+    malformed id gives 404 without an event; a denial is a 403 with ``access.denied``.
+    """
+    required = CasePermission(permission).value
+
+    def dependency(
+        revision_id: str,
+        request: Request,
+        db: Annotated[Session, Depends(get_session)],
+        user: Annotated[User, Depends(get_current_user)],
+        audit_factory: Annotated[sessionmaker[Session], Depends(get_audit_session_factory)],
+    ) -> Revision:
+        revision = db.get(Revision, _parse_uuid(revision_id, revision_not_found))
+        if revision is None:
+            raise revision_not_found()
+        _ensure_plan_permission(
+            request, db, audit_factory, user, revision.plan_id, required, revision_not_found
+        )
+        return revision
+
+    return dependency
+
+
+def require_entity_permission(permission: str) -> Callable[..., Entity]:
+    """Dependency factory: the ``{entity_id}`` entity if the user holds ``permission``.
+
+    The case file is resolved through entity, revision and plan. A missing or malformed id
+    gives 404 without an event; a denial is a 403 with ``access.denied``. Soft-deleted
+    entities are returned too; the caller decides what they allow.
+    """
+    required = CasePermission(permission).value
+
+    def dependency(
+        entity_id: str,
+        request: Request,
+        db: Annotated[Session, Depends(get_session)],
+        user: Annotated[User, Depends(get_current_user)],
+        audit_factory: Annotated[sessionmaker[Session], Depends(get_audit_session_factory)],
+    ) -> Entity:
+        entity = db.get(Entity, _parse_uuid(entity_id, entity_not_found))
+        if entity is None:
+            raise entity_not_found()
+        revision = db.get(Revision, entity.revision_id)
+        if revision is None:  # pragma: no cover - guaranteed by the foreign key
+            raise entity_not_found()
+        _ensure_plan_permission(
+            request, db, audit_factory, user, revision.plan_id, required, entity_not_found
+        )
+        return entity
 
     return dependency

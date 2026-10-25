@@ -612,6 +612,80 @@
         "title": "CatalogOut",
         "type": "object"
       },
+      "DimensionGeometry": {
+        "additionalProperties": false,
+        "description": "``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.",
+        "properties": {
+          "declared_value_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Value M"
+          },
+          "kind": {
+            "const": "dimension",
+            "title": "Kind",
+            "type": "string"
+          },
+          "measured_value_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured Value M"
+          },
+          "offset_m": {
+            "default": 0.0,
+            "title": "Offset M",
+            "type": "number"
+          },
+          "p1_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "P1 M",
+            "type": "array"
+          },
+          "p2_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "P2 M",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "p1_m",
+          "p2_m"
+        ],
+        "title": "DimensionGeometry",
+        "type": "object"
+      },
       "DimensionsIn": {
         "description": "Paper size of the rectangle whose corners are the 4 control points.",
         "properties": {
@@ -911,6 +985,479 @@
         ],
         "title": "DxfPolyline",
         "type": "object"
+      },
+      "EntitiesCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityIn"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Entities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entities"
+        ],
+        "title": "EntitiesCreate",
+        "type": "object"
+      },
+      "EntityIn": {
+        "additionalProperties": false,
+        "description": "A new entity drawn by hand; provenance, review and metric fields are set by the server.",
+        "properties": {
+          "attributes": {
+            "patternProperties": {
+              "^[a-z][a-z0-9_]*$": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "geometry": {
+            "discriminator": {
+              "mapping": {
+                "dimension": "#/components/schemas/DimensionGeometry",
+                "line": "#/components/schemas/LineGeometry",
+                "point": "#/components/schemas/PointGeometry",
+                "polyline": "#/components/schemas/PolylineGeometry",
+                "symbol": "#/components/schemas/SymbolGeometry",
+                "text": "#/components/schemas/TextGeometry"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PolylineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PointGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/TextGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/DimensionGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/SymbolGeometry"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "layer": {
+            "pattern": "^L_[A-Z]+$",
+            "title": "Layer",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EntityType"
+          }
+        },
+        "required": [
+          "type",
+          "layer",
+          "geometry"
+        ],
+        "title": "EntityIn",
+        "type": "object"
+      },
+      "EntityListOut": {
+        "description": "Entities of a revision, ordered by id; soft-deleted ones are left out.",
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityOut"
+            },
+            "title": "Entities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entities"
+        ],
+        "title": "EntityListOut",
+        "type": "object"
+      },
+      "EntityOperation": {
+        "description": "Edit operations of ``PATCH /entities/{id}``, recorded in ``entity.updated``.",
+        "enum": [
+          "move_vertex",
+          "snap_orthogonal",
+          "snap_endpoint",
+          "snap_grid",
+          "relabel",
+          "reclassify"
+        ],
+        "title": "EntityOperation",
+        "type": "string"
+      },
+      "EntityOut": {
+        "description": "An entity of spec section 8.2; ``created_by`` is null for system entities.",
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "constraint": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraint"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "geometry": {
+            "discriminator": {
+              "mapping": {
+                "dimension": "#/components/schemas/DimensionGeometry",
+                "line": "#/components/schemas/LineGeometry",
+                "point": "#/components/schemas/PointGeometry",
+                "polyline": "#/components/schemas/PolylineGeometry",
+                "symbol": "#/components/schemas/SymbolGeometry",
+                "text": "#/components/schemas/TextGeometry"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PolylineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PointGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/TextGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/DimensionGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/SymbolGeometry"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_region": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Region"
+          },
+          "layer": {
+            "title": "Layer",
+            "type": "string"
+          },
+          "metric_origin": {
+            "$ref": "#/components/schemas/MetricOrigin"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "review_status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EntitySource"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EntityType"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision_id",
+          "revision_number",
+          "type",
+          "layer",
+          "geometry",
+          "image_region",
+          "attributes",
+          "evidence_id",
+          "constraint",
+          "source",
+          "confidence",
+          "model_version",
+          "review_status",
+          "metric_origin",
+          "created_by",
+          "updated_at",
+          "deleted_at"
+        ],
+        "title": "EntityOut",
+        "type": "object"
+      },
+      "EntityPatch": {
+        "additionalProperties": false,
+        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry`` or ``attributes``.",
+        "properties": {
+          "attributes": {
+            "anyOf": [
+              {
+                "patternProperties": {
+                  "^[a-z][a-z0-9_]*$": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributes"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "dimension": "#/components/schemas/DimensionGeometry",
+                    "line": "#/components/schemas/LineGeometry",
+                    "point": "#/components/schemas/PointGeometry",
+                    "polyline": "#/components/schemas/PolylineGeometry",
+                    "symbol": "#/components/schemas/SymbolGeometry",
+                    "text": "#/components/schemas/TextGeometry"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LineGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PolylineGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PointGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TextGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DimensionGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SymbolGeometry"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "layer": {
+            "anyOf": [
+              {
+                "pattern": "^L_[A-Z]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/EntityOperation"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "title": "EntityPatch",
+        "type": "object"
+      },
+      "EntitySource": {
+        "description": "Provenance of an entity; kept unchanged by edits (history lives in the events).",
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "method": {
+            "$ref": "#/components/schemas/SourceMethod"
+          },
+          "parent_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Entity Id"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "title": "EntitySource",
+        "type": "object"
+      },
+      "EntityType": {
+        "description": "Entity types; enforced by the ``ck_entity_type`` check constraint.",
+        "enum": [
+          "line",
+          "polyline",
+          "point",
+          "text",
+          "dimension",
+          "symbol"
+        ],
+        "title": "EntityType",
+        "type": "string"
       },
       "EventKind": {
         "description": "Minimum event kinds of spec section 14.1.",
@@ -1295,6 +1842,41 @@
         "title": "LeaseOut",
         "type": "object"
       },
+      "LineGeometry": {
+        "additionalProperties": false,
+        "properties": {
+          "coords_m": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Coords M",
+            "type": "array"
+          },
+          "kind": {
+            "const": "line",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "coords_m"
+        ],
+        "title": "LineGeometry",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "password": {
@@ -1312,6 +1894,20 @@
         ],
         "title": "LoginRequest",
         "type": "object"
+      },
+      "MetricOrigin": {
+        "description": "Where the metric value of an entity comes from; enforced by ``ck_entity_metric_origin``.",
+        "enum": [
+          "declared_dimension",
+          "triangulation",
+          "baseline_offset",
+          "scaled_drawing",
+          "derived",
+          "trace_only",
+          "none"
+        ],
+        "title": "MetricOrigin",
+        "type": "string"
       },
       "MetricStatus": {
         "description": "Metric quality of a plan; stored as the PostgreSQL enum ``metric_status``.",
@@ -1472,6 +2068,41 @@
         "title": "PlanStatus",
         "type": "string"
       },
+      "PointGeometry": {
+        "additionalProperties": false,
+        "properties": {
+          "coords_m": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "title": "Coords M",
+            "type": "array"
+          },
+          "kind": {
+            "const": "point",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "coords_m"
+        ],
+        "title": "PointGeometry",
+        "type": "object"
+      },
       "PointIn": {
         "description": "A marked point: image pixel and, when known, its paper position in mm (Y down).",
         "properties": {
@@ -1517,6 +2148,46 @@
         "title": "PointIn",
         "type": "object"
       },
+      "PolylineGeometry": {
+        "additionalProperties": false,
+        "description": "Open polyline of at least 2 vertices; a closed one needs at least 3.",
+        "properties": {
+          "closed": {
+            "default": false,
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "coords_m": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "minItems": 2,
+            "title": "Coords M",
+            "type": "array"
+          },
+          "kind": {
+            "const": "polyline",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "coords_m"
+        ],
+        "title": "PolylineGeometry",
+        "type": "object"
+      },
       "ReprojectionErrorOut": {
         "properties": {
           "max": {
@@ -1534,6 +2205,17 @@
         ],
         "title": "ReprojectionErrorOut",
         "type": "object"
+      },
+      "ReviewStatus": {
+        "description": "Review state of an entity; enforced by ``ck_entity_review_status``.",
+        "enum": [
+          "suggested",
+          "accepted",
+          "corrected",
+          "rejected"
+        ],
+        "title": "ReviewStatus",
+        "type": "string"
       },
       "RevisionSummaryOut": {
         "properties": {
@@ -1608,6 +2290,17 @@
         ],
         "title": "ScaleOut",
         "type": "object"
+      },
+      "SourceMethod": {
+        "enum": [
+          "manual",
+          "cv",
+          "ocr",
+          "model",
+          "derived"
+        ],
+        "title": "SourceMethod",
+        "type": "string"
       },
       "SourceMode": {
         "description": "How the source was drawn; stored as the PostgreSQL enum ``source_mode``.",
@@ -1820,6 +2513,126 @@
           "type"
         ],
         "title": "SymbolAttribute",
+        "type": "object"
+      },
+      "SymbolGeometry": {
+        "additionalProperties": false,
+        "description": "A catalog symbol; ``attributes`` holds its block attributes (e.g. ``evidence_number``).",
+        "properties": {
+          "anchor_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Anchor M",
+            "type": "array"
+          },
+          "attributes": {
+            "patternProperties": {
+              "^[a-z][a-z0-9_]*$": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "kind": {
+            "const": "symbol",
+            "title": "Kind",
+            "type": "string"
+          },
+          "rotation_deg": {
+            "default": 0.0,
+            "title": "Rotation Deg",
+            "type": "number"
+          },
+          "scale": {
+            "default": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Scale",
+            "type": "number"
+          },
+          "symbol_id": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Symbol Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "anchor_m",
+          "symbol_id"
+        ],
+        "title": "SymbolGeometry",
+        "type": "object"
+      },
+      "TextGeometry": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Anchor M",
+            "type": "array"
+          },
+          "content": {
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "height_mm_paper": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height Mm Paper",
+            "type": "number"
+          },
+          "kind": {
+            "const": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "rotation_deg": {
+            "default": 0.0,
+            "title": "Rotation Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "anchor_m",
+          "height_mm_paper",
+          "content"
+        ],
+        "title": "TextGeometry",
         "type": "object"
       },
       "UserEnvelope": {
@@ -2826,6 +3639,217 @@
         ]
       }
     },
+    "/api/v1/entities/{entity_id}": {
+      "delete": {
+        "description": "Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.\n\n``reason`` is optional. Requires ``edit``.",
+        "operationId": "remove_entity_api_v1_entities__entity_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision or entity does not exist, or the entity is deleted."
+          },
+          "409": {
+            "description": "The revision is frozen or the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+          },
+          "422": {
+            "description": "Invalid body, or a layer or symbol not in the active catalog."
+          }
+        },
+        "summary": "Remove Entity",
+        "tags": [
+          "entities"
+        ]
+      },
+      "patch": {
+        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. Requires ``edit``.",
+        "operationId": "patch_entity_api_v1_entities__entity_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision or entity does not exist, or the entity is deleted."
+          },
+          "409": {
+            "description": "The revision is frozen or the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+          },
+          "422": {
+            "description": "Invalid body, or a layer or symbol not in the active catalog."
+          }
+        },
+        "summary": "Patch Entity",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
     "/api/v1/jobs/{job_id}": {
       "get": {
         "description": "Status of a job; ``error {cause, action}`` is present only when it failed.\n\nRequires ``read`` on the case file of the job's source.",
@@ -3159,6 +4183,172 @@
         "summary": "Accept Calibration",
         "tags": [
           "calibration"
+        ]
+      }
+    },
+    "/api/v1/revisions/{revision_id}/entities": {
+      "get": {
+        "description": "Entities of the revision ordered by id, without soft-deleted ones. Requires ``read``.",
+        "operationId": "get_revision_entities_api_v1_revisions__revision_id__entities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "title": "Revision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Revision Entities",
+        "tags": [
+          "entities"
+        ]
+      },
+      "post": {
+        "description": "Create one or more hand-drawn entities, in request order, with ``entity.created`` each.\n\nThe server sets ``source`` (``manual``), ``review_status`` (``accepted``) and\n``metric_origin``. Requires ``edit``; 409 unless the revision is an editable draft.",
+        "operationId": "create_revision_entities_api_v1_revisions__revision_id__entities_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "title": "Revision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntitiesCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision or entity does not exist, or the entity is deleted."
+          },
+          "409": {
+            "description": "The revision is frozen or the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+          },
+          "422": {
+            "description": "Invalid body, or a layer or symbol not in the active catalog."
+          }
+        },
+        "summary": "Create Revision Entities",
+        "tags": [
+          "entities"
         ]
       }
     },
