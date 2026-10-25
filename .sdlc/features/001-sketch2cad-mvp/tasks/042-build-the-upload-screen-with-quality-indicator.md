@@ -1,7 +1,7 @@
 ---
 id: 001-042
 title: "Build the upload screen with quality indicator"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-041]
