@@ -148,6 +148,8 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: "Flechas (sin herramienta de dibujo)", description: "Desplazar la vista" },
       { keys: "+ o -", description: "Acercar o alejar la vista" },
       { keys: "Espacio + arrastrar", description: "Desplazar la vista con el ratón" },
+      { keys: "Ctrl o Cmd + Z", description: "Deshacer" },
+      { keys: "Mayús + Ctrl o Cmd + Z", description: "Rehacer" },
       { keys: HELP_KEY, description: "Abrir esta ayuda" },
     ],
   },

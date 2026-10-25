@@ -17,6 +17,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
@@ -395,6 +396,26 @@ const LayerGroup = memo(
     sameIds(a.ids, b.ids),
 );
 
+// Without a fixed size the canvas fills the space its parent gives it (a flex item of the editor
+// workspace). The svg is positioned absolutely so that it never adds to the size of the element
+// that is measured: sized by its content, the container grew by the controls' height on every
+// resize, without bound.
+const AUTO_ROOT_STYLE: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  flex: 1,
+  minWidth: 0,
+  minHeight: 0,
+};
+const AUTO_VIEWPORT_STYLE: CSSProperties = {
+  position: "relative",
+  flex: 1,
+  minHeight: 0,
+  overflow: "hidden",
+};
+const FIXED_SVG_STYLE: CSSProperties = { display: "block", touchAction: "none" };
+const AUTO_SVG_STYLE: CSSProperties = { ...FIXED_SVG_STYLE, position: "absolute", left: 0, top: 0 };
+
 function useContainerSize(fixedWidth?: number, fixedHeight?: number) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [measured, setMeasured] = useState({ width: 0, height: 0 });
@@ -664,17 +685,14 @@ export function EditorCanvas({
   }
 
   const showImage = imageUrl !== undefined && imageBounds !== undefined;
+  const autoSize = fixedWidth === undefined;
 
   return (
-    <div className="editor-canvas">
+    <div className="editor-canvas" style={autoSize ? AUTO_ROOT_STYLE : undefined}>
       <div
         ref={containerRef}
         className="editor-canvas-viewport"
-        style={
-          fixedWidth === undefined
-            ? { position: "relative", width: "100%", height: "100%" }
-            : { position: "relative" }
-        }
+        style={autoSize ? AUTO_VIEWPORT_STYLE : { position: "relative" }}
       >
         <svg
           ref={svgRef}
@@ -686,7 +704,7 @@ export function EditorCanvas({
           width={width}
           height={height}
           viewBox={viewBoxAttribute(viewport)}
-          style={{ display: "block", touchAction: "none" }}
+          style={autoSize ? AUTO_SVG_STYLE : FIXED_SVG_STYLE}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}

@@ -13,6 +13,7 @@
 // disabled and the canvas gets no tool, so it only selects and pans as a viewer.
 // Keyboard (a11y/): with a drawing tool (CURSOR_TOOLS) the focused canvas has a keyboard cursor
 // that moves by the snap grid size, and "Ayuda de teclado" (or ?) lists every shortcut.
+// "Deshacer" / "Rehacer" (Ctrl/Cmd + Z, Shift + Ctrl/Cmd + Z) run the editor store's history.
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
@@ -21,6 +22,7 @@ import { KeyboardHelp } from "./a11y/KeyboardHelp";
 import { CURSOR_TOOLS } from "./a11y/shortcuts";
 import { EditorCanvas, type EditorCanvasProps } from "./canvas/EditorCanvas";
 import { NorthArrow } from "./canvas/NorthArrow";
+import { HistoryButtons } from "./panels/HistoryButtons";
 import { Palette, isTypingTarget } from "./panels/Palette";
 import { SnapSettings, snapSettings, type SnapSettingsStore } from "./panels/SnapSettings";
 import { SymbolPicker, symbolPicker, type SymbolPickerStore } from "./panels/SymbolPicker";
@@ -102,9 +104,10 @@ export function EditorWorkspace({
   }, [tool]);
 
   return (
-    <div className="editor-workspace" style={{ display: "flex" }}>
+    <div className="editor-workspace" style={{ display: "flex", flex: 1, minHeight: 0 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <Palette ui={ui} catalog={catalog} disabled={readOnly} />
+        <HistoryButtons store={store} disabled={readOnly} />
         <KeyboardHelp />
       </div>
       <EditorCanvas

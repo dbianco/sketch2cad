@@ -36,6 +36,11 @@ import { planReviewPath } from "./ReviewPage";
 /** Quiet time after the last edit before the queue is sent. */
 export const SYNC_DELAY_MS = 800;
 const IMAGE_MAX_SIDE = 2048;
+/**
+ * Height of the App header (app/App.tsx). The page takes the rest of the window so that the
+ * canvas, which fills the space it is given, has a definite height.
+ */
+const APP_HEADER_HEIGHT_PX = 56;
 
 export type SyncStatus = "synced" | "pending" | "error";
 const SYNC_LABELS: Readonly<Record<SyncStatus, string>> = {
@@ -177,7 +182,15 @@ export function EditorPage({
   const manage = EDITABLE_STATUSES.has(loaded.status) && loaded.current_revision_id !== null;
 
   return (
-    <section aria-label={M.editorTitle} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <section
+      aria-label={M.editorTitle}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        height: `calc(100vh - ${String(APP_HEADER_HEIGHT_PX)}px)`,
+      }}
+    >
       <header style={{ display: "flex", gap: 16, alignItems: "baseline", padding: "8px 12px" }}>
         <h1 style={{ margin: 0, fontSize: 20 }}>{loaded.title}</h1>
         <Link to={planReviewPath(caseId, loaded.id)}>{M.openReview}</Link>
