@@ -2,7 +2,8 @@
 
 Previews keep the stored pixel orientation (no EXIF rotation), so they map 1:1 onto the
 ``width_px`` and ``height_px`` recorded at ingestion, and carry no EXIF or other metadata.
-PDFs are previewed by rendering page 1 with pypdfium2 at the requested size.
+PDFs are previewed from their stored 300 dpi raster (``source.raster_key``, made by the
+worker); until it exists, page 1 is rendered with pypdfium2 at the requested size.
 """
 
 import io
@@ -12,7 +13,7 @@ from typing import IO, Any, cast
 import pypdfium2  # pyright: ignore[reportMissingTypeStubs]
 from PIL import Image
 
-from sketch2cad.db.models import MediaType
+from sketch2cad.db.models import MediaType, Source
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,14 @@ _BACKGROUND = (255, 255, 255)
 
 class PreviewError(ValueError):
     """The stored source could not be decoded into a preview."""
+
+
+def preview_object(source: Source) -> tuple[str, MediaType]:
+    """Storage key and media type to preview: the derived raster when present, else the
+    original."""
+    if source.raster_key is not None:
+        return source.raster_key, MediaType.PNG
+    return source.storage_key, MediaType(source.media_type)
 
 
 def _to_jpeg_mode(image: Image.Image) -> Image.Image:

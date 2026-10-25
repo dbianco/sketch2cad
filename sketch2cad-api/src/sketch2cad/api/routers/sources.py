@@ -25,7 +25,7 @@ from sketch2cad.api.deps import (
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
 from sketch2cad.audit.chain import EventKind, append_event
-from sketch2cad.db.models import CaseFile, JobMeta, MediaType, Source, User
+from sketch2cad.db.models import CaseFile, JobMeta, Source, User
 from sketch2cad.db.session import get_session
 from sketch2cad.sources.ingest import (
     ALTERED_MESSAGE,
@@ -42,6 +42,7 @@ from sketch2cad.sources.preview import (
     MIN_PREVIEW_SIDE,
     PREVIEW_MEDIA_TYPE,
     PreviewError,
+    preview_object,
     render_preview,
 )
 from sketch2cad.sources.upload import (
@@ -240,9 +241,10 @@ async def upload_source(
         upload.close()
 
 
-def _open_original(storage: Storage, source: Source) -> BinaryIO:
+def _open_original(storage: Storage, source: Source, key: str | None = None) -> BinaryIO:
+    """Open ``key`` (default: the original) of ``source``; 500 when the object is missing."""
     try:
-        return storage.open(source.storage_key)
+        return storage.open(key if key is not None else source.storage_key)
     except ObjectNotFoundError:
         logger.error("Stored object of source %s is missing", source.id)
         raise ProblemError(
@@ -319,9 +321,11 @@ def preview_source(
 
     PDFs are rendered from page 1; no EXIF is carried over. Requires ``read``.
     """
-    with _open_original(storage, source) as stream:
+    # PDFs use their stored 300 dpi raster once the worker made it (see preview_object).
+    key, media_type = preview_object(source)
+    with _open_original(storage, source, key) as stream:
         try:
-            content = render_preview(stream, MediaType(source.media_type), max_side)
+            content = render_preview(stream, media_type, max_side)
         except PreviewError:
             logger.error("Could not render a preview of source %s", source.id)
             raise ProblemError(

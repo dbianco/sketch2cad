@@ -139,3 +139,22 @@ def test_case_file_code_is_unique_and_legal_hold_defaults_to_false(
         ).one()
         assert legal_hold.column_default == "false"
         assert legal_hold.is_nullable == "NO"
+
+
+def test_source_raster_key_is_a_nullable_text_column_removed_by_its_downgrade(
+    migration_schema: str, schema_engine: Engine
+) -> None:
+    config = alembic_config(migration_schema)
+    query = text(
+        "SELECT data_type, is_nullable FROM information_schema.columns "
+        "WHERE table_schema = :schema AND table_name = 'source' AND column_name = 'raster_key'"
+    )
+    command.upgrade(config, "head")
+
+    with schema_engine.connect() as connection:
+        column = connection.execute(query, {"schema": migration_schema}).one()
+    assert (column.data_type, column.is_nullable) == ("text", "YES")
+
+    command.downgrade(config, "0003_global_auth_chain")
+    with schema_engine.connect() as connection:
+        assert connection.execute(query, {"schema": migration_schema}).first() is None

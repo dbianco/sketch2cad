@@ -22,11 +22,11 @@ STEPS = (
 BROKEN_REVISION = '''"""Deliberately broken downgrade.
 
 Revision ID: 0999_broken_downgrade
-Revises: 0003_global_auth_chain
+Revises: 0004_source_raster
 """
 
 revision = "0999_broken_downgrade"
-down_revision = "0003_global_auth_chain"
+down_revision = "0004_source_raster"
 branch_labels = None
 depends_on = None
 

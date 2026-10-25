@@ -43,6 +43,9 @@ class Source(Base):
     ``qc`` stays null until the quality-control job runs; once set it holds
     ``{"status": "green"|"amber"|"red", "checks": [{name, status, value, threshold,
     message}]}``.
+
+    ``raster_key`` is the storage key of the 300 dpi PNG derived from a PDF source by the
+    worker (``sketch2cad.sources.raster``); it is null for images and pending PDFs.
     """
 
     __tablename__ = "source"
@@ -57,6 +60,7 @@ class Source(Base):
     byte_size: Mapped[int] = mapped_column(BigInteger)
     sha256: Mapped[str] = mapped_column(CHAR(64))
     storage_key: Mapped[str] = mapped_column(Text)
+    raster_key: Mapped[str | None] = mapped_column(Text)
     width_px: Mapped[int | None] = mapped_column(Integer)
     height_px: Mapped[int | None] = mapped_column(Integer)
     dpi: Mapped[Decimal | None] = mapped_column(Numeric)
