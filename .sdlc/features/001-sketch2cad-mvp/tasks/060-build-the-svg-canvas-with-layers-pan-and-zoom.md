@@ -14,7 +14,7 @@ labels: [ai-sdlc, typescript]
 
 ## Description
 
-Render entities as SVG elements grouped by layer, source image as `<image>` with opacity control, `react-zoom-pan-pinch`. Hit-testing by native SVG events. Coordinates convert between world metres (Y up) and screen (Y down) in `viewport.ts`. Run commands from the `sketch2cad-web/` folder.
+Render entities as SVG elements grouped by layer, source image as `<image>` with opacity control, pan and zoom by updating the `<svg>` `viewBox` (decision D-14; never a CSS transform of the wrapper, which breaks `vector-effect: non-scaling-stroke`). Hit-testing by native SVG events. Coordinates convert between world metres (Y up) and screen (Y down) in `viewport.ts`. Run commands from the `sketch2cad-web/` folder.
 
 Implements: REQ-05
 

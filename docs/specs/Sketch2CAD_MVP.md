@@ -236,7 +236,7 @@ Un backend modular en Python, un worker Python que comparte código con el backe
 
 | Capa | Elección | Licencia | Notas |
 |---|---|---|---|
-| Frontend | React 18 + TypeScript + Vite; Zustand para estado; Immer para undo/redo por parches; `react-zoom-pan-pinch` para pan/zoom; editor en SVG | MIT | Sin Next.js, sin PWA. Editor en SVG por decisión del dueño; Konva solo si falla la medición de 60 fps con 2000 entidades. |
+| Frontend | React 18 + TypeScript + Vite; Zustand para estado; Immer para undo/redo por parches; pan/zoom del editor con el `viewBox` del SVG (`react-zoom-pan-pinch` solo en el visor de la fuente raster); editor en SVG | MIT | Sin Next.js, sin PWA. Editor en SVG por decisión del dueño; Konva solo si falla la medición de 60 fps con 2000 entidades. |
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic | MIT | Un solo paquete `sketch2cad` con módulos; el worker importa el mismo paquete. |
 | Cola | Procrastinate sobre PostgreSQL | MIT | Sin Redis ni RabbitMQ. |
 | Base de datos | PostgreSQL 16 | PostgreSQL | Geometría en JSONB; sin PostGIS. |
@@ -519,6 +519,10 @@ Por tipo de hecho (`incident_type`) se pueden sobreescribir.
 - Metadatos en `XDATA` de una entidad invisible en `L_SHEET` o en `$CUSTOMPROPERTYTAG`: `plan_id`, `revision_number`, `snapshot_sha256`, `metric_status`, `generator_version`.
 - Borrador: texto `DRAFT — NOT VALIDATED` en `L_SHEET`.
 - Validación: `doc.audit()` sin errores; relectura con ezdxf y comparación con el snapshot; apertura en FreeCAD por hito y en LibreCAD y QCAD en CI donde sea viable.
+- Reproducibilidad byte a byte (spike 2, `docs/spikes/dxf-reproducibility.md`):
+  - versiones fijadas de ezdxf (1.4.5) y Python (3.12); actualizarlas exige regenerar los hashes de referencia;
+  - variables de cabecera deterministas: `$TDCREATE`, `$TDUCREATE`, `$TDUPDATE` y `$TDUUPDATE` desde `frozen_at` en UTC, `$TDINDWG` y `$TDUSRTIMER` en 0, `$FINGERPRINTGUID` y `$VERSIONGUID` derivados con `uuid5` del `plan_id` y del `snapshot_sha256`, marcadores de ezdxf con `frozen_at` y `CLASSES` ordenadas;
+  - escritura como bytes UTF-8 con `\n` y guardado en modo binario.
 
 ### 13.2 PDF técnico
 
@@ -617,7 +621,7 @@ Datos de prueba: solo croquis sintéticos y croquis dibujados a propósito para 
 - Interfaz en español; unidades métricas; entrada numérica acepta coma y punto; el modelo y los archivos usan punto.
 - Navegadores: Chrome, Edge, Firefox y Safari actuales en PC y tablet. Sin optimización táctil específica en MVP.
 - `suggest_lines` sobre una imagen de 4000 × 3000 px termina en menos de 30 s en CPU de 4 núcleos; `ocr_crop` en menos de 3 s. El cliente muestra progreso o estado, nunca espera indefinida.
-- El editor mantiene 60 fps con 2000 entidades en SVG en un portátil medio; si no, se cambia a Konva. El editor es SVG por decisión del dueño (2026-10-24); el spike 1 es solo esa medición.
+- El editor mantiene 60 fps con 2000 entidades en SVG en un portátil medio; si no, se cambia a Konva. El editor es SVG por decisión del dueño (2026-10-24); el spike 1 es solo esa medición. Los fps se miden al límite de refresco de la pantalla: en una de 60 Hz la mediana queda cerca de 59,9 aunque no se pierda ningún frame.
 - Reproducibilidad: cada artefacto indica versión de código, pipeline, modelo y catálogo.
 - Respaldo: procedimiento documentado de `pg_dump` + objetos; prueba de restauración manual al cierre de cada hito.
 
@@ -640,6 +644,7 @@ Orden deliberado: el valor métrico (H3) y la exportación (H4) van antes que la
 - **Equipo: una persona a tiempo completo.** Los hitos son secuenciales y las 15 semanas son la estimación base. Consecuencias: dos comprobaciones se adelantan a H0 para no descubrir problemas en H4 (medición de rendimiento del editor SVG con 2000 entidades; reproducibilidad byte a byte del DXF con ezdxf: handles, `$TDCREATE`, GUIDs). La administración de usuarios y catálogo queda en API más datos semilla, sin UI, hasta después del MVP.
 - **Sin técnicos planimetristas disponibles por ahora.** H6 no puede medir las hipótesis H1–H3 con usuarios reales. Se redefine como **validación interna**: el desarrollador prepara un conjunto de al menos 10 croquis dibujados a mano siguiendo la práctica documentada (croquis esquemático con cotas, triangulaciones desde dos esquinas, línea base + offset en vía) y un patrón impreso fotografiado para CA-02, y mide tiempos, coincidencia de cotas y tasa de aceptación de sugerencias sobre ese conjunto. El informe de H6 declara explícitamente que la medición es interna y que la validación con técnicos queda pendiente. Los parámetros de `suggest_lines`, QC y OCR se exponen en configuración desde H5 porque se ajustarán cuando aparezcan croquis reales. Si en algún momento se consigue acceso a técnicos, se inserta una ronda de observación de 1 semana antes de dar por cerrado el MVP.
 - **Decisiones de herramientas y organización (2026-10-24, PRD `h0-foundation`).** Visor CAD local: FreeCAD. Editor en SVG. Un solo repositorio con dos carpetas (`sketch2cad-api/`, `sketch2cad-web/`). Licencias: lista blanca MIT, BSD, Apache-2.0, PSF y LGPL, con excepción documentada por cada LGPL. CI en GitHub Actions. G-1 y G-3 se miden y reportan en v1, sin umbral. Mientras no haya revisión jurídica, el reporte y el PDF final llevan la leyenda "Borrador técnico, no apto como prueba".
+- **Resultados de los spikes de H0 (2026-10-25).** Spike 1 (`docs/spikes/svg-performance.md`): con 2000 entidades el editor SVG da `median_fps` 144,93 (tope de la pantalla de 144 Hz) y `p95_frame_ms` 8,3 en Apple M4 Pro con Chromium con ventana; se mantiene SVG y la cámara del editor usa el `viewBox` (o una transformación de grupo), porque la transformación CSS del contenedor rompe `vector-effect: non-scaling-stroke`. Spike 2 (`docs/spikes/dxf-reproducibility.md`): el DXF es reproducible byte a byte con los ajustes de §13.1.
 
 ## 19. Parámetros que la institución puede fijar (todos con default)
 
