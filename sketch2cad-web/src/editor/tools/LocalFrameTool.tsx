@@ -433,6 +433,8 @@ export function createLocalFrameTool(context: ToolContext): EditorTool {
       ui.getState().cancelDraft();
       return true;
     },
+    // Keyboard cursor: Enter presses at the origin, the arrows drag, Enter releases on the axis.
+    keyboardDrag: true,
     preview: <FramePreview ui={ui} />,
   };
 }

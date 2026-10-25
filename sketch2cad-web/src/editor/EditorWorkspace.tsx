@@ -11,10 +11,14 @@
 // canvas once a plan is open, and the local frame tool's panel changes the frame. When the plan
 // store says `readOnly` (status or lease, see features/plans/LeaseBanner.tsx) the palette is
 // disabled and the canvas gets no tool, so it only selects and pans as a viewer.
+// Keyboard (a11y/): with a drawing tool (CURSOR_TOOLS) the focused canvas has a keyboard cursor
+// that moves by the snap grid size, and "Ayuda de teclado" (or ?) lists every shortcut.
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import type { ApiClient } from "../api/client";
+import { KeyboardHelp } from "./a11y/KeyboardHelp";
+import { CURSOR_TOOLS } from "./a11y/shortcuts";
 import { EditorCanvas, type EditorCanvasProps } from "./canvas/EditorCanvas";
 import { NorthArrow } from "./canvas/NorthArrow";
 import { Palette, isTypingTarget } from "./panels/Palette";
@@ -50,7 +54,7 @@ export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => E
 
 export type EditorWorkspaceProps = Omit<
   EditorCanvasProps,
-  "store" | "tool" | "layerFlags" | "onLayerFlagsChange" | "overlay"
+  "store" | "tool" | "layerFlags" | "onLayerFlagsChange" | "overlay" | "keyboardCursor"
 > & {
   store?: StoreApi<EditorStore>;
   ui?: StoreApi<EditorUiStore>;
@@ -77,6 +81,7 @@ export function EditorWorkspace({
   const planOpen = useStore(plan, (state) => state.planId !== null);
   const northDeg = useStore(plan, (state) => state.localFrame?.north_angle_deg ?? 0);
   const readOnly = useStore(plan, (state) => state.readOnly);
+  const gridM = useStore(snap, (state) => state.gridM);
   const tool = useMemo(
     () =>
       readOnly
@@ -98,7 +103,10 @@ export function EditorWorkspace({
 
   return (
     <div className="editor-workspace" style={{ display: "flex" }}>
-      <Palette ui={ui} catalog={catalog} disabled={readOnly} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <Palette ui={ui} catalog={catalog} disabled={readOnly} />
+        <KeyboardHelp />
+      </div>
       <EditorCanvas
         {...canvasProps}
         catalog={catalog}
@@ -107,6 +115,9 @@ export function EditorWorkspace({
         layerFlags={layerFlags}
         onLayerFlagsChange={(flags) => ui.getState().setLayerFlags(flags)}
         overlay={planOpen ? <NorthArrow northDeg={northDeg} /> : undefined}
+        keyboardCursor={
+          tool !== undefined && CURSOR_TOOLS.has(activeTool) ? { step: gridM } : undefined
+        }
       />
       {!readOnly && activeTool === "select" && (
         <SelectionPanel store={store} ui={ui} catalog={catalog} />

@@ -80,7 +80,7 @@ describe("SourceViewer", () => {
   it("labels the zoom buttons for assistive technology", async () => {
     await renderReady();
 
-    for (const label of ["Acercar", "Alejar", "Restablecer el zoom"]) {
+    for (const label of ["Acercar", "Alejar", "Restablecer el zoom al 100 %"]) {
       const button = screen.getByRole("button", { name: label });
       expect(button.getAttribute("aria-label")).toBe(label);
       expect((button as HTMLButtonElement).disabled).toBe(false);
@@ -117,7 +117,7 @@ describe("SourceViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Acercar" }));
     await waitFor(() => expect(currentScale()).toBeGreaterThan(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "Restablecer el zoom" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restablecer el zoom al 100 %" }));
     await waitFor(() => expect(currentScale()).toBe(1));
   });
 
@@ -159,5 +159,52 @@ describe("SourceViewer", () => {
     cleanup();
 
     expect(revokeObjectURL).toHaveBeenCalledWith(OBJECT_URL);
+  });
+});
+
+describe("SourceViewer keyboard marking", () => {
+  it("moves a cursor with the arrows and marks the point with Enter or Space", async () => {
+    fetchMock.mockResolvedValue(jpegResponse());
+    const onPoint = vi.fn<(px: [number, number]) => void>();
+    render(
+      <SourceViewer
+        sourceId={SOURCE_ID}
+        alt="Croquis del cruce"
+        marking={{ imageSize: { width: 2000, height: 1000 }, points: [], onPoint }}
+      />,
+    );
+    await screen.findByRole("img", { name: "Croquis del cruce" });
+    expect(screen.getByText(VIEWER_MESSAGES.markingKeys)).toBeTruthy();
+
+    fireEvent.keyDown(viewer(), { key: "ArrowRight" });
+    expect(screen.getByTestId("source-cursor")).toBeTruthy();
+    expect(screen.getByText(VIEWER_MESSAGES.cursorAt([1020, 500]))).toBeTruthy();
+    fireEvent.keyDown(viewer(), { key: "Enter" });
+    expect(onPoint).toHaveBeenLastCalledWith([1020, 500]);
+
+    fireEvent.keyDown(viewer(), { key: "ArrowDown", shiftKey: true });
+    fireEvent.keyDown(viewer(), { key: "ArrowLeft", altKey: true });
+    fireEvent.keyDown(viewer(), { key: " " });
+    expect(onPoint).toHaveBeenLastCalledWith([820, 502]);
+
+    // Keys on the zoom buttons keep their own meaning.
+    fireEvent.keyDown(screen.getByRole("button", { name: "Acercar" }), { key: "Enter" });
+    expect(onPoint).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the cursor inside the image", async () => {
+    fetchMock.mockResolvedValue(jpegResponse());
+    const onPoint = vi.fn<(px: [number, number]) => void>();
+    render(
+      <SourceViewer
+        sourceId={SOURCE_ID}
+        alt="Croquis del cruce"
+        marking={{ imageSize: { width: 100, height: 100 }, points: [], onPoint }}
+      />,
+    );
+    await screen.findByRole("img", { name: "Croquis del cruce" });
+    for (let i = 0; i < 6; i += 1) fireEvent.keyDown(viewer(), { key: "ArrowUp", ctrlKey: true });
+    fireEvent.keyDown(viewer(), { key: "Enter" });
+    expect(onPoint).toHaveBeenLastCalledWith([50, 0]);
   });
 });

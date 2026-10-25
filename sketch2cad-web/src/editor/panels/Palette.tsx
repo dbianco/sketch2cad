@@ -5,6 +5,7 @@
 import { useEffect } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
+import { TOOL_SHORTCUTS } from "../a11y/shortcuts";
 import type { Catalog } from "../canvas/EditorCanvas";
 import {
   editableLayers,
@@ -18,21 +19,24 @@ export interface ToolButton {
   id: ToolId;
   /** Accessible name. */
   label: string;
-  /** Visible caption, as in the prototype. */
+  /**
+   * Visible caption, as in the prototype but never an abbreviation of the label: the visible
+   * text must be part of the accessible name (WCAG 2.1 SC 2.5.3, axe label-content-name-mismatch).
+   */
   caption: string;
   /** Shortcut key (upper case; the lower-case key works too). */
   shortcut: string;
 }
 
 export const TOOL_BUTTONS: readonly ToolButton[] = [
-  { id: "select", label: "Seleccionar", caption: "Elegir", shortcut: "V" },
-  { id: "vertex", label: "Editar vértices", caption: "Vértices", shortcut: "E" },
-  { id: "line", label: "Línea", caption: "Línea", shortcut: "L" },
-  { id: "polyline", label: "Polilínea", caption: "Polilín.", shortcut: "P" },
-  { id: "point", label: "Punto", caption: "Punto", shortcut: "O" },
-  { id: "text", label: "Texto", caption: "Texto", shortcut: "T" },
-  { id: "symbol", label: "Símbolo", caption: "Símbolo", shortcut: "S" },
-  { id: "frame", label: "Sistema local", caption: "Sist. local", shortcut: "F" },
+  { id: "select", label: "Seleccionar", caption: "Seleccionar", shortcut: TOOL_SHORTCUTS.select },
+  { id: "vertex", label: "Editar vértices", caption: "Vértices", shortcut: TOOL_SHORTCUTS.vertex },
+  { id: "line", label: "Línea", caption: "Línea", shortcut: TOOL_SHORTCUTS.line },
+  { id: "polyline", label: "Polilínea", caption: "Polilínea", shortcut: TOOL_SHORTCUTS.polyline },
+  { id: "point", label: "Punto", caption: "Punto", shortcut: TOOL_SHORTCUTS.point },
+  { id: "text", label: "Texto", caption: "Texto", shortcut: TOOL_SHORTCUTS.text },
+  { id: "symbol", label: "Símbolo", caption: "Símbolo", shortcut: TOOL_SHORTCUTS.symbol },
+  { id: "frame", label: "Sistema local", caption: "Sistema local", shortcut: TOOL_SHORTCUTS.frame },
 ];
 
 export const PALETTE_TEXT = {

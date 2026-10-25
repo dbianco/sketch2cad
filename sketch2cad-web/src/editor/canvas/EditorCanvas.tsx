@@ -29,6 +29,7 @@ import { useStore } from "zustand";
 import type { components } from "../../api/schema";
 import { editorStore, selectVisibleIds, type EditorStore } from "../store/entities";
 import type { EditorEntity, EntityId, Geometry, Point2 } from "../store/types";
+import { CURSOR_TEXT, VISUALLY_HIDDEN, useKeyboardCursor } from "../a11y/keyboardCursor";
 import {
   groupByLayer,
   layerFlags,
@@ -111,6 +112,11 @@ export interface EditorCanvasProps {
   onLayerFlagsChange?: (flags: LayerFlagsByName) => void;
   /** HTML laid over the canvas at fixed screen positions (e.g. the north arrow). */
   overlay?: ReactNode;
+  /**
+   * Keyboard cursor (a11y/keyboardCursor.tsx) for the active tool, with its arrow step in world
+   * metres; without it the arrow keys pan the view.
+   */
+  keyboardCursor?: { step: number };
 }
 
 /** A pointer event as tools receive it. */
@@ -137,6 +143,10 @@ export interface CanvasTool {
   preview?: ReactNode;
   /** HTML laid over the canvas, positioned in screen pixels of `viewport`. */
   renderOverlay?(viewport: Viewport): ReactNode;
+  /** Whether the tool handles `key` itself right now, so the keyboard cursor must leave it. */
+  ownsKey?(key: string): boolean;
+  /** The tool marks by dragging: the keyboard cursor presses on one Enter, releases on the next. */
+  keyboardDrag?: boolean;
 }
 
 type Camera = Pick<Viewport, "centerX" | "centerY" | "scale">;
@@ -466,6 +476,7 @@ export function EditorCanvas({
   layerFlags: controlledFlags,
   onLayerFlagsChange,
   overlay,
+  keyboardCursor,
 }: EditorCanvasProps) {
   const { containerRef, width, height } = useContainerSize(fixedWidth, fixedHeight);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -518,6 +529,13 @@ export function EditorCanvas({
   useEffect(() => {
     viewportRef.current = viewport;
     onViewportChange?.(viewport);
+  });
+
+  const cursor = useKeyboardCursor({
+    tool,
+    step: keyboardCursor?.step,
+    viewport,
+    onPan: (next) => apply(next),
   });
 
   const pointers = useRef(new Map<number, Point2>());
@@ -595,8 +613,10 @@ export function EditorCanvas({
   }
 
   function onPointerMove(event: PointerEvent<SVGSVGElement>) {
-    if (tool?.onPointerMove !== undefined && !pointers.current.has(event.pointerId)) {
-      tool.onPointerMove(canvasPointer(event));
+    if (tool !== undefined && !pointers.current.has(event.pointerId)) {
+      const pointer = canvasPointer(event);
+      cursor.notePointer(pointer.world);
+      tool.onPointerMove?.(pointer);
       return;
     }
     const previous = pointers.current.get(event.pointerId);
@@ -626,6 +646,7 @@ export function EditorCanvas({
   }
 
   function onKeyDown(event: KeyboardEvent<SVGSVGElement>) {
+    if (cursor.onKeyDown(event)) return;
     const centre: Point2 = [width / 2, height / 2];
     const steps: Record<string, () => Viewport> = {
       ArrowLeft: () => pan(viewport, KEY_PAN_PX, 0),
@@ -660,6 +681,7 @@ export function EditorCanvas({
           data-testid="editor-canvas"
           role="application"
           aria-label={CANVAS_TEXT.canvas}
+          aria-describedby={keyboardCursor === undefined ? undefined : "editor-canvas-keys"}
           tabIndex={0}
           width={width}
           height={height}
@@ -671,6 +693,7 @@ export function EditorCanvas({
           onPointerCancel={onPointerEnd}
           onDoubleClick={(event) => tool?.onDoubleClick?.(canvasPointer(event))}
           onKeyDown={onKeyDown}
+          onBlur={cursor.onBlur}
         >
           {showImage && (
             <image
@@ -697,8 +720,17 @@ export function EditorCanvas({
               ))}
             </CanvasContext.Provider>
             {tool?.preview !== undefined && <g pointerEvents="none">{tool.preview}</g>}
+            {cursor.crosshair}
           </ZoomContext.Provider>
         </svg>
+        {keyboardCursor !== undefined && (
+          <p id="editor-canvas-keys" style={VISUALLY_HIDDEN}>
+            {CURSOR_TEXT.hint}
+          </p>
+        )}
+        <div aria-live="polite" aria-atomic="true" style={VISUALLY_HIDDEN}>
+          {cursor.announcement}
+        </div>
         {tool?.renderOverlay?.(viewport)}
         {overlay}
       </div>

@@ -7,6 +7,8 @@ import {
   type MouseEvent,
 } from "react";
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
+import { VISUALLY_HIDDEN } from "../../editor/a11y/keyboardCursor";
+import { PLACE_KEYS, cursorDelta } from "../../editor/a11y/shortcuts";
 
 /** Longest side, in pixels, of the derived preview the viewer requests. */
 export const PREVIEW_MAX_SIDE = 2048;
@@ -16,7 +18,20 @@ export const VIEWER_MESSAGES = {
   denied: "No tienes permiso para ver esta fuente.",
   notFound: "La fuente no existe.",
   generic: "No se pudo cargar la vista previa. Recarga la página para reintentar.",
+  markingKeys:
+    "Con el teclado: con el visor enfocado, las flechas mueven el cursor (Mayús: paso fino; " +
+    "Alt o Ctrl: paso largo) e Intro o Espacio marcan el punto.",
+  cursorAt: (px: readonly [number, number]) =>
+    `Cursor: x ${String(Math.round(px[0]))} px, y ${String(Math.round(px[1]))} px`,
+  marked: (px: readonly [number, number]) =>
+    `Punto marcado: x ${String(Math.round(px[0]))} px, y ${String(Math.round(px[1]))} px`,
 } as const;
+
+/**
+ * Keyboard cursor step, as a fraction of the longest image side: 1 % (Shift: 0.1 %, Alt or
+ * Ctrl: 10 %, see editor/a11y/shortcuts.ts). On an A4 scan at 300 DPI that is about 3 mm.
+ */
+export const MARKING_STEP_FRACTION = 0.01;
 
 /**
  * URL of the derived JPEG preview of a source. The viewer never requests
@@ -126,6 +141,16 @@ const styles = {
   message: { margin: 0, padding: 12, fontSize: 14 },
   alert: { margin: 0, padding: "8px 10px", color: "#8A1C1C", background: "#FDECEC", borderRadius: 4 },
   overlay: { position: "relative", display: "inline-block" },
+  crosshair: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    transform: "translate(-50%, -50%)",
+    border: "2px solid #0B57D0",
+    borderRadius: "50%",
+    boxShadow: "0 0 0 1px #fff",
+    pointerEvents: "none",
+  },
   marker: {
     position: "absolute",
     width: 18,
@@ -184,6 +209,9 @@ export function SourceViewer({ sourceId, alt, marking }: SourceViewerProps) {
   const controlsRef = useRef<ReactZoomPanPinchRef | null>(null);
   const pressRef = useRef<{ x: number; y: number } | null>(null);
   const [scale, setScale] = useState(1);
+  /** Keyboard cursor in original pixels; null until an arrow key is pressed. */
+  const [cursor, setCursor] = useState<[number, number] | null>(null);
+  const [announcement, setAnnouncement] = useState("");
 
   function handleImageClick(event: MouseEvent<HTMLImageElement>): void {
     if (marking === undefined) return;
@@ -205,7 +233,35 @@ export function SourceViewer({ sourceId, alt, marking }: SourceViewerProps) {
   const zoomOut = () => void controlsRef.current?.zoomOut(undefined, 0);
   const reset = () => void controlsRef.current?.resetTransform(0);
 
+  /** Arrow keys and Enter/Space on the viewer itself drive the marking cursor. */
+  function handleMarkingKey(event: KeyboardEvent<HTMLDivElement>): boolean {
+    if (marking === undefined || preview?.kind !== "ready" || event.metaKey) return false;
+    if (event.target !== event.currentTarget) return false;
+    const { width, height } = marking.imageSize;
+    const current = cursor ?? [width / 2, height / 2];
+    const delta = cursorDelta(event, Math.max(width, height) * MARKING_STEP_FRACTION);
+    if (delta !== null) {
+      const next: [number, number] = [
+        round2(Math.min(width, Math.max(0, current[0] + delta[0]))),
+        round2(Math.min(height, Math.max(0, current[1] + delta[1]))),
+      ];
+      setCursor(next);
+      setAnnouncement(VIEWER_MESSAGES.cursorAt(next));
+      return true;
+    }
+    if (!PLACE_KEYS.has(event.key) || event.altKey || event.ctrlKey) return false;
+    const point: [number, number] = [round2(current[0]), round2(current[1])];
+    setCursor(point);
+    marking.onPoint(point);
+    setAnnouncement(VIEWER_MESSAGES.marked(point));
+    return true;
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (handleMarkingKey(event)) {
+      event.preventDefault();
+      return;
+    }
     if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) {
       return;
     }
@@ -228,6 +284,7 @@ export function SourceViewer({ sourceId, alt, marking }: SourceViewerProps) {
     <div
       role="region"
       aria-label={`Visor de la fuente: ${alt}`}
+      aria-describedby={marking === undefined ? undefined : `${sourceId}-marking-keys`}
       tabIndex={0}
       data-scale={String(scale)}
       data-testid="source-viewer"
@@ -243,7 +300,7 @@ export function SourceViewer({ sourceId, alt, marking }: SourceViewerProps) {
         </button>
         <button
           type="button"
-          aria-label="Restablecer el zoom"
+          aria-label="Restablecer el zoom al 100 %"
           title="Restablecer el zoom (0)"
           style={styles.button}
           disabled={!ready}
@@ -255,6 +312,16 @@ export function SourceViewer({ sourceId, alt, marking }: SourceViewerProps) {
           {Math.round(scale * 100)} %
         </span>
       </div>
+      {marking !== undefined && (
+        <p id={`${sourceId}-marking-keys`} style={styles.message}>
+          {VIEWER_MESSAGES.markingKeys}
+        </p>
+      )}
+      {marking !== undefined && (
+        <div aria-live="polite" aria-atomic="true" style={VISUALLY_HIDDEN}>
+          {announcement}
+        </div>
+      )}
       {preview === null && (
         <p role="status" style={styles.message}>
           {VIEWER_MESSAGES.loading}
@@ -298,6 +365,17 @@ export function SourceViewer({ sourceId, alt, marking }: SourceViewerProps) {
                   {point.label}
                 </span>
               ))}
+              {marking !== undefined && cursor !== null && (
+                <span
+                  aria-hidden="true"
+                  data-testid="source-cursor"
+                  style={{
+                    ...styles.crosshair,
+                    left: `${String((cursor[0] / marking.imageSize.width) * 100)}%`,
+                    top: `${String((cursor[1] / marking.imageSize.height) * 100)}%`,
+                  }}
+                />
+              )}
             </div>
           </TransformComponent>
         </TransformWrapper>

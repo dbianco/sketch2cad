@@ -3,7 +3,8 @@
 // with the vertices placed so far (3+ vertices either way). Backspace removes the last vertex and
 // Esc drops the drawing. The entity goes to the palette's active layer through the editor store.
 // Each vertex is snapped like the line tool's (orthogonally to the previous vertex); creation is
-// recorded as `create` only.
+// recorded as `create` only. With the keyboard cursor (a11y/keyboardCursor.tsx) Space places a
+// vertex and Enter finishes; Enter also places a vertex while there are fewer than 2.
 import type { Point2 } from "../store/types";
 import { addOnDrawingLayer, drawingLayer, type EditorTool, type ToolContext } from "../ui/editorUi";
 import { DraftPreview, apart, snappedDrawPoint } from "./LineTool";
@@ -62,6 +63,9 @@ export function createPolylineTool(context: ToolContext): EditorTool {
         default:
           return false;
       }
+    },
+    ownsKey(key) {
+      return key === "Enter" && ui.getState().draft.length >= MIN_OPEN_VERTICES;
     },
     preview: <DraftPreview ui={ui} />,
   };

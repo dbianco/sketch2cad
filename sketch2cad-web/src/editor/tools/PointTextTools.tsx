@@ -53,6 +53,13 @@ function TextInput({
     return () => clearTimeout(timer);
   }, []);
   const [left, top] = worldToScreen(viewport, anchor);
+  /** Give focus back to the canvas, so that a keyboard user keeps drawing from there. */
+  function refocusCanvas() {
+    inputRef.current
+      ?.closest(".editor-canvas-viewport")
+      ?.querySelector<SVGSVGElement>("[data-testid='editor-canvas']")
+      ?.focus();
+  }
   return (
     <div className="editor-text-input" style={{ position: "absolute", left, top }}>
       <input
@@ -64,6 +71,7 @@ function TextInput({
         onChange={(event) => setContent(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
+            refocusCanvas();
             context.ui.getState().cancelDraft();
           } else if (event.key === "Enter" && content.trim() !== "") {
             addOnDrawingLayer(context, {
@@ -73,6 +81,7 @@ function TextInput({
               height_mm_paper: TEXT_HEIGHT_MM_PAPER,
               rotation_deg: 0,
             });
+            refocusCanvas();
             context.ui.getState().cancelDraft();
           }
         }}
