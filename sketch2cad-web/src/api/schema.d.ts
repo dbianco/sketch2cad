@@ -103,9 +103,149 @@ export interface paths {
         };
         /**
          * Get Case File
-         * @description Return a case file; 404 when it is missing, malformed or not visible to the user.
+         * @description Return a case file; 404 when it is missing or malformed.
+         *
+         *     A user without ``read`` (member or not) gets 403; every denial on an existing case file
+         *     is logged as ``access.denied``.
          */
         get: operations["get_case_file_api_v1_case_files__case_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/case-files/{case_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Case Events
+         * @description Events of the case file in id order, 50 per page, optionally filtered.
+         *
+         *     Pass ``next_cursor`` back as ``cursor`` to get the following page. Requires ``read``;
+         *     a denial is a 403 logged as ``access.denied``.
+         */
+        get: operations["list_case_events_api_v1_case_files__case_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/case-files/{case_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Case Member
+         * @description Add a member with explicit permissions; only an ``admin`` or the creator may do it.
+         *
+         *     Anyone else gets 403, logged as ``access.denied``; an unknown
+         *     ``user_id`` gives 422 and an existing member 409.
+         */
+        post: operations["add_case_member_api_v1_case_files__case_id__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/case-files/{case_id}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Source
+         * @description Ingest one source file (multipart fields ``file`` and ``client_sha256``).
+         *
+         *     The size cap is enforced while the body streams in (413). The server SHA-256 must equal
+         *     ``client_sha256`` (422) and the content must be a JPEG, PNG, TIFF or single-page PDF by
+         *     its bytes (415); nothing is stored when a rule fails. Requires ``edit``.
+         */
+        post: operations["upload_source_api_v1_case_files__case_id__sources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job
+         * @description Status of a job; ``error {cause, action}`` is present only when it failed.
+         *
+         *     Requires ``read`` on the case file of the job's source.
+         */
+        get: operations["get_job_api_v1_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}/original": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Original
+         * @description Stream the original bytes exactly as stored, with ``X-Content-SHA256``.
+         *
+         *     Writes ``source.downloaded`` before the first byte is sent. Requires ``read``; others
+         *     get 403 and an ``access.denied`` event.
+         */
+        get: operations["download_original_api_v1_sources__source_id__original_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Source
+         * @description Derived JPEG of the source whose longest side is at most ``max`` (256 to 4096).
+         *
+         *     PDFs are rendered from page 1; no EXIF is carried over. Requires ``read``.
+         */
+        get: operations["preview_source_api_v1_sources__source_id__preview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -192,6 +332,93 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** CaseMemberCreate */
+        CaseMemberCreate: {
+            /** Permissions */
+            permissions: components["schemas"]["CasePermission"][];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** CaseMemberOut */
+        CaseMemberOut: {
+            /**
+             * Case File Id
+             * Format: uuid
+             */
+            case_file_id: string;
+            /** Permissions */
+            permissions: components["schemas"]["CasePermission"][];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * CasePermission
+         * @description Permissions stored in ``case_member.permissions``.
+         * @enum {string}
+         */
+        CasePermission: "read" | "edit" | "deliver";
+        /**
+         * EventKind
+         * @description Minimum event kinds of spec section 14.1.
+         * @enum {string}
+         */
+        EventKind: "case_file.created" | "member.added" | "source.ingested" | "source.downloaded" | "plan.created" | "calibration.proposed" | "calibration.accepted" | "local_frame.set" | "local_frame.changed" | "suggestions.added" | "evidence.created" | "evidence.updated" | "entity.created" | "entity.updated" | "entity.recomputed" | "entity.reviewed" | "entity.deleted" | "plan.transition" | "revision.frozen" | "export.requested" | "artifact.created" | "artifact.downloaded" | "lease.acquired" | "lease.released" | "auth.login" | "auth.failed" | "access.denied" | "config.changed";
+        /**
+         * EventOut
+         * @description One event exactly as hashed; ``occurred_at`` is UTC ISO 8601 with microseconds.
+         */
+        EventOut: {
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Role */
+            actor_role: string | null;
+            /** After */
+            after: {
+                [key: string]: unknown;
+            } | null;
+            /** Before */
+            before: {
+                [key: string]: unknown;
+            } | null;
+            /** Case File Id */
+            case_file_id: string | null;
+            /** Client Ip */
+            client_ip: string | null;
+            /** Entity Id */
+            entity_id: string | null;
+            /** Hash */
+            hash: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Occurred At */
+            occurred_at: string;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Prev Hash */
+            prev_hash: string;
+            /** Reason */
+            reason: string | null;
+            /** Revision Id */
+            revision_id: string | null;
+        };
+        /**
+         * EventPage
+         * @description Up to 50 events in ascending id; ``next_cursor`` is null on the last page.
+         */
+        EventPage: {
+            /** Items */
+            items: components["schemas"]["EventOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -203,12 +430,92 @@ export interface components {
          * @enum {string}
          */
         IncidentType: "traffic_collision" | "crime_scene" | "inspection" | "other";
+        /**
+         * JobErrorOut
+         * @description Why the job failed and what to do, in Spanish (REQ-15).
+         */
+        JobErrorOut: {
+            /** Action */
+            action: string;
+            /** Cause */
+            cause: string;
+        };
+        /** JobOut */
+        JobOut: {
+            error: components["schemas"]["JobErrorOut"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Result Ref */
+            result_ref: string | null;
+            /** Source Id */
+            source_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed";
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Password */
             password: string;
             /** Username */
             username: string;
+        };
+        /** SourceOut */
+        SourceOut: {
+            /** Byte Size */
+            byte_size: number;
+            /**
+             * Case File Id
+             * Format: uuid
+             */
+            case_file_id: string;
+            /** Dpi */
+            dpi: number | null;
+            /** Exif */
+            exif: {
+                [key: string]: unknown;
+            };
+            /** Height Px */
+            height_px: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Media Type */
+            media_type: string;
+            /** Original Filename */
+            original_filename: string;
+            /** Qc */
+            qc: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Qc Job Id
+             * Format: uuid
+             */
+            qc_job_id: string;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Uploaded At
+             * Format: date-time
+             */
+            uploaded_at: string;
+            /**
+             * Uploaded By
+             * Format: uuid
+             */
+            uploaded_by: string;
+            /** Width Px */
+            width_px: number | null;
         };
         /** UserEnvelope */
         UserEnvelope: {
@@ -455,6 +762,294 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    list_case_events_api_v1_case_files__case_id__events_get: {
+        parameters: {
+            query?: {
+                plan_id?: string | null;
+                kind?: components["schemas"]["EventKind"] | null;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventPage"];
+                };
+            };
+            /** @description The user lacks ``read`` on the case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The case file does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown ``kind``, malformed ``plan_id`` or invalid ``cursor``. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    add_case_member_api_v1_case_files__case_id__members_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaseMemberCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseMemberOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_source_api_v1_case_files__case_id__sources_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    client_sha256: string;
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceOut"];
+                };
+            };
+            /** @description The file exceeds 50 MB (V-02). */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a JPEG, PNG, TIFF or single-page PDF by content (V-01). */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Malformed upload, or client_sha256 differs from the server (V-03). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_job_api_v1_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description The user lacks ``read`` on the job's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The job does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_original_api_v1_sources__source_id__original_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The original bytes, unmodified, as an attachment. */
+            200: {
+                headers: {
+                    /** @description SHA-256 registered at ingestion (lowercase hex). */
+                    "X-Content-SHA256"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description The user lacks ``read`` on the source's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The source does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_source_api_v1_sources__source_id__preview_get: {
+        parameters: {
+            query?: {
+                max?: number;
+            };
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Derived JPEG whose longest side is at most ``max`` pixels. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            /** @description The user lacks ``read`` on the source's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The source does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ``max`` is outside 256..4096. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
