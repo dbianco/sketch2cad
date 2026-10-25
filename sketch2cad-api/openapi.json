@@ -191,14 +191,12 @@
           "local_frame": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/LocalFrameOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Local Frame"
+            ]
           },
           "method": {
             "title": "Method",
@@ -1875,6 +1873,75 @@
           "coords_m"
         ],
         "title": "LineGeometry",
+        "type": "object"
+      },
+      "LocalFrameIn": {
+        "additionalProperties": false,
+        "description": "The local frame: origin on paper (mm, Y down), +X axis and North angles in degrees.\n\nAngles are counter-clockwise positive: ``x_axis_angle_deg`` from the world +X axis,\n``north_angle_deg`` from the local +Y axis. They are stored reduced to ``[0, 360)``.",
+        "properties": {
+          "north_angle_deg": {
+            "title": "North Angle Deg",
+            "type": "number"
+          },
+          "origin_paper_mm": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Origin Paper Mm",
+            "type": "array"
+          },
+          "x_axis_angle_deg": {
+            "title": "X Axis Angle Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "origin_paper_mm",
+          "x_axis_angle_deg",
+          "north_angle_deg"
+        ],
+        "title": "LocalFrameIn",
+        "type": "object"
+      },
+      "LocalFrameOut": {
+        "description": "The stored ``calibration.local_frame``; angles in ``[0, 360)``.",
+        "properties": {
+          "north_angle_deg": {
+            "title": "North Angle Deg",
+            "type": "number"
+          },
+          "origin_paper_mm": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Origin Paper Mm",
+            "type": "array"
+          },
+          "x_axis_angle_deg": {
+            "title": "X Axis Angle Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "origin_paper_mm",
+          "x_axis_angle_deg",
+          "north_angle_deg"
+        ],
+        "title": "LocalFrameOut",
         "type": "object"
       },
       "LoginRequest": {
@@ -4183,6 +4250,109 @@
         "summary": "Accept Calibration",
         "tags": [
           "calibration"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/local-frame": {
+      "put": {
+        "description": "Set the plan's local frame on its active calibration. Requires ``edit``.\n\nA change of origin or +X axis moves every live entity of the draft revision by one\nrigid transform in one transaction. The first frame writes ``local_frame.set``; later\nchanges write one ``local_frame.changed`` with the previous and new frame and the\ntransform (null when only the North changes). An unchanged frame writes nothing.",
+        "operationId": "put_local_frame_api_v1_plans__plan_id__local_frame_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalFrameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The plan has no accepted calibration, its revision is frozen, or it is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated)."
+          },
+          "422": {
+            "description": "Invalid body."
+          }
+        },
+        "summary": "Put Local Frame",
+        "tags": [
+          "plans"
         ]
       }
     },

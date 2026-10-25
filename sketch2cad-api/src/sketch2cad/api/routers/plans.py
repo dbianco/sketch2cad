@@ -1,4 +1,7 @@
-"""Plan endpoints: create a plan from a source and retrieve it (REQ-03, US-04)."""
+"""Plan endpoints: create a plan from a source, retrieve it and set its local frame.
+
+REQ-03, US-04; the local frame is REQ-04, US-05.
+"""
 
 import logging
 import uuid
@@ -7,7 +10,7 @@ from http import HTTPStatus
 from typing import Annotated, Any
 
 from fastapi import Depends, Request
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, ConfigDict, FiniteFloat, StringConstraints
 from sqlalchemy.orm import Session
 
 from sketch2cad.api.deps import (
@@ -18,6 +21,7 @@ from sketch2cad.api.deps import (
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
+from sketch2cad.api.routers.entities import EDIT_DEPENDENCIES
 from sketch2cad.db.models import (
     Calibration,
     CaseFile,
@@ -29,6 +33,8 @@ from sketch2cad.db.models import (
     User,
 )
 from sketch2cad.db.session import get_session
+from sketch2cad.geometry.frame import LocalFrame
+from sketch2cad.plans.local_frame import LocalFrameConflictError, set_local_frame
 from sketch2cad.plans.service import (
     ForeignSourceError,
     NewPlan,
@@ -52,6 +58,16 @@ GET_RESPONSES: dict[int | str, dict[str, Any]] = {
     404: {"description": "The plan does not exist."},
 }
 
+LOCAL_FRAME_RESPONSES: dict[int | str, dict[str, Any]] = {
+    403: {"description": "The user lacks ``edit`` on the plan's case file (access.denied)."},
+    404: {"description": "The plan does not exist."},
+    409: {
+        "description": "The plan has no accepted calibration, its revision is frozen, or it "
+        "is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated).",
+    },
+    422: {"description": "Invalid body."},
+}
+
 RequiredText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
@@ -59,6 +75,28 @@ class PlanCreate(BaseModel):
     title: RequiredText
     primary_source_id: uuid.UUID
     source_mode: SourceMode = SourceMode.SCHEMATIC_SKETCH
+
+
+class LocalFrameIn(BaseModel):
+    """The local frame: origin on paper (mm, Y down), +X axis and North angles in degrees.
+
+    Angles are counter-clockwise positive: ``x_axis_angle_deg`` from the world +X axis,
+    ``north_angle_deg`` from the local +Y axis. They are stored reduced to ``[0, 360)``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin_paper_mm: tuple[FiniteFloat, FiniteFloat]
+    x_axis_angle_deg: FiniteFloat
+    north_angle_deg: FiniteFloat
+
+
+class LocalFrameOut(BaseModel):
+    """The stored ``calibration.local_frame``; angles in ``[0, 360)``."""
+
+    origin_paper_mm: tuple[float, float]
+    x_axis_angle_deg: float
+    north_angle_deg: float
 
 
 class CalibrationOut(BaseModel):
@@ -70,7 +108,7 @@ class CalibrationOut(BaseModel):
     control_points: list[dict[str, Any]]
     reprojection_error_mm: dict[str, Any] | None
     paper_scale: int | None
-    local_frame: dict[str, Any] | None
+    local_frame: LocalFrameOut | None
     as_metric: bool
     accepted_by: uuid.UUID
     accepted_at: datetime
@@ -121,7 +159,9 @@ def _calibration_out(calibration: Calibration | None) -> CalibrationOut | None:
         control_points=calibration.control_points,
         reprojection_error_mm=calibration.reprojection_error_mm,
         paper_scale=calibration.paper_scale,
-        local_frame=calibration.local_frame,
+        local_frame=None
+        if calibration.local_frame is None
+        else LocalFrameOut.model_validate(calibration.local_frame),
         as_metric=calibration.as_metric,
         accepted_by=calibration.accepted_by,
         accepted_at=calibration.accepted_at,
@@ -205,4 +245,35 @@ def get_plan(
     Requires ``read`` on the plan's case file; others get 403 and an ``access.denied``
     event.
     """
+    return plan_out(db, plan)
+
+
+@router.put(
+    "/plans/{plan_id}/local-frame", dependencies=EDIT_DEPENDENCIES, responses=LOCAL_FRAME_RESPONSES
+)
+def put_local_frame(
+    request: Request,
+    body: LocalFrameIn,
+    plan: Annotated[Plan, Depends(require_plan_permission("edit"))],
+    db: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> PlanOut:
+    """Set the plan's local frame on its active calibration. Requires ``edit``.
+
+    A change of origin or +X axis moves every live entity of the draft revision by one
+    rigid transform in one transaction. The first frame writes ``local_frame.set``; later
+    changes write one ``local_frame.changed`` with the previous and new frame and the
+    transform (null when only the North changes). An unchanged frame writes nothing.
+    """
+    frame = LocalFrame.create(body.origin_paper_mm, body.x_axis_angle_deg, body.north_angle_deg)
+    try:
+        set_local_frame(db, plan, user, frame, request.client.host if request.client else None)
+    except LocalFrameConflictError as exc:
+        db.rollback()
+        logger.warning("Rejected local frame of plan %s: %s", plan.id, type(exc).__name__)
+        extensions = {} if exc.code is None else {"code": exc.code}
+        raise ProblemError(
+            HTTPStatus.CONFLICT, HTTPStatus.CONFLICT.phrase, str(exc), extensions=extensions
+        ) from None
+    db.commit()
     return plan_out(db, plan)
