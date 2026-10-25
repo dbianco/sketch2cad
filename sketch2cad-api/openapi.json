@@ -2722,6 +2722,31 @@
         "title": "TextGeometry",
         "type": "object"
       },
+      "TransitionIn": {
+        "additionalProperties": false,
+        "description": "Requested target status; ``reason`` is required for ``REJECTED``, optional otherwise.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "to": {
+            "$ref": "#/components/schemas/PlanStatus"
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "title": "TransitionIn",
+        "type": "object"
+      },
       "UserEnvelope": {
         "properties": {
           "user": {
@@ -4569,6 +4594,109 @@
           }
         },
         "summary": "Put Local Frame",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/transition": {
+      "post": {
+        "description": "Move the plan to ``to`` following the spec section 9.2 table. Requires ``edit``.\n\n``REVIEW_PENDING`` (technician or reviewer) releases the caller's lease;\n``IN_REVIEW`` (reviewer) takes it; ``VALIDATED`` (reviewer) freezes the current\nrevision and sets ``validated_revision_id``; ``REJECTED`` (reviewer, ``reason``\nrequired) and ``REOPENED`` (reviewer, from ``VALIDATED`` or ``EXPORTED``, creating\ndraft revision ``n + 1``) continue to ``EDITING``. Each step writes ``plan.transition``.",
+        "operationId": "post_transition_api_v1_plans__plan_id__transition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file, or their role may not perform the transition (``code`` ``V-09`` and its message for ``VALIDATED``); both write access.denied."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The pair is not in the spec section 9.2 table (``code`` ``illegal_transition``) or is performed by the system (``system_transition``), both with ``allowed``; another user holds the edit lease (``V-12`` with ``holder``); or the revision cannot be frozen or reopened (``revision_conflict``)."
+          },
+          "422": {
+            "description": "Invalid body, or a rejection without reason (``code`` ``V-09``)."
+          }
+        },
+        "summary": "Post Transition",
         "tags": [
           "plans"
         ]
