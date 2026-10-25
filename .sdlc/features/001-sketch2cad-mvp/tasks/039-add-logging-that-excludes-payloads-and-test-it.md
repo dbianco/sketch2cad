@@ -1,7 +1,7 @@
 ---
 id: 001-039
 title: "Add logging that excludes payloads and test it"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-034]
