@@ -1,7 +1,8 @@
 ---
 id: 001-022
 title: "Add GitHub Actions CI for the API repository"
-status: todo
+status: partial
+unmet: ["GPL-3.0 branch makes the licenses job fail, run URL recorded (needs GitHub)", "run summary shows ci_duration_minutes in a real workflow run (needs GitHub)"]
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-005, 001-020, 001-014]
