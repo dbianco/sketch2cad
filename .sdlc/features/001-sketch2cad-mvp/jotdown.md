@@ -16,6 +16,36 @@ Ninguna. Los repositorios de código aún no existen, así que ninguna afirmaci�
 
 ---
 
+## Approach
+
+Se construye por incrementos verticales, un hito por feature del orquestador, en este orden: fundación operativa (H0), expedientes e ingesta (H1), calibración y editor (H2), herramientas métricas (H3), exportación y auditoría (H4), asistencia de IA (H5) y endurecimiento con validación interna (H6). Reglas del método:
+
+- La API es la autoridad: el cliente repite cálculos solo para vista previa, y el servidor valida y registra cada cambio en el log encadenado.
+- Funciones geométricas y de visión puras y sin dependencias de FastAPI, probadas con hypothesis y casos resueltos a mano.
+- Cada hito termina con su E2E contra el stack completo y con migraciones que prueban su vuelta atrás.
+- Las decisiones que dependen de datos reales (editor SVG, reproducibilidad del DXF) se miden en H0 antes de construir sobre ellas.
+- La IA es opcional: puede recortarse (H5) sin afectar a los demás hitos.
+
+## Files
+
+Estructura de carpetas del repositorio y archivos principales por hito. El detalle por tarea está en `tasks/`.
+
+| Ruta | Contenido | Hito |
+|---|---|---|
+| `sketch2cad-api/pyproject.toml`, `uv.lock`, `Dockerfile`, `docker-compose.yml` | Proyecto Python y despliegue local | H0 |
+| `sketch2cad-api/src/sketch2cad/{config,db,auth,cases,api}` | Configuración, base de datos, autenticación, expedientes y routers | H0 |
+| `sketch2cad-api/migrations/versions/0001` a `0006` | Migraciones Alembic, una por hito con cambio de esquema | H0 a H5 |
+| `sketch2cad-api/src/sketch2cad/{storage,audit,sources,qc,jobs}` | Almacenamiento por contenido, cadena de eventos, ingesta, control de calidad y jobs | H1 |
+| `sketch2cad-api/src/sketch2cad/{plans,calibration,entities,revisions,catalog,geometry}` | Planos, calibración, entidades, revisiones, catálogo y transformaciones | H2, H3 |
+| `sketch2cad-api/src/sketch2cad/{export,package}` y `sketch2cad-api/verifier/` | Exportación DXF y PDF, paquete firmado y verificador independiente | H4 |
+| `sketch2cad-api/src/sketch2cad/{vision,ocr}` | Sugerencias de líneas y OCR asistido | H5 |
+| `sketch2cad-web/src/{app,features,editor,api}` | Aplicación React, editor SVG y cliente generado | H0 a H5 |
+| `sketch2cad-web/e2e/` | Pruebas Playwright por hito | H0 a H5 |
+| `.github/workflows/{api-ci,web-ci,e2e}.yml` | CI con filtros por ruta | H0 |
+| `docs/spikes/`, `docs/validation/`, `validation/` | Informes de spikes, validación interna y conjunto de croquis | H0, H6 |
+
+---
+
 ## 1. Architectural Decisions
 
 | ID | Decision | Options Considered | Chosen Approach | Rationale |
