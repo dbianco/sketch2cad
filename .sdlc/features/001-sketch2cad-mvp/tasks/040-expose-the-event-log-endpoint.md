@@ -1,7 +1,7 @@
 ---
 id: 001-040
 title: "Expose the event log endpoint"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-032, 001-031]
