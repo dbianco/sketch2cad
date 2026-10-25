@@ -3,10 +3,12 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashFile, sha256Hex } from "./hashFile";
 import type { QcResult } from "./QcPanel";
+import { previewUrl } from "./SourceViewer";
 import {
   JOB_POLL_INTERVAL_MS,
   UPLOAD_MESSAGES,
   UploadPage,
+  originalUrl,
   type Job,
   type Source,
 } from "./UploadPage";
@@ -17,6 +19,8 @@ const JOB_ID = "00000000-0000-4000-8000-0000000000j1";
 const UPLOAD_URL = `/api/v1/case-files/${CASE_ID}/sources`;
 const JOB_URL = `/api/v1/jobs/${JOB_ID}`;
 const SOURCE_URL = `/api/v1/sources/${SOURCE_ID}`;
+const PREVIEW_URL = previewUrl(SOURCE_ID);
+const OBJECT_URL = "blob:http://localhost/preview-1";
 
 const FILE_BYTES = new TextEncoder().encode("croquis de prueba");
 const FILE_SHA256 = sha256Hex(FILE_BYTES);
@@ -90,11 +94,21 @@ function problem(status: number, detail: string): Response {
   return jsonResponse({ type: "about:blank", title: "Error", status, detail }, status);
 }
 
+function jpegResponse(): Response {
+  return new Response(new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: "image/jpeg" }), {
+    status: 200,
+    headers: { "Content-Type": "image/jpeg" },
+  });
+}
+
 const fetchMock = vi.fn<typeof fetch>();
+const createObjectURL = vi.fn<typeof URL.createObjectURL>(() => OBJECT_URL);
+const revokeObjectURL = vi.fn<typeof URL.revokeObjectURL>();
 
 /**
  * Serve the upload with `uploadResponse`, the job polls with `jobs`, in order, and
- * `GET /sources/{id}` with `sourceResponse` (404 by default).
+ * `GET /sources/{id}` with `sourceResponse` (404 by default) and the viewer's preview
+ * with a JPEG.
  */
 function mockApi(
   uploadResponse: () => Response,
@@ -113,6 +127,9 @@ function mockApi(
     }
     if (url === SOURCE_URL) {
       return Promise.resolve(sourceResponse());
+    }
+    if (url === PREVIEW_URL) {
+      return Promise.resolve(jpegResponse());
     }
     return Promise.resolve(problem(404, "Not found"));
   });
@@ -190,7 +207,12 @@ describe("hashFile", () => {
 describe("UploadPage", () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    createObjectURL.mockClear();
+    revokeObjectURL.mockClear();
     vi.stubGlobal("fetch", fetchMock);
+    // jsdom does not implement object URLs, which the source viewer uses for the preview.
+    vi.spyOn(URL, "createObjectURL").mockImplementation(createObjectURL);
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(revokeObjectURL);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   });
 
@@ -198,6 +220,7 @@ describe("UploadPage", () => {
     cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     document.cookie = "s2c_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
   });
 
@@ -218,6 +241,28 @@ describe("UploadPage", () => {
     expect(screen.getByText("Hash verificado. Original guardado sin cambios.")).toBeTruthy();
     expect(screen.getByText("Analizando la calidad de la imagen…")).toBeTruthy();
     expect(continueButton().disabled).toBe(true);
+  });
+
+  it("shows the full SHA-256, the original download link and the preview after the upload", async () => {
+    mockApi(() => jsonResponse(source(), 201), [job("queued")]);
+    renderPage();
+
+    expect(screen.queryByTestId("source-viewer")).toBeNull();
+    chooseFile();
+    await settle();
+
+    expect(screen.getByTestId("source-sha256").textContent).toBe(FILE_SHA256);
+    const download = screen.getByRole("link", { name: "Descargar el original" });
+    expect(download.getAttribute("href")).toBe(originalUrl(SOURCE_ID));
+    expect(download.getAttribute("download")).toBe("croquis_cruce_01.jpg");
+    const image = screen.getByRole("img", { name: "croquis_cruce_01.jpg" });
+    expect(image.getAttribute("src")).toBe(OBJECT_URL);
+    expect(callsTo(PREVIEW_URL)).toBe(1);
+    expect(callsTo(originalUrl(SOURCE_ID))).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cargar otra fuente" }));
+    expect(screen.queryByTestId("source-viewer")).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith(OBJECT_URL);
   });
 
   it.each([

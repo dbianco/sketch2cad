@@ -4,6 +4,7 @@ import { ApiError, api } from "../../api/client";
 import type { components } from "../../api/schema";
 import { hashFile } from "./hashFile";
 import { QcPanel, parseQc, type QcResult } from "./QcPanel";
+import { SourceViewer } from "./SourceViewer";
 
 export type Source = components["schemas"]["SourceOut"];
 export type Job = components["schemas"]["JobOut"];
@@ -31,6 +32,11 @@ const TERMINAL_JOB_STATUSES: ReadonlySet<Job["status"]> = new Set(["succeeded", 
 /** URL of the upload screen of a case file (route `/cases/:caseId/upload`). */
 export function uploadPath(caseId: string): string {
   return `/cases/${encodeURIComponent(caseId)}/upload`;
+}
+
+/** URL of the stored original bytes of a source (explicit download only, never the viewer). */
+export function originalUrl(sourceId: string): string {
+  return `/api/v1/sources/${encodeURIComponent(sourceId)}/original`;
 }
 
 /** Path of the calibration screen of a source (built in H2). */
@@ -356,7 +362,16 @@ export function UploadPage() {
             {phase.source.sha256 === phase.clientSha256 && (
               <div style={styles.verified}>Hash verificado. Original guardado sin cambios.</div>
             )}
+            <div style={styles.hash}>
+              SHA-256 del original: <span data-testid="source-sha256">{phase.source.sha256}</span>
+            </div>
+            <a href={originalUrl(phase.source.id)} download={phase.source.original_filename}>
+              Descargar el original
+            </a>
           </div>
+        )}
+        {phase.kind === "uploaded" && (
+          <SourceViewer sourceId={phase.source.id} alt={phase.source.original_filename} />
         )}
       </div>
       {source !== null && job !== null && (
