@@ -18,6 +18,7 @@ import sketch2cad.worker.app as worker_app
 from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.auth.lockout import utc_now
 from sketch2cad.db.models import CaseFile, JobMeta, JobStatus, MediaType, Source, User
+from sketch2cad.jobs.service import QC_JOB_KIND, QC_TASK_NAME
 from sketch2cad.sources.magic import SNIFF_BYTES, sniff_media_type
 from sketch2cad.sources.upload import ReceivedUpload
 from sketch2cad.storage import Storage
@@ -32,10 +33,6 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 INVALID_TYPE_MESSAGE = "El archivo no es un JPEG, PNG, TIFF o PDF de una página válido."
 TOO_LARGE_MESSAGE = "El archivo supera los 50 MB permitidos."
 ALTERED_MESSAGE = "El archivo se alteró durante la subida. Vuelve a cargarlo."
-
-QC_JOB_KIND = "qc"
-QC_TASK_NAME = "qc"
-"""Procrastinate task name of the quality-control job; task 001-038 registers it."""
 
 _PILLOW_FORMATS: dict[MediaType, frozenset[str]] = {
     MediaType.JPEG: frozenset({"JPEG", "MPO"}),
