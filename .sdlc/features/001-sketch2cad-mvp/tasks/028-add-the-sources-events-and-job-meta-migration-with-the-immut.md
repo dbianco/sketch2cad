@@ -1,7 +1,7 @@
 ---
 id: 001-028
 title: "Add the sources, events and job_meta migration with the immutable event trigger"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-027]
