@@ -11,7 +11,8 @@
     "test": "vitest",
     "generate:client": "bash scripts/generate-client.sh",
     "check:licenses": "node scripts/check-licenses.mjs",
-    "spike:svg": "node spikes/svg-perf/run.ts"
+    "spike:svg": "node spikes/svg-perf/run.ts",
+    "spike:editor": "node spikes/svg-perf/editor-run.ts"
   },
   "dependencies": {
     "immer": "^11.2.9",
