@@ -289,7 +289,9 @@ def test_added_member_sees_the_case(
     body = create(client)
     member = insert_user(factory)
     with factory() as db:
-        db.add(CaseMember(case_file_id=uuid.UUID(body["id"]), user_id=member.id))
+        db.add(
+            CaseMember(case_file_id=uuid.UUID(body["id"]), user_id=member.id, permissions=["read"])
+        )
         db.commit()
     member_client = signed_in(app, stack, member)
 

@@ -1,26 +1,38 @@
-"""Case file endpoints: create, list and retrieve, filtered by membership."""
+"""Case file endpoints: create, list, retrieve and add members, filtered by membership."""
 
 import logging
 import uuid
 from datetime import date, datetime
+from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import Depends, Query
-from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from sqlalchemy.orm import Session
 
-from sketch2cad.api.deps import get_current_user, require_csrf
+from sketch2cad.api.deps import (
+    get_current_user,
+    require_case_manager,
+    require_case_permission,
+    require_csrf,
+)
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
+from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.auth.lockout import Clock
+from sketch2cad.cases.permissions import (
+    CasePermission,
+    MemberExistsError,
+    UnknownUserError,
+    add_member,
+)
 from sketch2cad.cases.service import (
     NewCaseFile,
     create_case,
-    get_case,
     get_case_clock,
     list_cases,
 )
-from sketch2cad.db.models import CaseFile, IncidentType, User
+from sketch2cad.db.models import CaseFile, CaseMember, IncidentType, User
 from sketch2cad.db.session import get_session
 
 logger = logging.getLogger(__name__)
@@ -65,12 +77,31 @@ class CaseFileList(BaseModel):
     items: list[CaseFileOut]
 
 
+class CaseMemberCreate(BaseModel):
+    user_id: uuid.UUID
+    permissions: Annotated[list[CasePermission], Field(min_length=1)]
+
+
+class CaseMemberOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    case_file_id: uuid.UUID
+    user_id: uuid.UUID
+    permissions: list[CasePermission]
+
+
 def _out(case_file: CaseFile) -> CaseFileOut:
     return CaseFileOut.model_validate(case_file)
 
 
-def _not_found() -> ProblemError:
-    return ProblemError(404, "Not Found", "The case file does not exist.")
+def _created_payload(case_file: CaseFile) -> dict[str, str | None]:
+    return {
+        "code": case_file.code,
+        "incident_type": case_file.incident_type.value,
+        "incident_date": case_file.incident_date.isoformat(),
+        "declared_location": case_file.declared_location,
+        "organization": case_file.organization,
+    }
 
 
 @router.post("/case-files", status_code=201, dependencies=[Depends(require_csrf)])
@@ -89,6 +120,14 @@ def create_case_file(
         organization=body.organization,
     )
     case_file = create_case(db, user.id, data, clock())
+    append_event(
+        db,
+        case_file_id=case_file.id,
+        kind=EventKind.CASE_FILE_CREATED,
+        actor_id=user.id,
+        actor_role=user.role.value,
+        after=_created_payload(case_file),
+    )
     db.commit()
     logger.info("User %s created case file %s (%s)", user.id, case_file.id, case_file.code)
     return _out(case_file)
@@ -120,16 +159,42 @@ def list_case_files(
 
 @router.get("/case-files/{case_id}")
 def get_case_file(
-    case_id: str,
+    case_file: Annotated[CaseFile, Depends(require_case_permission("read"))],
+) -> CaseFileOut:
+    """Return a case file; 404 when it is missing, malformed or not visible to the user.
+
+    A member without ``read`` gets 403; every denial on an existing case file is logged as
+    ``access.denied``.
+    """
+    return _out(case_file)
+
+
+@router.post("/case-files/{case_id}/members", status_code=201, dependencies=[Depends(require_csrf)])
+def add_case_member(
+    body: CaseMemberCreate,
+    case_file: Annotated[CaseFile, Depends(require_case_manager)],
     db: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_current_user)],
-) -> CaseFileOut:
-    """Return a case file; 404 when it is missing, malformed or not visible to the user."""
+) -> CaseMemberOut:
+    """Add a member with explicit permissions; only an ``admin`` or the creator may do it.
+
+    Other members get 403 and non-members 404, both logged as ``access.denied``; an unknown
+    ``user_id`` gives 422 and an existing member 409.
+    """
     try:
-        parsed = uuid.UUID(case_id)
-    except ValueError:
-        raise _not_found() from None
-    case_file = get_case(db, user.id, parsed)
-    if case_file is None:
-        raise _not_found()
-    return _out(case_file)
+        member: CaseMember = add_member(db, case_file, body.user_id, body.permissions, user)
+    except UnknownUserError:
+        db.rollback()
+        raise ProblemError(
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+            HTTPStatus.UNPROCESSABLE_ENTITY.phrase,
+            "The user does not exist.",
+        ) from None
+    except MemberExistsError:
+        db.rollback()
+        raise ProblemError(
+            409, "Conflict", "The user is already a member of the case file."
+        ) from None
+    db.commit()
+    logger.info("User %s added member %s to case file %s", user.id, body.user_id, case_file.id)
+    return CaseMemberOut.model_validate(member)

@@ -126,6 +126,67 @@
         "title": "CaseFileOut",
         "type": "object"
       },
+      "CaseMemberCreate": {
+        "properties": {
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/CasePermission"
+            },
+            "minItems": 1,
+            "title": "Permissions",
+            "type": "array"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "permissions"
+        ],
+        "title": "CaseMemberCreate",
+        "type": "object"
+      },
+      "CaseMemberOut": {
+        "properties": {
+          "case_file_id": {
+            "format": "uuid",
+            "title": "Case File Id",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/CasePermission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_file_id",
+          "user_id",
+          "permissions"
+        ],
+        "title": "CaseMemberOut",
+        "type": "object"
+      },
+      "CasePermission": {
+        "description": "Permissions stored in ``case_member.permissions``.",
+        "enum": [
+          "read",
+          "edit",
+          "deliver"
+        ],
+        "title": "CasePermission",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -636,7 +697,7 @@
     },
     "/api/v1/case-files/{case_id}": {
       "get": {
-        "description": "Return a case file; 404 when it is missing, malformed or not visible to the user.",
+        "description": "Return a case file; 404 when it is missing, malformed or not visible to the user.\n\nA member without ``read`` gets 403; every denial on an existing case file is logged as\n``access.denied``.",
         "operationId": "get_case_file_api_v1_case_files__case_id__get",
         "parameters": [
           {
@@ -688,6 +749,107 @@
           }
         },
         "summary": "Get Case File",
+        "tags": [
+          "case-files"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}/members": {
+      "post": {
+        "description": "Add a member with explicit permissions; only an ``admin`` or the creator may do it.\n\nOther members get 403 and non-members 404, both logged as ``access.denied``; an unknown\n``user_id`` gives 422 and an existing member 409.",
+        "operationId": "add_case_member_api_v1_case_files__case_id__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseMemberCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseMemberOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Case Member",
         "tags": [
           "case-files"
         ]
