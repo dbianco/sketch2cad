@@ -244,6 +244,6 @@ def evaluate(image: object, thresholds: QcThresholds | None = None) -> QcResult:
             _crop_check(gray),
         )
     except Exception as exc:  # the QC is a warning: no input may make it raise
-        return _unreadable(f"{type(exc).__name__}: {exc}")
+        return _unreadable(type(exc).__name__)  # messages may quote array content
     status = max((c.status for c in checks), key=_SEVERITY.__getitem__)
     return QcResult(status, checks)

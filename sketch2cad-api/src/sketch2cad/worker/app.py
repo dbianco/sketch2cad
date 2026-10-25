@@ -29,6 +29,7 @@ from psycopg.conninfo import make_conninfo
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
+from sketch2cad.logging import configure_logging
 from sketch2cad.worker import tasks_qc, tasks_raster
 
 EXIT_OK = 0
@@ -78,8 +79,9 @@ def create_worker_app(conninfo: str | None = None) -> procrastinate.App:
     """Build the Procrastinate app; ``conninfo`` defaults to the one from ``DATABASE_URL``.
 
     No connection is opened here: the app connects when it is opened. The worker tasks
-    are registered on it.
+    are registered on it, and the identifiers-only logging is configured.
     """
+    configure_logging()
     if conninfo is None:
         conninfo = conninfo_from_environment()
     app = procrastinate.App(connector=procrastinate.PsycopgConnector(conninfo=conninfo))

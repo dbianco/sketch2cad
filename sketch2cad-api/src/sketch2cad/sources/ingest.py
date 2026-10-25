@@ -24,8 +24,6 @@ from sketch2cad.sources.upload import ReceivedUpload
 from sketch2cad.storage import Storage
 
 logger = logging.getLogger(__name__)
-# Pillow logs every TIFF/EXIF tag value at DEBUG while decoding; keep that out of logs.
-logging.getLogger("PIL").setLevel(logging.INFO)
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 """V-02: maximum size of an uploaded file."""
