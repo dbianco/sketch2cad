@@ -1,7 +1,7 @@
 ---
 id: 001-017
 title: "Generate the TypeScript API client with openapi-typescript"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-002, 001-016]
