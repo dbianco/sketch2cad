@@ -1,7 +1,7 @@
 ---
 id: 001-048
 title: "Implement image-to-paper and paper-to-world transforms"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-001]
