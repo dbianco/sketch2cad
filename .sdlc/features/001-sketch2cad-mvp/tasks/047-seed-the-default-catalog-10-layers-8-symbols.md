@@ -1,7 +1,7 @@
 ---
 id: 001-047
 title: "Seed the default catalog (10 layers, 8 symbols)"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-046]
