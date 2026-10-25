@@ -1,7 +1,7 @@
 ---
 id: 001-063
 title: "Add the symbol picker and symbol placement"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-061, 001-047]
