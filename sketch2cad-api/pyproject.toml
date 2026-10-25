@@ -1,0 +1,65 @@
+[project]
+name = "sketch2cad"
+version = "0.1.0"
+description = "Sketch2CAD API"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2,<4",
+    "argon2-cffi>=23.1",
+    "procrastinate>=2.15",
+    "uvicorn>=0.32",
+    "ezdxf>=1.4.5",
+    "rfc8785>=0.1.4",
+    "pillow>=13.0.0",
+    "python-multipart>=0.0.32",
+    "pypdfium2>=5.14.0",
+    "opencv-python-headless>=5.0.0.93",
+    "numpy>=2.5.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+    "pyright>=1.1.390",
+    "httpx2>=2.16.0",
+    "pip-licenses>=5.5.5",
+    "pip-audit>=2.7",
+    "hypothesis>=6.170.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sketch2cad"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["perf: real-timing performance measurements"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "N"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"

@@ -1,0 +1,201 @@
+{
+  "median_fps": 144.93,
+  "p95_frame_ms": 8.3,
+  "entities": 2000,
+  "browser": "chromium 156.0.8078.4",
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "cores": 14,
+    "ram_gb": 24,
+    "model": "Mac16,7",
+    "os": "macOS 26.5.2 (arm64)",
+    "displays": [
+      {
+        "name": "LC24RG50",
+        "resolution": "1920 x 1080 @ 144.00Hz",
+        "main": true
+      },
+      {
+        "name": "Color LCD",
+        "resolution": "1920 x 1080 @ 120.00Hz",
+        "main": false
+      }
+    ]
+  },
+  "duration_s": 10.008,
+  "frames": 1426,
+  "technique": "group-transform",
+  "mode": "headed",
+  "date": "2026-10-25T05:45:43.362Z",
+  "seed": 20261025,
+  "refresh_hz_probe": 144.9,
+  "thresholds": {
+    "median_fps": 60,
+    "p95_frame_ms": 25
+  },
+  "passes": true,
+  "decision": "keep-svg",
+  "runs": [
+    {
+      "technique": "group-transform",
+      "optimized": false,
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 144.9,
+      "median_frame_ms": 6.9,
+      "median_fps": 144.93,
+      "mean_fps": 142.49,
+      "p95_frame_ms": 8.3,
+      "p99_frame_ms": 8.7,
+      "max_frame_ms": 63.1,
+      "frames_over_25ms": 1,
+      "frames": 1426,
+      "duration_s": 10.008,
+      "mode": "headed",
+      "browser": "chromium 156.0.8078.4"
+    },
+    {
+      "technique": "wrapper-css-transform",
+      "optimized": false,
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 144.9,
+      "median_frame_ms": 6.9,
+      "median_fps": 144.93,
+      "mean_fps": 142.08,
+      "p95_frame_ms": 8.3,
+      "p99_frame_ms": 8.7,
+      "max_frame_ms": 47.8,
+      "frames_over_25ms": 2,
+      "frames": 1422,
+      "duration_s": 10.008,
+      "mode": "headed",
+      "browser": "chromium 156.0.8078.4"
+    },
+    {
+      "technique": "viewbox",
+      "optimized": false,
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 144.9,
+      "median_frame_ms": 6.9,
+      "median_fps": 144.93,
+      "mean_fps": 141.88,
+      "p95_frame_ms": 8.4,
+      "p99_frame_ms": 8.7,
+      "max_frame_ms": 63.9,
+      "frames_over_25ms": 2,
+      "frames": 1420,
+      "duration_s": 10.008,
+      "mode": "headed",
+      "browser": "chromium 156.0.8078.4"
+    },
+    {
+      "technique": "group-transform",
+      "optimized": false,
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 59.9,
+      "median_frame_ms": 16.7,
+      "median_fps": 59.88,
+      "mean_fps": 60,
+      "p95_frame_ms": 16.7,
+      "p99_frame_ms": 16.8,
+      "max_frame_ms": 16.8,
+      "frames_over_25ms": 0,
+      "frames": 601,
+      "duration_s": 10.016,
+      "mode": "headless",
+      "browser": "chromium 156.0.8078.4"
+    },
+    {
+      "technique": "wrapper-css-transform",
+      "optimized": false,
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 59.9,
+      "median_frame_ms": 16.7,
+      "median_fps": 59.88,
+      "mean_fps": 60,
+      "p95_frame_ms": 16.8,
+      "p99_frame_ms": 16.8,
+      "max_frame_ms": 16.8,
+      "frames_over_25ms": 0,
+      "frames": 602,
+      "duration_s": 10.033,
+      "mode": "headless",
+      "browser": "chromium 156.0.8078.4"
+    },
+    {
+      "technique": "viewbox",
+      "optimized": false,
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 59.9,
+      "median_frame_ms": 16.7,
+      "median_fps": 59.88,
+      "mean_fps": 60,
+      "p95_frame_ms": 16.8,
+      "p99_frame_ms": 16.8,
+      "max_frame_ms": 16.8,
+      "frames_over_25ms": 0,
+      "frames": 601,
+      "duration_s": 10.016,
+      "mode": "headless",
+      "browser": "chromium 156.0.8078.4"
+    },
+    {
+      "technique": "group-transform",
+      "optimized": true,
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 59.9,
+      "median_frame_ms": 16.7,
+      "median_fps": 59.88,
+      "mean_fps": 60,
+      "p95_frame_ms": 16.7,
+      "p99_frame_ms": 16.8,
+      "max_frame_ms": 16.8,
+      "frames_over_25ms": 0,
+      "frames": 601,
+      "duration_s": 10.016,
+      "mode": "headless",
+      "browser": "chromium 156.0.8078.4"
+    }
+  ]
+}

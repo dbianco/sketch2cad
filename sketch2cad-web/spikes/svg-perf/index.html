@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Spike 1: SVG editor performance</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #fff;
+      }
+      #viewport {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+      #wrapper {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform-origin: 0 0;
+      }
+      svg {
+        display: block;
+      }
+      #content * {
+        vector-effect: non-scaling-stroke;
+      }
+      /* Optional optimization, enabled only for the extra labeled run. */
+      body.optimized #content {
+        will-change: transform;
+      }
+      body.optimized #content * {
+        shape-rendering: optimizeSpeed;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewport"><div id="wrapper"></div></div>
+    <script type="module">
+      // Synthetic plan data: deterministic from a fixed seed, world units are metres.
+      const SEED = 20261025;
+      const WORLD_W = 60;
+      const WORLD_H = 40;
+      const COUNTS = { polylines: 1200, lines: 600, symbols: 200 };
+      const DURATION_MS = 10000;
+      const WARMUP_MS = 1000;
+      const ZOOM_MIN = 0.5;
+      const ZOOM_MAX = 8;
+      const SVG_NS = "http://www.w3.org/2000/svg";
+
+      function mulberry32(seed) {
+        let a = seed >>> 0;
+        return () => {
+          a = (a + 0x6d2b79f5) >>> 0;
+          let t = a;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function el(name, attrs, parent) {
+        const node = document.createElementNS(SVG_NS, name);
+        for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+        parent.appendChild(node);
+        return node;
+      }
+
+      const fmt = (n) => n.toFixed(3);
+
+      function buildScene(content) {
+        const rnd = mulberry32(SEED);
+        const range = (min, max) => min + rnd() * (max - min);
+        let count = 0;
+        // Polylines: walls and outlines, 4-12 vertices, segments of 0.5-4 m.
+        for (let i = 0; i < COUNTS.polylines; i++) {
+          const n = 4 + Math.floor(rnd() * 9);
+          let x = range(0, WORLD_W);
+          let y = range(0, WORLD_H);
+          const pts = [];
+          for (let v = 0; v < n; v++) {
+            pts.push(`${fmt(x)},${fmt(y)}`);
+            const angle = rnd() * Math.PI * 2;
+            const len = range(0.5, 4);
+            x = Math.min(WORLD_W, Math.max(0, x + Math.cos(angle) * len));
+            y = Math.min(WORLD_H, Math.max(0, y + Math.sin(angle) * len));
+          }
+          el("polyline", {
+            points: pts.join(" "),
+            fill: "none",
+            stroke: "#222",
+            "stroke-width": i % 5 === 0 ? 2 : 1.25,
+          }, content);
+          count++;
+        }
+        // Lines: measurement and reference lines, 0.5-8 m long.
+        for (let i = 0; i < COUNTS.lines; i++) {
+          const x1 = range(0, WORLD_W);
+          const y1 = range(0, WORLD_H);
+          const angle = rnd() * Math.PI * 2;
+          const len = range(0.5, 8);
+          el("line", {
+            x1: fmt(x1),
+            y1: fmt(y1),
+            x2: fmt(x1 + Math.cos(angle) * len),
+            y2: fmt(y1 + Math.sin(angle) * len),
+            stroke: i % 3 === 0 ? "#1f5fbf" : "#555",
+            "stroke-width": 1,
+            "stroke-dasharray": i % 4 === 0 ? "6 4" : "none",
+          }, content);
+          count++;
+        }
+        // Symbols: small grouped shapes (evidence marker, door, vehicle).
+        for (let i = 0; i < COUNTS.symbols; i++) {
+          const g = el("g", {
+            transform: `translate(${fmt(range(1, WORLD_W - 1))} ${fmt(range(1, WORLD_H - 1))}) rotate(${Math.floor(rnd() * 360)})`,
+          }, content);
+          const kind = i % 3;
+          if (kind === 0) {
+            el("circle", { r: 0.3, fill: "#ffd400", stroke: "#000", "stroke-width": 1 }, g);
+            const label = el("text", {
+              "font-size": 0.35,
+              "text-anchor": "middle",
+              "dominant-baseline": "central",
+              "font-family": "sans-serif",
+            }, g);
+            label.textContent = String(i + 1);
+          } else if (kind === 1) {
+            el("line", { x1: 0, y1: 0, x2: 0.9, y2: 0, stroke: "#000", "stroke-width": 1.5 }, g);
+            el("path", { d: "M 0.9 0 A 0.9 0.9 0 0 0 0 -0.9", fill: "none", stroke: "#000", "stroke-width": 1 }, g);
+          } else {
+            el("rect", { x: -2.2, y: -0.9, width: 4.4, height: 1.8, rx: 0.3, fill: "#e8eef8", stroke: "#000", "stroke-width": 1 }, g);
+            el("line", { x1: 1.1, y1: -0.9, x2: 1.1, y2: 0.9, stroke: "#000", "stroke-width": 1 }, g);
+            el("line", { x1: -1.4, y1: -0.9, x2: -1.4, y2: 0.9, stroke: "#000", "stroke-width": 1 }, g);
+          }
+          count++;
+        }
+        return count;
+      }
+
+      // Camera path: continuous, back-and-forth. Zoom oscillates geometrically between
+      // ZOOM_MIN and ZOOM_MAX twice in 10 s; the centre pans across the plan.
+      function cameraAt(t) {
+        const s = t / 1000;
+        const phase = 0.5 - 0.5 * Math.cos((2 * Math.PI * s) / 5);
+        const zoom = Math.exp(Math.log(ZOOM_MIN) + phase * Math.log(ZOOM_MAX / ZOOM_MIN));
+        const cx = WORLD_W / 2 + 20 * Math.sin((2 * Math.PI * s) / 3.3);
+        const cy = WORLD_H / 2 + 12 * Math.sin((2 * Math.PI * s) / 4.1 + 1);
+        return { zoom, cx, cy };
+      }
+
+      function setup(technique) {
+        const wrapper = document.getElementById("wrapper");
+        wrapper.replaceChildren();
+        wrapper.style.transform = "";
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const fit = Math.min(vw / WORLD_W, vh / WORLD_H); // px per metre at zoom 1
+        const svg = el("svg", {}, wrapper);
+        const content = el("g", { id: "content" }, svg);
+        const entities = buildScene(content);
+
+        // Returns a function that applies the camera (world centre + zoom) to the DOM.
+        if (technique === "viewbox") {
+          svg.setAttribute("width", vw);
+          svg.setAttribute("height", vh);
+          return {
+            entities,
+            apply({ zoom, cx, cy }) {
+              const w = vw / (fit * zoom);
+              const h = vh / (fit * zoom);
+              svg.setAttribute("viewBox", `${cx - w / 2} ${cy - h / 2} ${w} ${h}`);
+            },
+          };
+        }
+        if (technique === "group-transform") {
+          svg.setAttribute("width", vw);
+          svg.setAttribute("height", vh);
+          svg.setAttribute("viewBox", `0 0 ${vw} ${vh}`);
+          return {
+            entities,
+            apply({ zoom, cx, cy }) {
+              const k = fit * zoom;
+              content.setAttribute("transform", `matrix(${k} 0 0 ${k} ${vw / 2 - cx * k} ${vh / 2 - cy * k})`);
+            },
+          };
+        }
+        if (technique === "wrapper-css-transform") {
+          // Same DOM mechanism as react-zoom-pan-pinch: the SVG is laid out at zoom 1 and its
+          // wrapper element receives `transform: translate(x, y) scale(s)`.
+          svg.setAttribute("width", WORLD_W * fit);
+          svg.setAttribute("height", WORLD_H * fit);
+          svg.setAttribute("viewBox", `0 0 ${WORLD_W} ${WORLD_H}`);
+          return {
+            entities,
+            apply({ zoom, cx, cy }) {
+              const tx = vw / 2 - cx * fit * zoom;
+              const ty = vh / 2 - cy * fit * zoom;
+              wrapper.style.transform = `translate(${tx}px, ${ty}px) scale(${zoom})`;
+            },
+          };
+        }
+        throw new Error(`Unknown technique: ${technique}`);
+      }
+
+      function percentile(sorted, p) {
+        const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
+        return sorted[Math.max(0, idx)];
+      }
+
+      function summarize(deltas) {
+        const sorted = [...deltas].sort((a, b) => a - b);
+        const median = percentile(sorted, 50);
+        const total = deltas.reduce((acc, d) => acc + d, 0);
+        return {
+          median_frame_ms: Number(median.toFixed(3)),
+          median_fps: Number((1000 / median).toFixed(2)),
+          mean_fps: Number(((1000 * deltas.length) / total).toFixed(2)),
+          p95_frame_ms: Number(percentile(sorted, 95).toFixed(3)),
+          p99_frame_ms: Number(percentile(sorted, 99).toFixed(3)),
+          max_frame_ms: Number(sorted[sorted.length - 1].toFixed(3)),
+          frames_over_25ms: deltas.filter((d) => d > 25).length,
+          frames: deltas.length,
+          duration_s: Number((total / 1000).toFixed(3)),
+        };
+      }
+
+      // Median rAF interval on an idle page approximates the display refresh rate.
+      function probeRefresh(ms = 1500) {
+        return new Promise((resolve) => {
+          const deltas = [];
+          let last = null;
+          const start = performance.now();
+          const tick = (now) => {
+            if (last !== null) deltas.push(now - last);
+            last = now;
+            if (now - start < ms) requestAnimationFrame(tick);
+            else {
+              const sorted = deltas.sort((a, b) => a - b);
+              resolve(Number((1000 / percentile(sorted, 50)).toFixed(1)));
+            }
+          };
+          requestAnimationFrame(tick);
+        });
+      }
+
+      async function runSpike(technique, optimized = false) {
+        document.body.classList.toggle("optimized", optimized);
+        const refresh_hz_probe = await probeRefresh();
+        const scene = setup(technique);
+        scene.apply(cameraAt(0));
+        const deltas = [];
+        return new Promise((resolve) => {
+          let start = null;
+          let last = null;
+          const tick = (now) => {
+            if (start === null) start = now;
+            const elapsed = now - start;
+            if (elapsed >= WARMUP_MS && last !== null) deltas.push(now - last);
+            last = now;
+            if (elapsed < WARMUP_MS + DURATION_MS) {
+              scene.apply(cameraAt(Math.max(0, elapsed - WARMUP_MS)));
+              requestAnimationFrame(tick);
+            } else {
+              resolve({
+                technique,
+                optimized,
+                entities: scene.entities,
+                seed: SEED,
+                viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
+                refresh_hz_probe,
+                ...summarize(deltas),
+              });
+            }
+          };
+          requestAnimationFrame(tick);
+        });
+      }
+
+      // Renders one static camera for visual inspection (no measurement).
+      window.__showSpike = (technique, camera) => setup(technique).apply(camera);
+      window.__runSpike = runSpike;
+      window.__spikeReady = true;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,219 @@
+{
+  "median_fps": 144.93,
+  "p95_frame_ms": 8.3,
+  "entities": 2000,
+  "browser": "chromium 156.0.8078.4",
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "cores": 14,
+    "gpu": "Apple M4 Pro, 20 cores",
+    "ram_gb": 24,
+    "model": "Mac16,7",
+    "os": "macOS 26.5.2 (arm64)",
+    "displays": [
+      {
+        "name": "LC24RG50",
+        "resolution": "1920 x 1080 @ 144.00Hz",
+        "main": true
+      },
+      {
+        "name": "Color LCD",
+        "resolution": "1920 x 1080 @ 120.00Hz",
+        "main": false
+      }
+    ]
+  },
+  "duration_s": 10.008,
+  "frames": 1441,
+  "technique": "viewbox (real EditorCanvas)",
+  "scenario": "pan-zoom",
+  "mode": "headed",
+  "smoke": false,
+  "date": "2026-10-25T19:25:02.009Z",
+  "seed": 20261025,
+  "refresh_hz_probe": 144.9,
+  "thresholds": {
+    "median_fps": 60,
+    "p95_frame_ms": 25
+  },
+  "refresh_cap_tolerance": 0.02,
+  "passes_strict": true,
+  "passes": true,
+  "decision": "keep-svg",
+  "scenarios": {
+    "pan_zoom": {
+      "median_fps": 144.93,
+      "p95_frame_ms": 8.3
+    },
+    "select_move_vertex": {
+      "median_fps": 144.93,
+      "p95_frame_ms": 8.5,
+      "work_per_frame_ms": {
+        "median_ms": 1.8,
+        "p95_ms": 2.1,
+        "max_ms": 2.5
+      }
+    },
+    "initial_mount": {
+      "entities": 2000,
+      "rendered_entity_elements": 2000,
+      "store_load_ms": 5,
+      "render_commit_ms": 24.7,
+      "first_paint_ms": 47.2
+    }
+  },
+  "runs": [
+    {
+      "scenario": "pan-zoom",
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 144.9,
+      "route_ms": 10000,
+      "warmup_ms": 1000,
+      "work_per_frame_ms": {
+        "median_ms": 1.2,
+        "p95_ms": 1.5,
+        "max_ms": 2.8
+      },
+      "max_zoom_tracking_error": 4.44e-16,
+      "max_centre_tracking_error_m": 0.357,
+      "median_frame_ms": 6.9,
+      "median_fps": 144.93,
+      "mean_fps": 143.98,
+      "p95_frame_ms": 8.3,
+      "p99_frame_ms": 8.6,
+      "max_frame_ms": 8.7,
+      "frames_over_25ms": 0,
+      "frames": 1441,
+      "duration_s": 10.008,
+      "mode": "headed",
+      "browser": "chromium 156.0.8078.4",
+      "mount": {
+        "entities": 2000,
+        "rendered_entity_elements": 2000,
+        "store_load_ms": 5,
+        "render_commit_ms": 24.7,
+        "first_paint_ms": 47.2
+      }
+    },
+    {
+      "scenario": "select-move-vertex",
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 144.9,
+      "route_ms": 5000,
+      "warmup_ms": 1000,
+      "edits": 861,
+      "history_entries": 200,
+      "work_per_frame_ms": {
+        "median_ms": 1.8,
+        "p95_ms": 2.1,
+        "max_ms": 2.5
+      },
+      "median_frame_ms": 6.9,
+      "median_fps": 144.93,
+      "mean_fps": 143.77,
+      "p95_frame_ms": 8.5,
+      "p99_frame_ms": 8.7,
+      "max_frame_ms": 14.7,
+      "frames_over_25ms": 0,
+      "frames": 719,
+      "duration_s": 5.001,
+      "mode": "headed",
+      "browser": "chromium 156.0.8078.4",
+      "mount": {
+        "entities": 2000,
+        "rendered_entity_elements": 2000,
+        "store_load_ms": 4.8,
+        "render_commit_ms": 18.2,
+        "first_paint_ms": 37.7
+      }
+    },
+    {
+      "scenario": "pan-zoom",
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 59.9,
+      "route_ms": 10000,
+      "warmup_ms": 1000,
+      "work_per_frame_ms": {
+        "median_ms": 1.2,
+        "p95_ms": 1.8,
+        "max_ms": 4.8
+      },
+      "max_zoom_tracking_error": 4.44e-16,
+      "max_centre_tracking_error_m": 0.707,
+      "median_frame_ms": 16.7,
+      "median_fps": 59.88,
+      "mean_fps": 60,
+      "p95_frame_ms": 16.7,
+      "p99_frame_ms": 16.8,
+      "max_frame_ms": 16.8,
+      "frames_over_25ms": 0,
+      "frames": 602,
+      "duration_s": 10.033,
+      "mode": "headless",
+      "browser": "chromium 156.0.8078.4",
+      "mount": {
+        "entities": 2000,
+        "rendered_entity_elements": 2000,
+        "store_load_ms": 4.7,
+        "render_commit_ms": 34.1,
+        "first_paint_ms": 67.3
+      }
+    },
+    {
+      "scenario": "select-move-vertex",
+      "entities": 2000,
+      "seed": 20261025,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dpr": 1
+      },
+      "refresh_hz_probe": 59.9,
+      "route_ms": 5000,
+      "warmup_ms": 1000,
+      "edits": 361,
+      "history_entries": 200,
+      "work_per_frame_ms": {
+        "median_ms": 1.8,
+        "p95_ms": 2.3,
+        "max_ms": 2.8
+      },
+      "median_frame_ms": 16.7,
+      "median_fps": 59.88,
+      "mean_fps": 60,
+      "p95_frame_ms": 16.8,
+      "p99_frame_ms": 16.8,
+      "max_frame_ms": 16.8,
+      "frames_over_25ms": 0,
+      "frames": 301,
+      "duration_s": 5.016,
+      "mode": "headless",
+      "browser": "chromium 156.0.8078.4",
+      "mount": {
+        "entities": 2000,
+        "rendered_entity_elements": 2000,
+        "store_load_ms": 3.7,
+        "render_commit_ms": 16.3,
+        "first_paint_ms": 33.2
+      }
+    }
+  ]
+}

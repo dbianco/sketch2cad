@@ -1,0 +1,23 @@
+# gitleaks configuration for the web CI of the Sketch2CAD repository (jotdown H0-9).
+#
+# All default gitleaks rules apply and nothing is allow-listed except the two fixture
+# folders that hold deliberately fake private keys (fake_secret.txt) proving the
+# private-key rule fires. Both are listed because a git-mode scan covers the history of
+# the whole repository, not only sketch2cad-web/; keep this list in sync with
+# sketch2cad-api/.gitleaks.toml.
+#
+# The exclusions are anchored to the path as gitleaks reports it in git mode, which is
+# relative to the repository root ("sketch2cad-web/tests/fixtures/..."). Therefore:
+#   gitleaks detect --source . --config .gitleaks.toml                     -> fixtures excluded
+#   gitleaks detect --no-git --source tests/fixtures --config .gitleaks.toml -> fixture reported
+# (in --no-git mode the path is "tests/fixtures/...", which the anchors do not match).
+# Do not add other entries without a reviewed justification.
+
+title = "sketch2cad-web"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Deliberately fake secrets used to test the scanner"
+paths = ['''^sketch2cad-web/tests/fixtures/''', '''^sketch2cad-api/tests/fixtures/''']

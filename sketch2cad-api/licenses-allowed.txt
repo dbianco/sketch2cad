@@ -1,0 +1,32 @@
+# Licenses that pass the check automatically (decision DEC-6, jotdown D-6).
+# One normalized identifier per line; `#` starts a comment.
+# scripts/check_licenses.py maps pip-licenses spellings ("MIT License",
+# "Apache Software License", "Python Software Foundation License", ...) to these ids.
+#
+# LGPL is accepted by DEC-6 only through one documented exception per dependency in
+# license-exceptions.toml, so it is deliberately NOT listed here.
+# GPL and AGPL are forbidden and cannot be allowed by any exception (spec section 2.2).
+# Extended by owner decision on 2026-10-25: any permissive or weak file-level license is acceptable
+# (ISC, BlueOak, MIT-0, 0BSD, Zlib, CC0, CC-BY, MPL-2.0). Copyleft GPL/AGPL stays forbidden.
+
+MIT
+
+# "BSD License" classifier (variant not stated), plus the SPDX variants.
+BSD
+BSD-2-Clause
+BSD-3-Clause
+
+Apache-2.0
+
+# Python Software Foundation License.
+PSF-2.0
+
+ISC
+BlueOak-1.0.0
+MIT-0
+0BSD
+Zlib
+CC0-1.0
+CC-BY-3.0
+CC-BY-4.0
+MPL-2.0

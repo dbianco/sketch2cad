@@ -1,0 +1,48 @@
+# Documented license exceptions checked by scripts/check_licenses.py (decision DEC-6).
+#
+# Every package whose license is not in licenses-allowed.txt needs one entry here:
+#   package = distribution name, version = exact version or "*",
+#   license = the license string reported by pip-licenses,
+#   reason  = why it is accepted (required, non-empty),
+#   status  = "approved" or "pending-owner-decision".
+# Entries that match no installed package fail the check, so remove them with the dependency.
+# GPL and AGPL packages cannot be excepted.
+
+# --- LGPL: accepted by DEC-6 with one documented exception per dependency ---
+
+[[exception]]
+package = "psycopg"
+version = "*"
+license = "LGPL-3.0-only"
+status = "approved"
+reason = "psycopg 3 (LGPL-3.0) is the PostgreSQL driver required by Procrastinate (jotdown D-6, PRD DEC-6); used unmodified as a dynamically imported library."
+
+[[exception]]
+package = "psycopg-binary"
+version = "*"
+license = "LGPL-3.0-only"
+status = "approved"
+reason = "Binary build of psycopg pulled by psycopg[binary] (jotdown D-6, PRD DEC-6); used unmodified."
+
+[[exception]]
+package = "psycopg-pool"
+version = "*"
+license = "LGPL-3.0-only"
+status = "approved"
+reason = "Connection pool of psycopg required by Procrastinate (jotdown D-6, PRD DEC-6); used unmodified."
+
+# --- Permissive licenses not spelled as an allow-listed identifier ---
+
+[[exception]]
+package = "pillow"
+version = "*"
+license = "MIT-CMU"
+status = "approved"
+reason = "Pillow (MIT-CMU, a permissive HPND-style license; jotdown stack table lists it as HPND) reads image size, DPI and EXIF during ingestion (task 001-034). Permissive, so it fits the 2026-10-25 owner rule; approved under the owner rule of 2026-10-25 (any permissive library is acceptable)."
+
+[[exception]]
+package = "pypdfium2"
+version = "*"
+license = "BSD-3-Clause, Apache-2.0, dependency licenses"
+status = "approved"
+reason = "pypdfium2 (BSD-3-Clause/Apache-2.0) is the PDF rasterizer chosen in the spec; bundles PDFium and its deps under permissive licenses (BSD, Apache-2.0, MIT, FreeType FTL, IJG, zlib, ICU). GPL text in ICU/LLVM notices covers build tooling with exceptions, not linked code. Approved under the owner rule of 2026-10-25 (any permissive library is acceptable)."

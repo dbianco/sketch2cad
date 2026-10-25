@@ -2,3 +2,5 @@
 .claude/settings.local.json
 # Artículo de terceros (derechos de autor): no se publica sin confirmar la licencia.
 docs/references/*.pdf
+
+.claude/scheduled_tasks.lock

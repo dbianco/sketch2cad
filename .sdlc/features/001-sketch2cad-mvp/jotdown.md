@@ -16,23 +16,54 @@ Ninguna. Los repositorios de código aún no existen, así que ninguna afirmaci�
 
 ---
 
+## Approach
+
+Se construye por incrementos verticales, un hito por feature del orquestador, en este orden: fundación operativa (H0), expedientes e ingesta (H1), calibración y editor (H2), herramientas métricas (H3), exportación y auditoría (H4), asistencia de IA (H5) y endurecimiento con validación interna (H6). Reglas del método:
+
+- La API es la autoridad: el cliente repite cálculos solo para vista previa, y el servidor valida y registra cada cambio en el log encadenado.
+- Funciones geométricas y de visión puras y sin dependencias de FastAPI, probadas con hypothesis y casos resueltos a mano.
+- Cada hito termina con su E2E contra el stack completo y con migraciones que prueban su vuelta atrás.
+- Las decisiones que dependen de datos reales (editor SVG, reproducibilidad del DXF) se miden en H0 antes de construir sobre ellas.
+- La IA es opcional: puede recortarse (H5) sin afectar a los demás hitos.
+
+## Files
+
+Estructura de carpetas del repositorio y archivos principales por hito. El detalle por tarea está en `tasks/`.
+
+| Ruta | Contenido | Hito |
+|---|---|---|
+| `sketch2cad-api/pyproject.toml`, `uv.lock`, `Dockerfile`, `docker-compose.yml` | Proyecto Python y despliegue local | H0 |
+| `sketch2cad-api/src/sketch2cad/{config,db,auth,cases,api}` | Configuración, base de datos, autenticación, expedientes y routers | H0 |
+| `sketch2cad-api/migrations/versions/0001` a `0006` | Migraciones Alembic, una por hito con cambio de esquema | H0 a H5 |
+| `sketch2cad-api/src/sketch2cad/{storage,audit,sources,qc,jobs}` | Almacenamiento por contenido, cadena de eventos, ingesta, control de calidad y jobs | H1 |
+| `sketch2cad-api/src/sketch2cad/{plans,calibration,entities,revisions,catalog,geometry}` | Planos, calibración, entidades, revisiones, catálogo y transformaciones | H2, H3 |
+| `sketch2cad-api/src/sketch2cad/{export,package}` y `sketch2cad-api/verifier/` | Exportación DXF y PDF, paquete firmado y verificador independiente | H4 |
+| `sketch2cad-api/src/sketch2cad/{vision,ocr}` | Sugerencias de líneas y OCR asistido | H5 |
+| `sketch2cad-web/src/{app,features,editor,api}` | Aplicación React, editor SVG y cliente generado | H0 a H5 |
+| `sketch2cad-web/e2e/` | Pruebas Playwright por hito | H0 a H5 |
+| `.github/workflows/{api-ci,web-ci,e2e}.yml` | CI con filtros por ruta | H0 |
+| `docs/spikes/`, `docs/validation/`, `validation/` | Informes de spikes, validación interna y conjunto de croquis | H0, H6 |
+
+---
+
 ## 1. Architectural Decisions
 
 | ID | Decision | Options Considered | Chosen Approach | Rationale |
 |---|---|---|---|---|
-| D-1 | Organización del código | Monorepo; dos repositorios | Dos repositorios: `sketch2cad-api` (API, worker, migraciones, docker-compose) y `sketch2cad-web` (editor) | Decisión del dueño (scoping §6). Se acepta el costo de sincronizar el contrato por OpenAPI. |
-| D-2 | Tecnología del editor | SVG; Konva | SVG | Decisión del dueño. Se mide 60 fps con 2000 entidades en H0; si falla, migrar a Konva antes de H2. |
-| D-3 | Reproducibilidad del DXF | Byte a byte; solo contenido canónico | ⚠️ PENDING DECISION: depende del spike 2 de H0. Por defecto se intenta byte a byte. | Se resuelve con el informe `docs/spikes/dxf-reproducibility.md` al cerrar H0. |
+| D-1 | Organización del código | Monorepo; dos repositorios | Un solo repositorio (`dbianco/sketch2cad`, el de documentación) con dos carpetas de código: `sketch2cad-api/` (API, worker, migraciones, docker-compose) y `sketch2cad-web/` (editor) | Decisión del dueño (2026-10-25), que reemplaza la de dos repositorios. Un solo historial, un solo CI con filtros por ruta y el contrato OpenAPI se regenera en el mismo commit. |
+| D-2 | Tecnología del editor | SVG; Konva | SVG | Decisión del dueño. Se mide 60 fps con 2000 entidades en H0; si falla, migrar a Konva antes de H2. Resultado del spike 1 (2026-10-25, `docs/spikes/svg-performance.md`): pasa con Chromium con ventana en Apple M4 Pro, `median_fps` 144,93 (tope de la pantalla de 144 Hz) y `p95_frame_ms` 8,3; se mantiene SVG y la cámara usa `viewBox` o transformación de grupo, no CSS sobre el contenedor (D-14). |
+| D-3 | Reproducibilidad del DXF | Byte a byte; solo contenido canónico | Byte a byte (SHA-256 idéntico): fechas de cabecera tomadas de `frozen_at` en UTC, `$FINGERPRINTGUID` y `$VERSIONGUID` derivados con `uuid5` del `plan_id` y del `snapshot_sha256`, marcadores `CREATED_BY_EZDXF`/`WRITTEN_BY_EZDXF` deterministas, `CLASSES` ordenadas y escritura como bytes UTF-8 con `\n` en modo binario. Válido para ezdxf 1.4.5 y Python 3.12 fijados (medido en 3.12.15 macOS arm64 y 3.12.13 Linux aarch64). | Spike 2 (2026-10-25, `docs/spikes/dxf-reproducibility.md`): sin ajustes difieren 10 etiquetas; con ellos, dos procesos separados 2 s y con `PYTHONHASHSEED` distinto dan el mismo SHA-256, también con otra `TZ`, sin extensiones C y en el contenedor. Actualizar ezdxf exige regenerar los hashes de referencia. |
 | D-4 | Sesión de usuario | Sesión en servidor + cookie; JWT con refresh | Sesión en servidor (tabla `session`) + cookie `HttpOnly` | Decisión de esta sesión. Revocación inmediata y encaja con el bloqueo tras 10 intentos y el log de auditoría. |
 | D-5 | Herramientas | uv/ruff/pytest/pyright; Poetry; pip-tools | Backend: `uv` (lockfile), `ruff`, `pytest`, `pyright`. Frontend: `pnpm`, `eslint`, `vitest`, Playwright | Decisión de esta sesión. El lockfile reproducible es requisito del PDF reproducible. |
 | D-6 | Driver de PostgreSQL | psycopg 3; asyncpg | psycopg 3 (LGPL-3.0) | Procrastinate lo exige. Excepción documentada en `license-exceptions.toml` (PRD, DEC-6). |
 | D-7 | Generador del cliente TypeScript desde OpenAPI | openapi-typescript; orval; generador propio | `openapi-typescript` (MIT, solo tipos, sin runtime) | Decisión del dueño (2026-10-24). El cliente se genera desde `openapi.json` y CI falla si el resultado difiere del versionado. |
 | D-8 | Atributo SameSite de la cookie | Strict; Lax | `Lax` más token CSRF obligatorio en toda mutación | Decisión del dueño. §15 de la spec ya dice `Lax`. Las pruebas H0-13 fijan el comportamiento. |
-| D-9 | Dónde corre el E2E | Repositorio web con `API_REF` fijado; repositorio api; tercer repositorio | Repositorio web, que levanta el compose del api en el commit fijado en el archivo `API_REF` | Decisión del dueño (2026-10-24). Un solo lugar para el E2E y versión del api explícita; actualizar `API_REF` es parte de cada cambio de contrato. |
+| D-9 | Dónde corre el E2E | Carpeta web; carpeta api; carpeta raíz | Carpeta `sketch2cad-web/e2e/`, que levanta el compose de `sketch2cad-api/` del mismo commit | Con un solo repositorio ya no hace falta fijar una versión del api (`API_REF` desaparece): el E2E siempre prueba el commit actual. |
 | D-10 | Cola de jobs | Broker; PostgreSQL | Procrastinate sobre PostgreSQL 16 | Decisión del scoping. Sin infraestructura adicional. |
 | D-11 | Almacenamiento | MinIO; S3; disco | Disco direccionado por contenido detrás de `Storage` | Decisión del scoping. MinIO es AGPL. |
 | D-12 | Polling de jobs | WebSocket; polling | Polling cada 2 s a `GET /jobs/{id}` | §9.1. Sin infraestructura adicional. |
 | D-13 | Sin topología compartida entre entidades | Grafo de vértices compartidos; geometría propia por entidad | Geometría propia; las conexiones se expresan con `constraint` unidireccional | §8.2, decisión del autor de la spec. |
+| D-14 | Técnica de cámara del editor | `viewBox` del `<svg>`; transformación del grupo de contenido; transformación CSS del contenedor | `viewBox` (la transformación de grupo es una alternativa equivalente). `react-zoom-pan-pinch` solo para el visor de la fuente raster o para gestionar gestos que alimenten la cámara, nunca para transformar el SVG del editor | Spike 1 (`docs/spikes/svg-performance.md`): las tres técnicas empatan en rendimiento, pero la transformación CSS del contenedor (lo que hace `react-zoom-pan-pinch`) rompe `vector-effect: non-scaling-stroke` (a 8x un trazo de 1 px se ve de unos 8 px). |
 
 ---
 
@@ -42,9 +73,9 @@ Tres procesos Python que comparten un paquete (`sketch2cad`) y una aplicación w
 
 - **API** (FastAPI, Pydantic v2, SQLAlchemy 2, Alembic): autenticación, expedientes, fuentes, planos, calibración, entidades, revisiones, exportaciones, auditoría, catálogo. Prefijo `/api/v1`. Errores en `application/problem+json` (RFC 9457).
 - **Worker** (Procrastinate sobre PostgreSQL): `qc`, `rectify`, `suggest_lines`, `ocr_crop`, `export_dxf`, `export_pdf`, `build_package`. Comparte código y base de datos con la API.
-- **Web** (React 18, TypeScript, Vite, Zustand, Immer): editor SVG con `react-zoom-pan-pinch`, pantallas del prototipo (lista de expedientes, carga, calibración, editor, revisión, exportación). Nginx sirve el build.
+- **Web** (React 18, TypeScript, Vite, Zustand, Immer): editor SVG con cámara por `viewBox` (D-14), visor de la fuente con `react-zoom-pan-pinch`, pantallas del prototipo (lista de expedientes, carga, calibración, editor, revisión, exportación). Nginx sirve el build.
 - **Storage**: interfaz `Storage` con driver `filesystem` direccionado por contenido (`objects/sha256/ab/cd/<hash>`, write-once a nivel de aplicación) y un driver `s3` solo como stub.
-- **Verificador** `sketch2cad-verify`: script independiente del servidor dentro del repositorio api, que recalcula hashes, cadena de eventos y firma.
+- **Verificador** `sketch2cad-verify`: script independiente del servidor dentro de la carpeta `sketch2cad-api/`, que recalcula hashes, cadena de eventos y firma.
 
 Flujo extremo a extremo: el técnico crea un expediente y sube un croquis. El API calcula SHA-256, guarda el original y encola `qc`. El técnico crea un plano, calibra imagen a papel y fija el sistema local. El worker propone polilíneas (`suggested`). El técnico dibuja y reconstruye posiciones por cotas (fijar longitud, triangulación, base más offset). Pasa el plano a revisión; el revisor valida y se congela un snapshot JSON canónico con hash. Las exportaciones generan DXF, PDF técnico, reporte de auditoría y un manifiesto firmado dentro de un ZIP. Cada acción de dominio escribe un evento encadenado por hashes en la misma transacción.
 
@@ -62,7 +93,7 @@ Hitos y orden: H0 fundación, H1 expedientes e ingesta, H2 calibración y editor
 | Procrastinate | Cola sobre PostgreSQL | MIT | H0 |
 | argon2-cffi | Contraseñas (Argon2id) | MIT | H0 |
 | PostgreSQL 16 | Datos, jobs, eventos | PostgreSQL | H0 |
-| React 18, Vite, TypeScript, Zustand, Immer, `react-zoom-pan-pinch` | Web | MIT | H0 |
+| React 18, Vite, TypeScript, Zustand, Immer, `react-zoom-pan-pinch` (solo visor de la fuente raster; el editor usa `viewBox`, D-14) | Web | MIT | H0 |
 | Pillow, pypdfium2, numpy | Ingesta y rasterizado de PDF | HPND, Apache/BSD | H1 |
 | OpenCV (headless), scikit-image, shapely | Calibración, QC, sugerencias | Apache, BSD | H1, H2, H5 |
 | sknw o skan | Grafo del esqueleto | BSD | H5 |
@@ -112,21 +143,21 @@ Errores: `application/problem+json` con `type`, `title`, `status`, `detail`. Aut
 | `GET /api/v1/auth/me` | — | 200 el mismo objeto `user` | 401 |
 | `POST /api/v1/case-files` | `{ "incident_type", "incident_date", "description", "declared_location" }` | 201 el `case_file` con `code` | 401; 403 sin CSRF; 422 validación |
 | `GET /api/v1/case-files` | `?q=&incident_type=` | 200 lista de los expedientes donde el usuario es miembro o creador | 401 |
-| `GET /api/v1/case-files/{id}` | — | 200 `case_file` | 401; 404 si no es miembro (no se distingue de inexistente) |
+| `GET /api/v1/case-files/{id}` | — | 200 `case_file` | 401; 403 si no es miembro, con evento `access.denied` (decisión de la tarea 001-035); 404 si no existe |
 | `GET /healthz` | — | 200 `{ "status": "ok", "db": "ok" }` | 503 si la base no responde |
 
-Reglas de autenticación (valores configurables con estos defaults): Argon2id con los parámetros por defecto de `argon2-cffi`; bloqueo de 15 minutos tras 10 intentos fallidos consecutivos; sesión con expiración por inactividad de 8 horas (`auth.session_ttl_minutes = 480`); `Secure` desactivable solo con `APP_ENV=dev`.
+Reglas de autenticación (valores configurables con estos defaults): Argon2id con los parámetros por defecto de `argon2-cffi`; bloqueo de 15 minutos tras 10 intentos fallidos consecutivos; sesión con expiración fija de 8 horas desde el login (sin renovación por actividad; decisión del dueño 2026-10-25) (`auth.session_ttl_minutes = 480`); `Secure` desactivable solo con `APP_ENV=dev`.
 
 Criterios por endpoint:
 - `login` con credenciales correctas devuelve 200 y cookies con los atributos indicados; con 10 contraseñas incorrectas seguidas la solicitud 11 devuelve 423 aunque la contraseña sea correcta.
 - `POST /case-files` sin cabecera `X-CSRF-Token` devuelve 403.
-- `GET /case-files/{id}` de un expediente ajeno devuelve 404.
+- `GET /case-files/{id}` de un expediente ajeno devuelve 403 (desde la tarea 001-035; antes 404); uno inexistente, 404.
 
 #### 5. System Design (H0)
 
-Repositorio `sketch2cad-api`: `src/sketch2cad/{api,auth,cases,db,storage,worker,config}`, `migrations/`, `tests/`, `docker-compose.yml`, `Dockerfile`, `pyproject.toml`, `uv.lock`, `licenses-allowed.txt`, `license-exceptions.toml`, `.github/workflows/ci.yml`, `docs/spikes/`.
-Repositorio `sketch2cad-web`: `src/{app,pages,editor,api}`, `spikes/svg-perf/`, `e2e/`, `package.json`, `pnpm-lock.yaml`, `Dockerfile` (build + nginx), `API_REF`, `.github/workflows/ci.yml`.
-`docker-compose.yml` (repositorio api): servicios `db` (postgres:16, volumen nombrado), `api` (uvicorn), `worker` (`procrastinate worker`, sin tareas todavía), `web` (build desde `WEB_CONTEXT`, por defecto `../sketch2cad-web`). Todos con `healthcheck`. Secretos solo por variables de entorno (`DATABASE_URL`, `SESSION_SECRET`, `SIGNING_KEY_PATH`), con `.env.example` sin valores reales.
+Carpeta `sketch2cad-api/`: `src/sketch2cad/{api,auth,cases,db,storage,worker,config}`, `migrations/`, `tests/`, `docker-compose.yml`, `Dockerfile`, `pyproject.toml`, `uv.lock`, `licenses-allowed.txt`, `license-exceptions.toml`. Los workflows viven en la raíz del repositorio (`.github/workflows/api-ci.yml`, `web-ci.yml`, `e2e.yml`) con filtros `paths:`; los informes de spikes en `docs/spikes/` de la raíz.
+Carpeta `sketch2cad-web/`: `src/{app,pages,editor,api}`, `spikes/svg-perf/`, `e2e/`, `package.json`, `pnpm-lock.yaml`, `Dockerfile` (build + nginx).
+`docker-compose.yml` (en `sketch2cad-api/`): servicios `db` (postgres:16, volumen nombrado), `api` (uvicorn), `worker` (`procrastinate worker`, sin tareas todavía), `web` (build desde `../sketch2cad-web`). Todos con `healthcheck`. Secretos solo por variables de entorno (`DATABASE_URL`, `SESSION_SECRET`, `SIGNING_KEY_PATH`), con `.env.example` sin valores reales.
 Pantallas H0 (prototipo): inicio de sesión y lista de expedientes con formulario "Nuevo expediente". El cliente TypeScript se genera desde `openapi.json` (decisión D-7).
 
 #### Spike 1 — medición de 60 fps (web)
@@ -139,10 +170,10 @@ Script `spikes/dxf_repro.py` genera con ezdxf un DXF R2013 de un plano fixture (
 API → PostgreSQL (SQLAlchemy). Worker → PostgreSQL (Procrastinate). Web → API por HTTPS y cookies; en desarrollo, proxy de Vite hacia `api`.
 
 #### 9. Deployment Stages (H0)
-1. Crear los dos repositorios y el remoto en GitHub (primer commit con la estructura; `record_commit` tras cada commit).
+1. Crear las carpetas `sketch2cad-api/` y `sketch2cad-web/` en el repositorio existente `dbianco/sketch2cad` (primer commit con la estructura; `record_commit` tras cada commit).
 2. Compose local: `docker compose up` levanta `db`, `api`, `worker`, `web`.
 3. CI en ambos repositorios. Rollback: `git revert`; la base local se recrea con `docker compose down -v`.
-Riesgo: el compose depende de la ruta hermana `../sketch2cad-web`; mitigación: `WEB_CONTEXT` configurable y documentado en el README.
+Riesgo: los dos CI comparten el repositorio y se disparan en cada cambio; mitigación: filtros `paths:` en cada workflow y un job de contrato que corre cuando cambia cualquiera de las dos carpetas.
 
 #### 10. Testing Strategy y Acceptance Criteria (H0)
 
@@ -157,12 +188,12 @@ Riesgo: el compose depende de la ruta hermana `../sketch2cad-web`; mitigación: 
 | H0-7 | CI falla si se añade una dependencia fuera de la lista blanca (MIT, BSD, Apache-2.0, PSF, LGPL con excepción documentada). | Test del propio job: rama de prueba con un paquete GPL de ejemplo que debe fallar. |
 | H0-8 | CI falla ante un hallazgo de severidad alta de `pip-audit` o `pnpm audit --audit-level=high` no listado en `audit-exceptions.toml` con justificación. | Rama de prueba con una dependencia vulnerable conocida. |
 | H0-9 | `gitleaks` falla si el repositorio contiene una clave privada. | Fixture con una clave falsa en un test, que debe detectarse; el escaneo normal la excluye por ruta. |
-| H0-10 | Spike 1: con 2000 entidades, `median_fps ≥ 60` y `p95_frame_ms ≤ 25` en el portátil de desarrollo; el informe lista el hardware. Si no se cumple, el informe recomienda Konva y H2 no empieza. | `pnpm spike:svg` y el archivo `result.json`. |
+| H0-10 | Spike 1: con 2000 entidades, `median_fps ≥ 60` y `p95_frame_ms ≤ 25` en el portátil de desarrollo; el informe lista el hardware. Si no se cumple, el informe recomienda Konva y H2 no empieza. Nota: los fps se miden al límite de refresco de la pantalla; en una pantalla de 60 Hz la mediana queda cerca de 59,9 aunque no se pierda ningún frame. | `pnpm spike:svg` y el archivo `result.json`. |
 | H0-11 | Spike 2: el informe indica si dos exportaciones del fixture producen el mismo SHA-256 y, si no, lista cada campo distinto y el ajuste que lo corrige; con los ajustes aplicados, el hash coincide o se documenta por qué no. | `spikes/dxf_repro.py` y el informe. |
 | H0-13 | La cookie `s2c_session` se emite con `HttpOnly`, `Secure` y `SameSite=Lax`; un `POST`, `PUT`, `PATCH` o `DELETE` sin `X-CSRF-Token` válido devuelve 403, aunque la cookie de sesión sea válida; `GET /auth/me` y `GET /case-files` funcionan sin token. | Integración que inspecciona `Set-Cookie` y prueba cada verbo. |
 | H0-12 | Test E2E con Playwright: iniciar sesión, crear un expediente y verlo en la lista, contra el stack real (api, worker, db, web), no contra `vite preview`. | `e2e/login_case.spec.ts` en CI. |
 
-Harness: el E2E debe ejecutarse contra el compose completo; un servidor estático no puede probar login ni creación. La tarea de CI "levantar el compose del api en el `API_REF` fijado" es parte de H0 (decisión D-9). Pruebas unitarias del api con `pytest` y base real (servicio PostgreSQL de CI); pruebas del web con `vitest`.
+Harness: el E2E debe ejecutarse contra el compose completo; un servidor estático no puede probar login ni creación. La tarea de CI "levantar el compose de `sketch2cad-api/` del mismo commit" es parte de H0 (decisión D-9). Pruebas unitarias del api con `pytest` y base real (servicio PostgreSQL de CI); pruebas del web con `vitest`.
 
 ---
 
@@ -260,7 +291,7 @@ Transformaciones: imagen→papel (homografía 3×3 con `cv2.findHomography` sobr
 Eventos H2: `plan.created`, `calibration.proposed`, `calibration.accepted`, `local_frame.set`, `local_frame.changed`, `entity.created`, `entity.updated`, `entity.deleted`, `plan.transition`, `revision.frozen`, `lease.acquired`, `lease.released`.
 
 #### 5. System Design (H2)
-Frontend: estado en Zustand; entidades en un store normalizado; deshacer y rehacer con parches de Immer (`produceWithPatches`) y pila local; cada operación se envía al API con `operation` y se refleja en el log. Componentes: `EditorCanvas` (SVG, capas por `layer`), `Palette`, `LayerPanel`, `PropertiesPanel`, `CalibrationWizard` (escaneo con DPI, escaneo con segmento, fotografía de 4 puntos), `LocalFrameTool`, `SymbolPicker`, `LeaseBanner`, `MetricStatusBadge`. Snapping a extremos, ortogonal (0° y 90° respecto de los ejes locales) y a grilla configurable; cada aplicación se registra como evento con usuario y entidad. Accesibilidad: controles interactivos con etiqueta y operables por teclado (WCAG 2.1 AA).
+Frontend: estado en Zustand; entidades en un store normalizado; deshacer y rehacer con parches de Immer (`produceWithPatches`) y pila local; cada operación se envía al API con `operation` y se refleja en el log. Componentes: `EditorCanvas` (SVG, capas por `layer`, pan y zoom con cámara por `viewBox`, D-14), `Palette`, `LayerPanel`, `PropertiesPanel`, `CalibrationWizard` (escaneo con DPI, escaneo con segmento, fotografía de 4 puntos), `LocalFrameTool`, `SymbolPicker`, `LeaseBanner`, `MetricStatusBadge`. Snapping a extremos, ortogonal (0° y 90° respecto de los ejes locales) y a grilla configurable; cada aplicación se registra como evento con usuario y entidad. Accesibilidad: controles interactivos con etiqueta y operables por teclado (WCAG 2.1 AA).
 
 #### 9. Deployment Stages (H2)
 Migración `0003_plans_editor`. Seed de catálogo `default-1` en la migración de datos. Rollback con `downgrade`; las revisiones `frozen` son inmutables por trigger (`UPDATE` rechazado salvo `state` de `draft` a `frozen` una vez).
@@ -280,7 +311,7 @@ Migración `0003_plans_editor`. Seed de catálogo `default-1` en la migración d
 | H2-9 | Un segundo usuario que pide el lease mientras otro lo tiene recibe 409 con el nombre del titular; el lease vence a los 10 minutos sin renovar. | Integración con reloj controlado. |
 | H2-10 | Deshacer tras mover un vértice restaura las coordenadas exactas (igualdad de arreglos, sin tolerancia). | Unitario del store y E2E. |
 | H2-11 | E2E: abrir un plano de ejemplo, usar cada herramienta de dibujo (línea, polilínea, punto, texto, símbolo, mover vértice, eliminar, reclasificar capa, medir) y comprobar el resultado en el estado y en el log. | Playwright contra el stack real. |
-| H2-12 | Con 2000 entidades el editor mantiene `median_fps ≥ 60` y `p95_frame_ms ≤ 25` en el portátil de desarrollo. | Mismo script del spike 1 sobre el editor real. |
+| H2-12 | Con 2000 entidades el editor mantiene `median_fps ≥ 60` y `p95_frame_ms ≤ 25` en el portátil de desarrollo. Nota: los fps se miden al límite de refresco de la pantalla; en una pantalla de 60 Hz la mediana queda cerca de 59,9 aunque no se pierda ningún frame. | Mismo script del spike 1 sobre el editor real. |
 | H2-13 | El catálogo `default-1` tiene 10 capas y 8 símbolos y no contiene ningún símbolo con `symbol_id` de víctima, sangre, arma o casquillo. | Unitario sobre el seed. |
 | H2-14 | El editor completa un recorrido con solo teclado (tabulador y atajos documentados) para crear una línea, y `axe-core` no reporta violaciones críticas ni serias en la pantalla del editor. | Playwright con `@axe-core/playwright`. |
 
@@ -374,7 +405,7 @@ Primero DXF y verificación manual en FreeCAD; después PDF; después paquete y 
 | H4-1 (CA-06) | `doc.audit()` del DXF exportado devuelve 0 errores; releído con ezdxf, el número de entidades por capa coincide con el snapshot y las coordenadas difieren menos de 1e-6 m. | Golden DXF por fixture y relectura. |
 | H4-2 | El DXF abre sin errores en FreeCAD (verificación manual por hito, con captura anexa) y en LibreCAD y QCAD en CI con `xvfb` donde sea viable. | Verificación manual documentada en `docs/dxf-viewers.md` y job de CI. |
 | H4-3 (CA-07) | Las tres distancias de control (horizontal, vertical, diagonal) coinciden en modelo, DXF y PDF dentro de 0,5 %; una línea de 1 m a 1:100 mide 10 mm ± 0,05 mm (28,35 pt) en el PDF. | Extracción de vectores con pypdfium2 o pdfplumber y de entidades con ezdxf. |
-| H4-4 (CA-08) | Dos exportaciones de la misma revisión producen el mismo SHA-256 en PDF; en DXF el mismo, o el mismo contenido canónico si D-3 se resolvió así. | Test de doble generación en procesos separados con 2 s de diferencia. |
+| H4-4 (CA-08) | Dos exportaciones de la misma revisión en dos procesos separados producen archivos byte a byte idénticos, con el mismo SHA-256, en DXF y en PDF (D-3); los archivos se escriben como bytes en modo binario y el hash de referencia vale para las versiones fijadas de ezdxf (1.4.5) y Python (3.12). | Test de doble generación en procesos separados con 2 s de diferencia. |
 | H4-5 (CA-09) | Alterar un byte de cualquier artefacto, del manifiesto o de un evento hace que `sketch2cad-verify` salga con código 1 y nombre el artefacto o evento. | Test que genera un paquete, lo altera en 10 posiciones y verifica. |
 | H4-6 | `POST /exports` con `mode = final` sobre un plano en `EDITING` devuelve 409 con el mensaje de V-11; sin permiso `deliver` devuelve 403. | Integración. |
 | H4-7 | El borrador lleva la marca `DRAFT` en DXF y PDF y no incluye tabla de hashes; el final incluye la leyenda de borrador técnico. | Test sobre el texto extraído. |
@@ -476,7 +507,7 @@ Riesgos y mitigaciones:
 | Riesgo | Mitigación |
 |---|---|
 | Una sola persona: un retraso mueve todo el plan | H5 se recorta; revisión de plan al cierre de cada hito |
-| Contrato API-web desincronizado entre dos repositorios | Cliente generado desde `openapi.json` y CI que falla si difiere |
+| Contrato API-web desincronizado | Cliente generado desde `openapi.json` en el mismo repositorio y CI que falla si difiere |
 | El editor SVG no alcanza el rendimiento | Medición en H0; Konva antes de H2 si falla |
 | DXF no reproducible byte a byte | Spike 2 en H0; alternativa de reproducibilidad por contenido canónico |
 | Calidad de las sugerencias sobre croquis reales desconocida | Sugerencias opcionales; medición declarada interna en H6 |

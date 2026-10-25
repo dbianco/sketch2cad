@@ -35,7 +35,7 @@ Una persona a tiempo completo, 15 semanas, siete hitos secuenciales.
 
 ## Stack previsto
 
-Python 3.12 con FastAPI, SQLAlchemy y Alembic; worker Procrastinate sobre PostgreSQL 16; React 18 con TypeScript y Vite; editor en SVG; OpenCV, scikit-image y shapely; ezdxf para DXF y ReportLab para PDF; firma Ed25519 con JSON canónico (RFC 8785). Todo se ejecuta con `docker compose`. El código vivirá en dos repositorios: `sketch2cad-api` y `sketch2cad-web`.
+Python 3.12 con FastAPI, SQLAlchemy y Alembic; worker Procrastinate sobre PostgreSQL 16; React 18 con TypeScript y Vite; editor en SVG; OpenCV, scikit-image y shapely; ezdxf para DXF y ReportLab para PDF; firma Ed25519 con JSON canónico (RFC 8785). Todo se ejecuta con `docker compose`. El código vivirá en este mismo repositorio, en dos carpetas: `sketch2cad-api/` y `sketch2cad-web/`.
 
 ## Estructura
 
@@ -46,6 +46,7 @@ Python 3.12 con FastAPI, SQLAlchemy y Alembic; worker Procrastinate sobre Postgr
 | `docs/evaluation/` | Evaluación de las especificaciones originales |
 | `docs/prototype/` | Prototipo de seis pantallas (referencia visual) |
 | `docs/references/` | Material de referencia (el PDF del artículo no se versiona) |
+| `sketch2cad-api/`, `sketch2cad-web/` | Código (se crean en el hito H0) |
 | `.sdlc/features/001-sketch2cad-mvp/` | `prd.md`, `scoping-doc.md` y `jotdown.md` de la feature. Debe estar en la raíz porque el plugin SDLC la busca ahí. |
 
 ## Por dónde empezar

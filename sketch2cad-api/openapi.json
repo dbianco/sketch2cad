@@ -1,0 +1,5107 @@
+{
+  "components": {
+    "schemas": {
+      "CalibrationAcceptIn": {
+        "description": "Calibration inputs plus whether to accept the calibration as metric.",
+        "properties": {
+          "as_metric": {
+            "title": "As Metric",
+            "type": "boolean"
+          },
+          "check_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "title": "Check Points",
+            "type": "array"
+          },
+          "control_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "maxItems": 4,
+            "title": "Control Points",
+            "type": "array"
+          },
+          "known_dimensions_mm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DimensionsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "$ref": "#/components/schemas/CalibrationMethod"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "segment_mm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Mm"
+          }
+        },
+        "required": [
+          "method",
+          "as_metric"
+        ],
+        "title": "CalibrationAcceptIn",
+        "type": "object"
+      },
+      "CalibrationIn": {
+        "description": "Calibration inputs.\n\n- ``scan_dpi``: nothing; the scale comes from the source DPI.\n- ``scan_segment``: 2 ``control_points`` and ``segment_mm``, their distance on paper.\n- ``photo_homography_4pt``: 4 ``control_points`` in order around the quadrilateral;\n  each needs ``paper_mm`` unless ``known_dimensions_mm`` is given, which defaults them\n  to the corners TL, TR, BR, BL.\n- ``none``: nothing.\n\n``check_points`` (each with ``paper_mm``) do not take part in the fit; when present,\n``reprojection_error_mm`` is measured on them. ``paper_scale`` (``100`` for 1:100)\napplies only to ``scaled_drawing`` plans.",
+        "properties": {
+          "check_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "title": "Check Points",
+            "type": "array"
+          },
+          "control_points": {
+            "items": {
+              "$ref": "#/components/schemas/PointIn"
+            },
+            "maxItems": 4,
+            "title": "Control Points",
+            "type": "array"
+          },
+          "known_dimensions_mm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DimensionsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "$ref": "#/components/schemas/CalibrationMethod"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "segment_mm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Mm"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "title": "CalibrationIn",
+        "type": "object"
+      },
+      "CalibrationMethod": {
+        "description": "Calibration methods; enforced by the ``ck_calibration_method`` check constraint.",
+        "enum": [
+          "scan_dpi",
+          "scan_segment",
+          "photo_homography_4pt",
+          "none"
+        ],
+        "title": "CalibrationMethod",
+        "type": "string"
+      },
+      "CalibrationOut": {
+        "description": "The active calibration; ``image_to_paper`` is the 3x3 matrix in mm per pixel.",
+        "properties": {
+          "accepted_at": {
+            "format": "date-time",
+            "title": "Accepted At",
+            "type": "string"
+          },
+          "accepted_by": {
+            "format": "uuid",
+            "title": "Accepted By",
+            "type": "string"
+          },
+          "as_metric": {
+            "title": "As Metric",
+            "type": "boolean"
+          },
+          "control_points": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Control Points",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_to_paper": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image To Paper"
+          },
+          "local_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalFrameOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "reprojection_error_mm": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reprojection Error Mm"
+          }
+        },
+        "required": [
+          "id",
+          "method",
+          "image_to_paper",
+          "control_points",
+          "reprojection_error_mm",
+          "paper_scale",
+          "local_frame",
+          "as_metric",
+          "accepted_by",
+          "accepted_at"
+        ],
+        "title": "CalibrationOut",
+        "type": "object"
+      },
+      "CalibrationPointOut": {
+        "description": "A stored point: ``role`` ``control`` or ``check``; ``error_mm`` is its residual.",
+        "properties": {
+          "error_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Mm"
+          },
+          "image_px": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Image Px",
+            "type": "array"
+          },
+          "paper_mm": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Mm"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "image_px",
+          "paper_mm",
+          "error_mm"
+        ],
+        "title": "CalibrationPointOut",
+        "type": "object"
+      },
+      "CalibrationProposalOut": {
+        "description": "A computed calibration that is not stored.\n\n``image_to_paper`` is the 3x3 matrix (px to paper mm), null for ``none``.\n``reprojection_error_basis`` says whether the error is measured on ``check_points`` or\n``control_points``; both are null when there is no error to report. ``meets_tolerance``\ntells whether ``as_metric`` would be accepted on the error.",
+        "properties": {
+          "control_points": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationPointOut"
+            },
+            "title": "Control Points",
+            "type": "array"
+          },
+          "image_to_paper": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image To Paper"
+          },
+          "max_reprojection_error_mm": {
+            "title": "Max Reprojection Error Mm",
+            "type": "number"
+          },
+          "meets_tolerance": {
+            "title": "Meets Tolerance",
+            "type": "boolean"
+          },
+          "method": {
+            "$ref": "#/components/schemas/CalibrationMethod"
+          },
+          "paper_scale": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Scale"
+          },
+          "reprojection_error_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reprojection Error Basis"
+          },
+          "reprojection_error_mm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReprojectionErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScaleOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "method",
+          "image_to_paper",
+          "control_points",
+          "reprojection_error_mm",
+          "reprojection_error_basis",
+          "meets_tolerance",
+          "max_reprojection_error_mm",
+          "paper_scale",
+          "scale"
+        ],
+        "title": "CalibrationProposalOut",
+        "type": "object"
+      },
+      "CaseFileCreate": {
+        "properties": {
+          "declared_location": {
+            "minLength": 1,
+            "title": "Declared Location",
+            "type": "string"
+          },
+          "description": {
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "incident_date": {
+            "format": "date",
+            "title": "Incident Date",
+            "type": "string"
+          },
+          "incident_type": {
+            "$ref": "#/components/schemas/IncidentType"
+          },
+          "organization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization"
+          }
+        },
+        "required": [
+          "incident_type",
+          "incident_date",
+          "description",
+          "declared_location"
+        ],
+        "title": "CaseFileCreate",
+        "type": "object"
+      },
+      "CaseFileList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CaseFileOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CaseFileList",
+        "type": "object"
+      },
+      "CaseFileOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "declared_location": {
+            "title": "Declared Location",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "incident_date": {
+            "format": "date",
+            "title": "Incident Date",
+            "type": "string"
+          },
+          "incident_type": {
+            "$ref": "#/components/schemas/IncidentType"
+          },
+          "organization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "incident_type",
+          "incident_date",
+          "description",
+          "declared_location",
+          "organization",
+          "status",
+          "created_by",
+          "created_at"
+        ],
+        "title": "CaseFileOut",
+        "type": "object"
+      },
+      "CaseMemberCreate": {
+        "properties": {
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/CasePermission"
+            },
+            "minItems": 1,
+            "title": "Permissions",
+            "type": "array"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "permissions"
+        ],
+        "title": "CaseMemberCreate",
+        "type": "object"
+      },
+      "CaseMemberOut": {
+        "properties": {
+          "case_file_id": {
+            "format": "uuid",
+            "title": "Case File Id",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/CasePermission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_file_id",
+          "user_id",
+          "permissions"
+        ],
+        "title": "CaseMemberOut",
+        "type": "object"
+      },
+      "CasePermission": {
+        "description": "Permissions stored in ``case_member.permissions``.",
+        "enum": [
+          "read",
+          "edit",
+          "deliver"
+        ],
+        "title": "CasePermission",
+        "type": "string"
+      },
+      "CatalogOut": {
+        "additionalProperties": false,
+        "description": "The active catalog version with its layers and symbols (SVG inline).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/Layer"
+            },
+            "minItems": 1,
+            "title": "Layers",
+            "type": "array"
+          },
+          "symbols": {
+            "items": {
+              "$ref": "#/components/schemas/Symbol"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "version": {
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "layers",
+          "symbols",
+          "id"
+        ],
+        "title": "CatalogOut",
+        "type": "object"
+      },
+      "DimensionGeometry": {
+        "additionalProperties": false,
+        "description": "``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.",
+        "properties": {
+          "declared_value_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared Value M"
+          },
+          "kind": {
+            "const": "dimension",
+            "title": "Kind",
+            "type": "string"
+          },
+          "measured_value_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measured Value M"
+          },
+          "offset_m": {
+            "default": 0.0,
+            "title": "Offset M",
+            "type": "number"
+          },
+          "p1_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "P1 M",
+            "type": "array"
+          },
+          "p2_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "P2 M",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "p1_m",
+          "p2_m"
+        ],
+        "title": "DimensionGeometry",
+        "type": "object"
+      },
+      "DimensionsIn": {
+        "description": "Paper size of the rectangle whose corners are the 4 control points.",
+        "properties": {
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "number"
+          }
+        },
+        "required": [
+          "width",
+          "height"
+        ],
+        "title": "DimensionsIn",
+        "type": "object"
+      },
+      "DxfArc": {
+        "additionalProperties": false,
+        "description": "Counter-clockwise arc from ``start_angle`` to ``end_angle``, in degrees.",
+        "properties": {
+          "center": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Center",
+            "type": "array"
+          },
+          "end_angle": {
+            "title": "End Angle",
+            "type": "number"
+          },
+          "radius": {
+            "exclusiveMinimum": 0.0,
+            "title": "Radius",
+            "type": "number"
+          },
+          "start_angle": {
+            "title": "Start Angle",
+            "type": "number"
+          },
+          "type": {
+            "const": "ARC",
+            "default": "ARC",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "center",
+          "radius",
+          "start_angle",
+          "end_angle"
+        ],
+        "title": "DxfArc",
+        "type": "object"
+      },
+      "DxfAttributeDefinition": {
+        "additionalProperties": false,
+        "description": "ATTDEF filled from the symbol attribute whose upper-cased name is ``tag``.",
+        "properties": {
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "insert": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Insert",
+            "type": "array"
+          },
+          "tag": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Tag",
+            "type": "string"
+          },
+          "type": {
+            "const": "ATTDEF",
+            "default": "ATTDEF",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag",
+          "insert",
+          "height"
+        ],
+        "title": "DxfAttributeDefinition",
+        "type": "object"
+      },
+      "DxfBlock": {
+        "additionalProperties": false,
+        "description": "DXF block definition; inserted as ``INSERT`` of ``name`` at the entity anchor.",
+        "properties": {
+          "base_point": {
+            "default": [
+              0.0,
+              0.0
+            ],
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Base Point",
+            "type": "array"
+          },
+          "entities": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "ARC": "#/components/schemas/DxfArc",
+                  "ATTDEF": "#/components/schemas/DxfAttributeDefinition",
+                  "CIRCLE": "#/components/schemas/DxfCircle",
+                  "LINE": "#/components/schemas/DxfLine",
+                  "LWPOLYLINE": "#/components/schemas/DxfPolyline"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/DxfLine"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfCircle"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfArc"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfPolyline"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfAttributeDefinition"
+                }
+              ]
+            },
+            "minItems": 1,
+            "title": "Entities",
+            "type": "array"
+          },
+          "name": {
+            "pattern": "^S2C_[a-z][a-z0-9_]*$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "entities"
+        ],
+        "title": "DxfBlock",
+        "type": "object"
+      },
+      "DxfCircle": {
+        "additionalProperties": false,
+        "properties": {
+          "center": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Center",
+            "type": "array"
+          },
+          "radius": {
+            "exclusiveMinimum": 0.0,
+            "title": "Radius",
+            "type": "number"
+          },
+          "type": {
+            "const": "CIRCLE",
+            "default": "CIRCLE",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "center",
+          "radius"
+        ],
+        "title": "DxfCircle",
+        "type": "object"
+      },
+      "DxfLine": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "End",
+            "type": "array"
+          },
+          "start": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Start",
+            "type": "array"
+          },
+          "type": {
+            "const": "LINE",
+            "default": "LINE",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "DxfLine",
+        "type": "object"
+      },
+      "DxfPolyline": {
+        "additionalProperties": false,
+        "properties": {
+          "closed": {
+            "default": false,
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "points": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "minItems": 2,
+            "title": "Points",
+            "type": "array"
+          },
+          "type": {
+            "const": "LWPOLYLINE",
+            "default": "LWPOLYLINE",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "DxfPolyline",
+        "type": "object"
+      },
+      "EntitiesCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityIn"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Entities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entities"
+        ],
+        "title": "EntitiesCreate",
+        "type": "object"
+      },
+      "EntityIn": {
+        "additionalProperties": false,
+        "description": "A new entity drawn by hand; provenance, review and metric fields are set by the server.",
+        "properties": {
+          "attributes": {
+            "patternProperties": {
+              "^[a-z][a-z0-9_]*$": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "geometry": {
+            "discriminator": {
+              "mapping": {
+                "dimension": "#/components/schemas/DimensionGeometry",
+                "line": "#/components/schemas/LineGeometry",
+                "point": "#/components/schemas/PointGeometry",
+                "polyline": "#/components/schemas/PolylineGeometry",
+                "symbol": "#/components/schemas/SymbolGeometry",
+                "text": "#/components/schemas/TextGeometry"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PolylineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PointGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/TextGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/DimensionGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/SymbolGeometry"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "layer": {
+            "pattern": "^L_[A-Z]+$",
+            "title": "Layer",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EntityType"
+          }
+        },
+        "required": [
+          "type",
+          "layer",
+          "geometry"
+        ],
+        "title": "EntityIn",
+        "type": "object"
+      },
+      "EntityListOut": {
+        "description": "Entities of a revision, ordered by id; soft-deleted ones are left out.",
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityOut"
+            },
+            "title": "Entities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entities"
+        ],
+        "title": "EntityListOut",
+        "type": "object"
+      },
+      "EntityOperation": {
+        "description": "Edit operations of ``PATCH /entities/{id}``, recorded in ``entity.updated``.",
+        "enum": [
+          "move_vertex",
+          "snap_orthogonal",
+          "snap_endpoint",
+          "snap_grid",
+          "relabel",
+          "reclassify"
+        ],
+        "title": "EntityOperation",
+        "type": "string"
+      },
+      "EntityOut": {
+        "description": "An entity of spec section 8.2; ``created_by`` is null for system entities.",
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "constraint": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraint"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
+          },
+          "geometry": {
+            "discriminator": {
+              "mapping": {
+                "dimension": "#/components/schemas/DimensionGeometry",
+                "line": "#/components/schemas/LineGeometry",
+                "point": "#/components/schemas/PointGeometry",
+                "polyline": "#/components/schemas/PolylineGeometry",
+                "symbol": "#/components/schemas/SymbolGeometry",
+                "text": "#/components/schemas/TextGeometry"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PolylineGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/PointGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/TextGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/DimensionGeometry"
+              },
+              {
+                "$ref": "#/components/schemas/SymbolGeometry"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_region": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Region"
+          },
+          "layer": {
+            "title": "Layer",
+            "type": "string"
+          },
+          "metric_origin": {
+            "$ref": "#/components/schemas/MetricOrigin"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "review_status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "revision_id": {
+            "format": "uuid",
+            "title": "Revision Id",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EntitySource"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EntityType"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision_id",
+          "revision_number",
+          "type",
+          "layer",
+          "geometry",
+          "image_region",
+          "attributes",
+          "evidence_id",
+          "constraint",
+          "source",
+          "confidence",
+          "model_version",
+          "review_status",
+          "metric_origin",
+          "created_by",
+          "updated_at",
+          "deleted_at"
+        ],
+        "title": "EntityOut",
+        "type": "object"
+      },
+      "EntityPatch": {
+        "additionalProperties": false,
+        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry`` or ``attributes``.",
+        "properties": {
+          "attributes": {
+            "anyOf": [
+              {
+                "patternProperties": {
+                  "^[a-z][a-z0-9_]*$": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributes"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "dimension": "#/components/schemas/DimensionGeometry",
+                    "line": "#/components/schemas/LineGeometry",
+                    "point": "#/components/schemas/PointGeometry",
+                    "polyline": "#/components/schemas/PolylineGeometry",
+                    "symbol": "#/components/schemas/SymbolGeometry",
+                    "text": "#/components/schemas/TextGeometry"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LineGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PolylineGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PointGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TextGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DimensionGeometry"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SymbolGeometry"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "layer": {
+            "anyOf": [
+              {
+                "pattern": "^L_[A-Z]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/EntityOperation"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "title": "EntityPatch",
+        "type": "object"
+      },
+      "EntitySource": {
+        "description": "Provenance of an entity; kept unchanged by edits (history lives in the events).",
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "method": {
+            "$ref": "#/components/schemas/SourceMethod"
+          },
+          "parent_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Entity Id"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "title": "EntitySource",
+        "type": "object"
+      },
+      "EntityType": {
+        "description": "Entity types; enforced by the ``ck_entity_type`` check constraint.",
+        "enum": [
+          "line",
+          "polyline",
+          "point",
+          "text",
+          "dimension",
+          "symbol"
+        ],
+        "title": "EntityType",
+        "type": "string"
+      },
+      "EventKind": {
+        "description": "Minimum event kinds of spec section 14.1, plus ``revision.reopened`` (section 9.2).",
+        "enum": [
+          "case_file.created",
+          "member.added",
+          "source.ingested",
+          "source.downloaded",
+          "plan.created",
+          "calibration.proposed",
+          "calibration.accepted",
+          "local_frame.set",
+          "local_frame.changed",
+          "suggestions.added",
+          "evidence.created",
+          "evidence.updated",
+          "entity.created",
+          "entity.updated",
+          "entity.recomputed",
+          "entity.reviewed",
+          "entity.deleted",
+          "plan.transition",
+          "revision.frozen",
+          "revision.reopened",
+          "export.requested",
+          "artifact.created",
+          "artifact.downloaded",
+          "lease.acquired",
+          "lease.released",
+          "auth.login",
+          "auth.failed",
+          "access.denied",
+          "config.changed"
+        ],
+        "title": "EventKind",
+        "type": "string"
+      },
+      "EventOut": {
+        "description": "One event exactly as hashed; ``occurred_at`` is UTC ISO 8601 with microseconds.",
+        "properties": {
+          "actor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "actor_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Role"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "case_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case File Id"
+          },
+          "client_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ip"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "occurred_at": {
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "prev_hash": {
+            "title": "Prev Hash",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Id"
+          }
+        },
+        "required": [
+          "id",
+          "case_file_id",
+          "plan_id",
+          "revision_id",
+          "actor_id",
+          "actor_role",
+          "kind",
+          "entity_id",
+          "before",
+          "after",
+          "reason",
+          "client_ip",
+          "occurred_at",
+          "prev_hash",
+          "hash"
+        ],
+        "title": "EventOut",
+        "type": "object"
+      },
+      "EventPage": {
+        "description": "Up to 50 events in ascending id; ``next_cursor`` is null on the last page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "EventPage",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IncidentType": {
+        "description": "Kind of incident; stored as the PostgreSQL enum ``incident_type``.",
+        "enum": [
+          "traffic_collision",
+          "crime_scene",
+          "inspection",
+          "other"
+        ],
+        "title": "IncidentType",
+        "type": "string"
+      },
+      "JobErrorOut": {
+        "description": "Why the job failed and what to do, in Spanish (REQ-15).",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "cause": {
+            "title": "Cause",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cause",
+          "action"
+        ],
+        "title": "JobErrorOut",
+        "type": "object"
+      },
+      "JobOut": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "result_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Ref"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "source_id",
+          "error",
+          "result_ref"
+        ],
+        "title": "JobOut",
+        "type": "object"
+      },
+      "Layer": {
+        "additionalProperties": false,
+        "description": "One CAD layer with its DXF color as an AutoCAD Color Index (1-255).",
+        "properties": {
+          "aci_color": {
+            "maximum": 255.0,
+            "minimum": 1.0,
+            "title": "Aci Color",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "pattern": "^L_[A-Z]+$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "aci_color"
+        ],
+        "title": "Layer",
+        "type": "object"
+      },
+      "LeaseOut": {
+        "description": "The valid edit lease of a plan: who holds it and until when.\n\n``display_name`` is the holder's display name, or their username when none is set.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "display_name",
+          "expires_at"
+        ],
+        "title": "LeaseOut",
+        "type": "object"
+      },
+      "LeaseReleaseOut": {
+        "description": "Outcome of a release: ``released`` is false when the caller held no lease.",
+        "properties": {
+          "released": {
+            "title": "Released",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "released"
+        ],
+        "title": "LeaseReleaseOut",
+        "type": "object"
+      },
+      "LineGeometry": {
+        "additionalProperties": false,
+        "properties": {
+          "coords_m": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Coords M",
+            "type": "array"
+          },
+          "kind": {
+            "const": "line",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "coords_m"
+        ],
+        "title": "LineGeometry",
+        "type": "object"
+      },
+      "LocalFrameIn": {
+        "additionalProperties": false,
+        "description": "The local frame: origin on paper (mm, Y down), +X axis and North angles in degrees.\n\nAngles are counter-clockwise positive: ``x_axis_angle_deg`` from the world +X axis,\n``north_angle_deg`` from the local +Y axis. They are stored reduced to ``[0, 360)``.",
+        "properties": {
+          "north_angle_deg": {
+            "title": "North Angle Deg",
+            "type": "number"
+          },
+          "origin_paper_mm": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Origin Paper Mm",
+            "type": "array"
+          },
+          "x_axis_angle_deg": {
+            "title": "X Axis Angle Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "origin_paper_mm",
+          "x_axis_angle_deg",
+          "north_angle_deg"
+        ],
+        "title": "LocalFrameIn",
+        "type": "object"
+      },
+      "LocalFrameOut": {
+        "description": "The stored ``calibration.local_frame``; angles in ``[0, 360)``.",
+        "properties": {
+          "north_angle_deg": {
+            "title": "North Angle Deg",
+            "type": "number"
+          },
+          "origin_paper_mm": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Origin Paper Mm",
+            "type": "array"
+          },
+          "x_axis_angle_deg": {
+            "title": "X Axis Angle Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "origin_paper_mm",
+          "x_axis_angle_deg",
+          "north_angle_deg"
+        ],
+        "title": "LocalFrameOut",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "MetricOrigin": {
+        "description": "Where the metric value of an entity comes from; enforced by ``ck_entity_metric_origin``.",
+        "enum": [
+          "declared_dimension",
+          "triangulation",
+          "baseline_offset",
+          "scaled_drawing",
+          "derived",
+          "trace_only",
+          "none"
+        ],
+        "title": "MetricOrigin",
+        "type": "string"
+      },
+      "MetricStatus": {
+        "description": "Metric quality of a plan; stored as the PostgreSQL enum ``metric_status``.",
+        "enum": [
+          "metric",
+          "approximate",
+          "non_metric"
+        ],
+        "title": "MetricStatus",
+        "type": "string"
+      },
+      "PlanCreate": {
+        "properties": {
+          "primary_source_id": {
+            "format": "uuid",
+            "title": "Primary Source Id",
+            "type": "string"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode",
+            "default": "schematic_sketch"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "primary_source_id"
+        ],
+        "title": "PlanCreate",
+        "type": "object"
+      },
+      "PlanOut": {
+        "description": "A plan with its active calibration, edit lease and current revision.\n\n``calibration`` is null until a calibration is accepted. ``lease`` is null while no\nuser holds a valid (unexpired) edit lease.",
+        "properties": {
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalibrationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "case_file_id": {
+            "format": "uuid",
+            "title": "Case File Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current_revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RevisionSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Revision Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lease": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeaseOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metric_status": {
+            "$ref": "#/components/schemas/MetricStatus"
+          },
+          "primary_source_id": {
+            "format": "uuid",
+            "title": "Primary Source Id",
+            "type": "string"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PlanStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "validated_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validated Revision Id"
+          }
+        },
+        "required": [
+          "id",
+          "case_file_id",
+          "title",
+          "primary_source_id",
+          "source_mode",
+          "status",
+          "metric_status",
+          "current_revision_id",
+          "validated_revision_id",
+          "created_at",
+          "calibration",
+          "lease",
+          "current_revision"
+        ],
+        "title": "PlanOut",
+        "type": "object"
+      },
+      "PlanStatus": {
+        "description": "The nine plan states of spec section 9.2; stored as the PostgreSQL enum ``plan_status``.",
+        "enum": [
+          "CREATED",
+          "CALIBRATION_PENDING",
+          "EDITING",
+          "REVIEW_PENDING",
+          "IN_REVIEW",
+          "VALIDATED",
+          "EXPORTED",
+          "REJECTED",
+          "REOPENED"
+        ],
+        "title": "PlanStatus",
+        "type": "string"
+      },
+      "PointGeometry": {
+        "additionalProperties": false,
+        "properties": {
+          "coords_m": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "title": "Coords M",
+            "type": "array"
+          },
+          "kind": {
+            "const": "point",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "coords_m"
+        ],
+        "title": "PointGeometry",
+        "type": "object"
+      },
+      "PointIn": {
+        "description": "A marked point: image pixel and, when known, its paper position in mm (Y down).",
+        "properties": {
+          "image_px": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Image Px",
+            "type": "array"
+          },
+          "paper_mm": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Mm"
+          }
+        },
+        "required": [
+          "image_px"
+        ],
+        "title": "PointIn",
+        "type": "object"
+      },
+      "PolylineGeometry": {
+        "additionalProperties": false,
+        "description": "Open polyline of at least 2 vertices; a closed one needs at least 3.",
+        "properties": {
+          "closed": {
+            "default": false,
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "coords_m": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "minItems": 2,
+            "title": "Coords M",
+            "type": "array"
+          },
+          "kind": {
+            "const": "polyline",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "coords_m"
+        ],
+        "title": "PolylineGeometry",
+        "type": "object"
+      },
+      "ReprojectionErrorOut": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "rms": {
+            "title": "Rms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "max",
+          "rms"
+        ],
+        "title": "ReprojectionErrorOut",
+        "type": "object"
+      },
+      "ReviewStatus": {
+        "description": "Review state of an entity; enforced by ``ck_entity_review_status``.",
+        "enum": [
+          "suggested",
+          "accepted",
+          "corrected",
+          "rejected"
+        ],
+        "title": "ReviewStatus",
+        "type": "string"
+      },
+      "RevisionSummaryOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "state"
+        ],
+        "title": "RevisionSummaryOut",
+        "type": "object"
+      },
+      "ScaleOut": {
+        "description": "Scan scale; ``within_tolerance`` compares the segment with the DPI when both exist.",
+        "properties": {
+          "dpi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dpi"
+          },
+          "dpi_discrepancy_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dpi Discrepancy Pct"
+          },
+          "mm_per_px": {
+            "title": "Mm Per Px",
+            "type": "number"
+          },
+          "within_tolerance": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Within Tolerance"
+          }
+        },
+        "required": [
+          "mm_per_px",
+          "dpi",
+          "dpi_discrepancy_pct",
+          "within_tolerance"
+        ],
+        "title": "ScaleOut",
+        "type": "object"
+      },
+      "SourceMethod": {
+        "enum": [
+          "manual",
+          "cv",
+          "ocr",
+          "model",
+          "derived"
+        ],
+        "title": "SourceMethod",
+        "type": "string"
+      },
+      "SourceMode": {
+        "description": "How the source was drawn; stored as the PostgreSQL enum ``source_mode``.",
+        "enum": [
+          "scaled_drawing",
+          "schematic_sketch"
+        ],
+        "title": "SourceMode",
+        "type": "string"
+      },
+      "SourceOut": {
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "case_file_id": {
+            "format": "uuid",
+            "title": "Case File Id",
+            "type": "string"
+          },
+          "dpi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dpi"
+          },
+          "exif": {
+            "additionalProperties": true,
+            "title": "Exif",
+            "type": "object"
+          },
+          "height_px": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Px"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "original_filename": {
+            "title": "Original Filename",
+            "type": "string"
+          },
+          "qc": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qc"
+          },
+          "qc_job_id": {
+            "format": "uuid",
+            "title": "Qc Job Id",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "uploaded_at": {
+            "format": "date-time",
+            "title": "Uploaded At",
+            "type": "string"
+          },
+          "uploaded_by": {
+            "format": "uuid",
+            "title": "Uploaded By",
+            "type": "string"
+          },
+          "width_px": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Px"
+          }
+        },
+        "required": [
+          "id",
+          "case_file_id",
+          "original_filename",
+          "media_type",
+          "byte_size",
+          "sha256",
+          "width_px",
+          "height_px",
+          "dpi",
+          "exif",
+          "qc",
+          "qc_job_id",
+          "uploaded_by",
+          "uploaded_at"
+        ],
+        "title": "SourceOut",
+        "type": "object"
+      },
+      "Symbol": {
+        "additionalProperties": false,
+        "description": "One symbol of spec 12.2; ``default_size`` is in mm (``paper_mm``) or m (``world_m``).",
+        "properties": {
+          "attributes": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SymbolAttribute"
+            },
+            "title": "Attributes",
+            "type": "array"
+          },
+          "default_layer": {
+            "pattern": "^L_[A-Z]+$",
+            "title": "Default Layer",
+            "type": "string"
+          },
+          "default_size": {
+            "exclusiveMinimum": 0.0,
+            "title": "Default Size",
+            "type": "number"
+          },
+          "dxf_block": {
+            "$ref": "#/components/schemas/DxfBlock"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "size_mode": {
+            "enum": [
+              "paper_mm",
+              "world_m"
+            ],
+            "title": "Size Mode",
+            "type": "string"
+          },
+          "svg": {
+            "minLength": 1,
+            "title": "Svg",
+            "type": "string"
+          },
+          "symbol_id": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Symbol Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol_id",
+          "label",
+          "default_layer",
+          "svg",
+          "dxf_block",
+          "size_mode",
+          "default_size"
+        ],
+        "title": "Symbol",
+        "type": "object"
+      },
+      "SymbolAttribute": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "enum": [
+              "integer",
+              "number",
+              "string"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "SymbolAttribute",
+        "type": "object"
+      },
+      "SymbolGeometry": {
+        "additionalProperties": false,
+        "description": "A catalog symbol; ``attributes`` holds its block attributes (e.g. ``evidence_number``).",
+        "properties": {
+          "anchor_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Anchor M",
+            "type": "array"
+          },
+          "attributes": {
+            "patternProperties": {
+              "^[a-z][a-z0-9_]*$": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "kind": {
+            "const": "symbol",
+            "title": "Kind",
+            "type": "string"
+          },
+          "rotation_deg": {
+            "default": 0.0,
+            "title": "Rotation Deg",
+            "type": "number"
+          },
+          "scale": {
+            "default": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Scale",
+            "type": "number"
+          },
+          "symbol_id": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Symbol Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "anchor_m",
+          "symbol_id"
+        ],
+        "title": "SymbolGeometry",
+        "type": "object"
+      },
+      "TextGeometry": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Anchor M",
+            "type": "array"
+          },
+          "content": {
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "height_mm_paper": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height Mm Paper",
+            "type": "number"
+          },
+          "kind": {
+            "const": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "rotation_deg": {
+            "default": 0.0,
+            "title": "Rotation Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "anchor_m",
+          "height_mm_paper",
+          "content"
+        ],
+        "title": "TextGeometry",
+        "type": "object"
+      },
+      "TransitionIn": {
+        "additionalProperties": false,
+        "description": "Requested target status; ``reason`` is required for ``REJECTED``, optional otherwise.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "to": {
+            "$ref": "#/components/schemas/PlanStatus"
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "title": "TransitionIn",
+        "type": "object"
+      },
+      "UserEnvelope": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "UserEnvelope",
+        "type": "object"
+      },
+      "UserOut": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "role"
+        ],
+        "title": "UserOut",
+        "type": "object"
+      },
+      "UserRole": {
+        "description": "Role of a user; stored as the PostgreSQL enum ``user_role``.",
+        "enum": [
+          "technician",
+          "reviewer",
+          "admin"
+        ],
+        "title": "UserRole",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Sketch2CAD API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "description": "Check the credentials and open a session; failures never reveal whether a user exists.\n\nA locked account gets 423 even with the right password; the password is still verified\nfirst so the response time does not reveal whether it was correct.",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Revoke the current session and clear both authentication cookies.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "description": "Return the authenticated user.",
+        "operationId": "me_api_v1_auth_me_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/case-files": {
+      "get": {
+        "description": "List the case files the user created or is a member of, newest first.\n\n``limit`` above the maximum is capped rather than rejected.",
+        "operationId": "list_case_files_api_v1_case_files_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "incident_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/IncidentType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Incident Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseFileList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Case Files",
+        "tags": [
+          "case-files"
+        ]
+      },
+      "post": {
+        "description": "Create a case file with the next ``EXP-<year>-<NNNN>`` code; the creator becomes member.",
+        "operationId": "create_case_file_api_v1_case_files_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseFileCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseFileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Case File",
+        "tags": [
+          "case-files"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}": {
+      "get": {
+        "description": "Return a case file; 404 when it is missing or malformed.\n\nA user without ``read`` (member or not) gets 403; every denial on an existing case file\nis logged as ``access.denied``.",
+        "operationId": "get_case_file_api_v1_case_files__case_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseFileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Case File",
+        "tags": [
+          "case-files"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}/events": {
+      "get": {
+        "description": "Events of the case file in id order, 50 per page, optionally filtered.\n\nPass ``next_cursor`` back as ``cursor`` to get the following page. Requires ``read``;\na denial is a 403 logged as ``access.denied``.",
+        "operationId": "list_case_events_api_v1_case_files__case_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EventKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the case file (access.denied)."
+          },
+          "404": {
+            "description": "The case file does not exist."
+          },
+          "422": {
+            "description": "Unknown ``kind``, malformed ``plan_id`` or invalid ``cursor``."
+          }
+        },
+        "summary": "List Case Events",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}/members": {
+      "post": {
+        "description": "Add a member with explicit permissions; only an ``admin`` or the creator may do it.\n\nAnyone else gets 403, logged as ``access.denied``; an unknown\n``user_id`` gives 422 and an existing member 409.",
+        "operationId": "add_case_member_api_v1_case_files__case_id__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseMemberCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseMemberOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Case Member",
+        "tags": [
+          "case-files"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}/plans": {
+      "post": {
+        "description": "Create a plan from a source of the case file, in ``CALIBRATION_PENDING``.\n\n``source_mode`` defaults to ``schematic_sketch``. Creates revision 1 in ``draft`` and a\n``plan.created`` event; enqueues no job. Requires ``edit``.",
+        "operationId": "create_case_plan_api_v1_case_files__case_id__plans_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the case file (access.denied)."
+          },
+          "404": {
+            "description": "The case file does not exist."
+          },
+          "422": {
+            "description": "Invalid body, or the primary source is not a source of the case."
+          }
+        },
+        "summary": "Create Case Plan",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}/sources": {
+      "post": {
+        "description": "Ingest one source file (multipart fields ``file`` and ``client_sha256``).\n\nThe size cap is enforced while the body streams in (413). The server SHA-256 must equal\n``client_sha256`` (422) and the content must be a JPEG, PNG, TIFF or single-page PDF by\nits bytes (415); nothing is stored when a rule fails. Requires ``edit``.",
+        "operationId": "upload_source_api_v1_case_files__case_id__sources_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "client_sha256": {
+                    "pattern": "^[0-9a-fA-F]{64}$",
+                    "type": "string"
+                  },
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file",
+                  "client_sha256"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "The file exceeds 50 MB (V-02)."
+          },
+          "415": {
+            "description": "Not a JPEG, PNG, TIFF or single-page PDF by content (V-01)."
+          },
+          "422": {
+            "description": "Malformed upload, or client_sha256 differs from the server (V-03)."
+          }
+        },
+        "summary": "Upload Source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/api/v1/catalog/active": {
+      "get": {
+        "description": "Return the active catalog; requires a session but no case permission.",
+        "operationId": "get_active_catalog_api_v1_catalog_active_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "No catalog is active."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Active Catalog",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/entities/{entity_id}": {
+      "delete": {
+        "description": "Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.\n\n``reason`` is optional. Requires ``edit``.",
+        "operationId": "remove_entity_api_v1_entities__entity_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision or entity does not exist, or the entity is deleted."
+          },
+          "409": {
+            "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
+          },
+          "422": {
+            "description": "Invalid body, or a layer or symbol not in the active catalog."
+          }
+        },
+        "summary": "Remove Entity",
+        "tags": [
+          "entities"
+        ]
+      },
+      "patch": {
+        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. Requires ``edit``.",
+        "operationId": "patch_entity_api_v1_entities__entity_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision or entity does not exist, or the entity is deleted."
+          },
+          "409": {
+            "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
+          },
+          "422": {
+            "description": "Invalid body, or a layer or symbol not in the active catalog."
+          }
+        },
+        "summary": "Patch Entity",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "description": "Status of a job; ``error {cause, action}`` is present only when it failed.\n\nRequires ``read`` on the case file of the job's source.",
+        "operationId": "get_job_api_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the job's case file (access.denied)."
+          },
+          "404": {
+            "description": "The job does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}": {
+      "get": {
+        "description": "A plan with its status, active calibration, lease and current revision.\n\nRequires ``read`` on the plan's case file; others get 403 and an ``access.denied``\nevent.",
+        "operationId": "get_plan_api_v1_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Plan",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/calibration": {
+      "put": {
+        "description": "Compute the matrix, the reprojection error and ``meets_tolerance``; store nothing.\n\nRequires ``edit``. 409 when the plan is past ``EDITING`` or has entities (V-08).",
+        "operationId": "propose_calibration_api_v1_plans__plan_id__calibration_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationProposalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The plan is past editing, or it has entities (``code`` ``V-08``)."
+          },
+          "422": {
+            "description": "Invalid body, or inputs that define no calibration for the method."
+          }
+        },
+        "summary": "Propose Calibration",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/calibration/accept": {
+      "post": {
+        "description": "Store the calibration as the plan's active one and move the plan to ``EDITING``.\n\nAppends ``calibration.proposed`` and ``calibration.accepted``. ``as_metric`` is\nrejected for ``none`` and above the reprojection tolerance (V-05). Method ``none``\nleaves the plan ``non_metric``. Requires ``edit`` and the plan's edit lease.",
+        "operationId": "accept_calibration_api_v1_plans__plan_id__calibration_accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalibrationAcceptIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The plan is past editing, it has entities (``code`` ``V-08``), or the user does not hold its edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
+          },
+          "422": {
+            "description": "Invalid inputs, or ``as_metric`` not allowed: method ``none``, a ``scaled_drawing`` without ``paper_scale``, or an error above ``calibration.max_reprojection_error_mm`` (``code`` ``V-05``)."
+          }
+        },
+        "summary": "Accept Calibration",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/lease": {
+      "delete": {
+        "description": "Release the caller's edit lease with ``lease.released``. Requires ``edit``.\n\nOnly the holder releases. ``released`` is false, and nothing is written, when the\ncaller holds no lease; 409 with ``holder`` while another user holds a valid one.",
+        "operationId": "delete_lease_api_v1_plans__plan_id__lease_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaseReleaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "Another user holds a valid lease: ``code`` ``V-12``, ``holder`` and the V-12 message."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Lease",
+        "tags": [
+          "plans"
+        ]
+      },
+      "post": {
+        "description": "Acquire or renew the plan's edit lease for 10 minutes. Requires ``edit``.\n\nA renewal by the holder writes no event; a first acquisition, or one after the lease\nexpired, writes ``lease.acquired`` (``before`` is the previous lease). 409 with\n``holder`` and the V-12 message while another user holds a valid lease.",
+        "operationId": "post_lease_api_v1_plans__plan_id__lease_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "Another user holds a valid lease: ``code`` ``V-12``, ``holder`` and the V-12 message."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Lease",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/local-frame": {
+      "put": {
+        "description": "Set the plan's local frame on its active calibration. Requires ``edit``.\n\nA change of origin or +X axis moves every live entity of the draft revision by one\nrigid transform in one transaction. The first frame writes ``local_frame.set``; later\nchanges write one ``local_frame.changed`` with the previous and new frame and the\ntransform (null when only the North changes). An unchanged frame writes nothing.",
+        "operationId": "put_local_frame_api_v1_plans__plan_id__local_frame_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalFrameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The plan has no accepted calibration, its revision is frozen, it is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold its edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
+          },
+          "422": {
+            "description": "Invalid body."
+          }
+        },
+        "summary": "Put Local Frame",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/transition": {
+      "post": {
+        "description": "Move the plan to ``to`` following the spec section 9.2 table. Requires ``edit``.\n\n``REVIEW_PENDING`` (technician or reviewer) releases the caller's lease;\n``IN_REVIEW`` (reviewer) takes it; ``VALIDATED`` (reviewer) freezes the current\nrevision and sets ``validated_revision_id``; ``REJECTED`` (reviewer, ``reason``\nrequired) and ``REOPENED`` (reviewer, from ``VALIDATED`` or ``EXPORTED``, creating\ndraft revision ``n + 1``) continue to ``EDITING``. Each step writes ``plan.transition``.",
+        "operationId": "post_transition_api_v1_plans__plan_id__transition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file, or their role may not perform the transition (``code`` ``V-09`` and its message for ``VALIDATED``); both write access.denied."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "409": {
+            "description": "The pair is not in the spec section 9.2 table (``code`` ``illegal_transition``) or is performed by the system (``system_transition``), both with ``allowed``; another user holds the edit lease (``V-12`` with ``holder``); or the revision cannot be frozen or reopened (``revision_conflict``)."
+          },
+          "422": {
+            "description": "Invalid body, or a rejection without reason (``code`` ``V-09``)."
+          }
+        },
+        "summary": "Post Transition",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
+    "/api/v1/revisions/{revision_id}/entities": {
+      "get": {
+        "description": "Entities of the revision ordered by id, without soft-deleted ones. Requires ``read``.",
+        "operationId": "get_revision_entities_api_v1_revisions__revision_id__entities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "title": "Revision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Revision Entities",
+        "tags": [
+          "entities"
+        ]
+      },
+      "post": {
+        "description": "Create one or more hand-drawn entities, in request order, with ``entity.created`` each.\n\nThe server sets ``source`` (``manual``), ``review_status`` (``accepted``) and\n``metric_origin``. Requires ``edit``; 409 unless the revision is an editable draft.",
+        "operationId": "create_revision_entities_api_v1_revisions__revision_id__entities_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "title": "Revision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntitiesCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision or entity does not exist, or the entity is deleted."
+          },
+          "409": {
+            "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
+          },
+          "422": {
+            "description": "Invalid body, or a layer or symbol not in the active catalog."
+          }
+        },
+        "summary": "Create Revision Entities",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/sources/{source_id}": {
+      "get": {
+        "description": "Metadata of a source, including ``qc`` once its quality job has finished.\n\n``qc`` is null while the job is queued or running. Requires ``read``; others get 403\nand an ``access.denied`` event.",
+        "operationId": "get_source_api_v1_sources__source_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the source's case file (access.denied)."
+          },
+          "404": {
+            "description": "The source does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/api/v1/sources/{source_id}/original": {
+      "get": {
+        "description": "Stream the original bytes exactly as stored, with ``X-Content-SHA256``.\n\nWrites ``source.downloaded`` before the first byte is sent. Requires ``read``; others\nget 403 and an ``access.denied`` event.",
+        "operationId": "download_original_api_v1_sources__source_id__original_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The original bytes, unmodified, as an attachment.",
+            "headers": {
+              "X-Content-SHA256": {
+                "description": "SHA-256 registered at ingestion (lowercase hex).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the source's case file (access.denied)."
+          },
+          "404": {
+            "description": "The source does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Original",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/api/v1/sources/{source_id}/preview": {
+      "get": {
+        "description": "Derived JPEG of the source whose longest side is at most ``max`` (256 to 4096).\n\nPDFs are rendered from page 1; no EXIF is carried over. Requires ``read``.",
+        "operationId": "preview_source_api_v1_sources__source_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max",
+            "required": false,
+            "schema": {
+              "default": 2048,
+              "maximum": 4096,
+              "minimum": 256,
+              "title": "Max",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Derived JPEG whose longest side is at most ``max`` pixels."
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the source's case file (access.denied)."
+          },
+          "404": {
+            "description": "The source does not exist."
+          },
+          "422": {
+            "description": "``max`` is outside 256..4096."
+          }
+        },
+        "summary": "Preview Source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "description": "Return 200 when the database answers ``SELECT 1`` and 503 otherwise.",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ]
+}
