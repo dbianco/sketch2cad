@@ -1,7 +1,7 @@
 ---
 id: 001-007
 title: "Implement password hashing, sessions and the login/logout/me endpoints"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-004, 001-006]
