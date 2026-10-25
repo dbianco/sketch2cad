@@ -187,6 +187,324 @@
         "title": "CasePermission",
         "type": "string"
       },
+      "CatalogOut": {
+        "additionalProperties": false,
+        "description": "The active catalog version with its layers and symbols (SVG inline).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/Layer"
+            },
+            "minItems": 1,
+            "title": "Layers",
+            "type": "array"
+          },
+          "symbols": {
+            "items": {
+              "$ref": "#/components/schemas/Symbol"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "version": {
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "layers",
+          "symbols",
+          "id"
+        ],
+        "title": "CatalogOut",
+        "type": "object"
+      },
+      "DxfArc": {
+        "additionalProperties": false,
+        "description": "Counter-clockwise arc from ``start_angle`` to ``end_angle``, in degrees.",
+        "properties": {
+          "center": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Center",
+            "type": "array"
+          },
+          "end_angle": {
+            "title": "End Angle",
+            "type": "number"
+          },
+          "radius": {
+            "exclusiveMinimum": 0.0,
+            "title": "Radius",
+            "type": "number"
+          },
+          "start_angle": {
+            "title": "Start Angle",
+            "type": "number"
+          },
+          "type": {
+            "const": "ARC",
+            "default": "ARC",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "center",
+          "radius",
+          "start_angle",
+          "end_angle"
+        ],
+        "title": "DxfArc",
+        "type": "object"
+      },
+      "DxfAttributeDefinition": {
+        "additionalProperties": false,
+        "description": "ATTDEF filled from the symbol attribute whose upper-cased name is ``tag``.",
+        "properties": {
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "insert": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Insert",
+            "type": "array"
+          },
+          "tag": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Tag",
+            "type": "string"
+          },
+          "type": {
+            "const": "ATTDEF",
+            "default": "ATTDEF",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag",
+          "insert",
+          "height"
+        ],
+        "title": "DxfAttributeDefinition",
+        "type": "object"
+      },
+      "DxfBlock": {
+        "additionalProperties": false,
+        "description": "DXF block definition; inserted as ``INSERT`` of ``name`` at the entity anchor.",
+        "properties": {
+          "base_point": {
+            "default": [
+              0.0,
+              0.0
+            ],
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Base Point",
+            "type": "array"
+          },
+          "entities": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "ARC": "#/components/schemas/DxfArc",
+                  "ATTDEF": "#/components/schemas/DxfAttributeDefinition",
+                  "CIRCLE": "#/components/schemas/DxfCircle",
+                  "LINE": "#/components/schemas/DxfLine",
+                  "LWPOLYLINE": "#/components/schemas/DxfPolyline"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/DxfLine"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfCircle"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfArc"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfPolyline"
+                },
+                {
+                  "$ref": "#/components/schemas/DxfAttributeDefinition"
+                }
+              ]
+            },
+            "minItems": 1,
+            "title": "Entities",
+            "type": "array"
+          },
+          "name": {
+            "pattern": "^S2C_[a-z][a-z0-9_]*$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "entities"
+        ],
+        "title": "DxfBlock",
+        "type": "object"
+      },
+      "DxfCircle": {
+        "additionalProperties": false,
+        "properties": {
+          "center": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Center",
+            "type": "array"
+          },
+          "radius": {
+            "exclusiveMinimum": 0.0,
+            "title": "Radius",
+            "type": "number"
+          },
+          "type": {
+            "const": "CIRCLE",
+            "default": "CIRCLE",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "center",
+          "radius"
+        ],
+        "title": "DxfCircle",
+        "type": "object"
+      },
+      "DxfLine": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "End",
+            "type": "array"
+          },
+          "start": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Start",
+            "type": "array"
+          },
+          "type": {
+            "const": "LINE",
+            "default": "LINE",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "DxfLine",
+        "type": "object"
+      },
+      "DxfPolyline": {
+        "additionalProperties": false,
+        "properties": {
+          "closed": {
+            "default": false,
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "points": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "minItems": 2,
+            "title": "Points",
+            "type": "array"
+          },
+          "type": {
+            "const": "LWPOLYLINE",
+            "default": "LWPOLYLINE",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "DxfPolyline",
+        "type": "object"
+      },
       "EventKind": {
         "description": "Minimum event kinds of spec section 14.1.",
         "enum": [
@@ -521,6 +839,34 @@
         "title": "JobOut",
         "type": "object"
       },
+      "Layer": {
+        "additionalProperties": false,
+        "description": "One CAD layer with its DXF color as an AutoCAD Color Index (1-255).",
+        "properties": {
+          "aci_color": {
+            "maximum": 255.0,
+            "minimum": 1.0,
+            "title": "Aci Color",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "pattern": "^L_[A-Z]+$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "aci_color"
+        ],
+        "title": "Layer",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "password": {
@@ -650,6 +996,97 @@
           "uploaded_at"
         ],
         "title": "SourceOut",
+        "type": "object"
+      },
+      "Symbol": {
+        "additionalProperties": false,
+        "description": "One symbol of spec 12.2; ``default_size`` is in mm (``paper_mm``) or m (``world_m``).",
+        "properties": {
+          "attributes": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SymbolAttribute"
+            },
+            "title": "Attributes",
+            "type": "array"
+          },
+          "default_layer": {
+            "pattern": "^L_[A-Z]+$",
+            "title": "Default Layer",
+            "type": "string"
+          },
+          "default_size": {
+            "exclusiveMinimum": 0.0,
+            "title": "Default Size",
+            "type": "number"
+          },
+          "dxf_block": {
+            "$ref": "#/components/schemas/DxfBlock"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "size_mode": {
+            "enum": [
+              "paper_mm",
+              "world_m"
+            ],
+            "title": "Size Mode",
+            "type": "string"
+          },
+          "svg": {
+            "minLength": 1,
+            "title": "Svg",
+            "type": "string"
+          },
+          "symbol_id": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Symbol Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol_id",
+          "label",
+          "default_layer",
+          "svg",
+          "dxf_block",
+          "size_mode",
+          "default_size"
+        ],
+        "title": "Symbol",
+        "type": "object"
+      },
+      "SymbolAttribute": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "enum": [
+              "integer",
+              "number",
+              "string"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "SymbolAttribute",
         "type": "object"
       },
       "UserEnvelope": {
@@ -1497,6 +1934,62 @@
         "summary": "Upload Source",
         "tags": [
           "sources"
+        ]
+      }
+    },
+    "/api/v1/catalog/active": {
+      "get": {
+        "description": "Return the active catalog; requires a session but no case permission.",
+        "operationId": "get_active_catalog_api_v1_catalog_active_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "404": {
+            "description": "No catalog is active."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Active Catalog",
+        "tags": [
+          "catalog"
         ]
       }
     },
