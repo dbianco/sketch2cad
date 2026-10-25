@@ -1,7 +1,7 @@
 ---
 id: 001-037
 title: "Implement the image quality checks"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-001]
@@ -22,4 +22,4 @@ Implements: REQ-02
 
 - [ ] A 800 px short-side image is red, a 1200 px is amber, a sharp 3000 px is green; an image with Laplacian variance 30 is red (H1-4, `tests/qc/test_checks.py`).
 - [ ] Warnings never raise: `evaluate` always returns a result object.
-- [ ] Thresholds are read from config: overriding `qc.min_short_side_red` to 1000 turns the 800 px case red and a 950 px case amber.
+- [ ] Thresholds are read from config: overriding `qc.min_short_side_red` to 1000 keeps the 800 px case red and turns a 950 px case from amber (default limit 900) to red (corrected 2026-10-25: the original wording "950 px amber" contradicted the red rule).
