@@ -187,6 +187,231 @@
         "title": "CasePermission",
         "type": "string"
       },
+      "EventKind": {
+        "description": "Minimum event kinds of spec section 14.1.",
+        "enum": [
+          "case_file.created",
+          "member.added",
+          "source.ingested",
+          "source.downloaded",
+          "plan.created",
+          "calibration.proposed",
+          "calibration.accepted",
+          "local_frame.set",
+          "local_frame.changed",
+          "suggestions.added",
+          "evidence.created",
+          "evidence.updated",
+          "entity.created",
+          "entity.updated",
+          "entity.recomputed",
+          "entity.reviewed",
+          "entity.deleted",
+          "plan.transition",
+          "revision.frozen",
+          "export.requested",
+          "artifact.created",
+          "artifact.downloaded",
+          "lease.acquired",
+          "lease.released",
+          "auth.login",
+          "auth.failed",
+          "access.denied",
+          "config.changed"
+        ],
+        "title": "EventKind",
+        "type": "string"
+      },
+      "EventOut": {
+        "description": "One event exactly as hashed; ``occurred_at`` is UTC ISO 8601 with microseconds.",
+        "properties": {
+          "actor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "actor_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Role"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "case_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Case File Id"
+          },
+          "client_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ip"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "occurred_at": {
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "prev_hash": {
+            "title": "Prev Hash",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Id"
+          }
+        },
+        "required": [
+          "id",
+          "case_file_id",
+          "plan_id",
+          "revision_id",
+          "actor_id",
+          "actor_role",
+          "kind",
+          "entity_id",
+          "before",
+          "after",
+          "reason",
+          "client_ip",
+          "occurred_at",
+          "prev_hash",
+          "hash"
+        ],
+        "title": "EventOut",
+        "type": "object"
+      },
+      "EventPage": {
+        "description": "Up to 50 events in ascending id; ``next_cursor`` is null on the last page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "EventPage",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -949,6 +1174,114 @@
         "summary": "Get Case File",
         "tags": [
           "case-files"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}/events": {
+      "get": {
+        "description": "Events of the case file in id order, 50 per page, optionally filtered.\n\nPass ``next_cursor`` back as ``cursor`` to get the following page. Requires ``read``;\na denial is a 403 logged as ``access.denied``.",
+        "operationId": "list_case_events_api_v1_case_files__case_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plan_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plan Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EventKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the case file (access.denied)."
+          },
+          "404": {
+            "description": "The case file does not exist."
+          },
+          "422": {
+            "description": "Unknown ``kind``, malformed ``plan_id`` or invalid ``cursor``."
+          }
+        },
+        "summary": "List Case Events",
+        "tags": [
+          "events"
         ]
       }
     },
