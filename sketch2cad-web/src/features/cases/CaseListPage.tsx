@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { api } from "../../api/client";
+import { uploadPath } from "../sources/UploadPage";
 import {
   INCIDENT_TYPES,
   INCIDENT_TYPE_LABELS,
@@ -249,7 +250,9 @@ export function CaseListPage() {
             {current.items.map((caseFile) => (
               <tr key={caseFile.id} style={styles.row}>
                 <th scope="row" style={styles.codeCell}>
-                  {caseFile.code}
+                  <a href={uploadPath(caseFile.id)} title="Cargar una fuente">
+                    {caseFile.code}
+                  </a>
                 </th>
                 <td style={styles.td}>{INCIDENT_TYPE_LABELS[caseFile.incident_type]}</td>
                 <td style={styles.td}>{caseFile.incident_date}</td>

@@ -2,10 +2,12 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { CaseListPage } from "../features/cases/CaseListPage";
 import { LoginPage } from "../features/auth/LoginPage";
+import { UploadPage } from "../features/sources/UploadPage";
 import { useAuth } from "../features/auth/authStore";
 
 export const LOGIN_PATH = "/login";
 export const HOME_PATH = "/";
+export const UPLOAD_PATH = "/cases/:caseId/upload";
 
 function NotFoundPage() {
   return (
@@ -50,6 +52,14 @@ export function AppRoutes() {
         element={
           <RequireAuth>
             <CaseListPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path={UPLOAD_PATH}
+        element={
+          <RequireAuth>
+            <UploadPage />
           </RequireAuth>
         }
       />

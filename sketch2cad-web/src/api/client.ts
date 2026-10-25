@@ -5,7 +5,7 @@ import type { paths } from "./schema";
  *
  * Request and response types come from the generated `schema.d.ts`. Every request sends the
  * session cookie (`credentials: "include"`), and mutations carry the `X-CSRF-Token` header
- * read from the `s2c_csrf` cookie (decision D-8). Errors are parsed from
+ * read from the `s2c_csrf` cookie (decision D-8). Multipart operations take a `FormData` body. Errors are parsed from
  * `application/problem+json` into an `ApiError`.
  */
 
@@ -52,7 +52,9 @@ type QueryOption<Op> = Op extends { parameters: { query?: infer Q } }
 
 type BodyOption<Op> = Op extends { requestBody: { content: { "application/json": infer B } } }
   ? { body: B }
-  : Op extends { requestBody?: { content: { "application/json": infer B } } }
+  : Op extends { requestBody: { content: { "multipart/form-data": unknown } } }
+    ? { body: FormData }
+    : Op extends { requestBody?: { content: { "application/json": infer B } } }
     ? [B] extends [never]
       ? { body?: never }
       : { body?: B }
@@ -256,7 +258,10 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
       headers,
       signal: options.signal,
     };
-    if (options.body !== undefined) {
+    if (options.body instanceof FormData) {
+      // fetch sets the multipart Content-Type with its boundary.
+      init.body = options.body;
+    } else if (options.body !== undefined) {
       headers.set("Content-Type", "application/json");
       init.body = JSON.stringify(options.body);
     }

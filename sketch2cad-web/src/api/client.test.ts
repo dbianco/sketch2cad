@@ -76,6 +76,24 @@ describe("api client", () => {
     expect(created.code).toBe("EXP-2026-0001");
   });
 
+  it("sends a FormData body as is, without a JSON Content-Type", async () => {
+    setCookie("s2c_csrf", CSRF_TOKEN);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "source-1" }, 201));
+    const form = new FormData();
+    form.append("client_sha256", "0".repeat(64));
+
+    await post("/api/v1/case-files/{case_id}/sources", {
+      path: { case_id: "case-1" },
+      body: form,
+    });
+
+    const { url, init, headers } = lastCall();
+    expect(url).toBe("/api/v1/case-files/case-1/sources");
+    expect(init.body).toBe(form);
+    expect(headers.get("Content-Type")).toBeNull();
+    expect(headers.get(CSRF_HEADER_NAME)).toBe(CSRF_TOKEN);
+  });
+
   it.each(["put", "patch", "delete"] as const)(
     "sends X-CSRF-Token on %s requests",
     async (method) => {
