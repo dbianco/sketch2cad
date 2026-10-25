@@ -1,7 +1,7 @@
 ---
 id: 001-002
 title: "Scaffold the sketch2cad-web folder"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: []
