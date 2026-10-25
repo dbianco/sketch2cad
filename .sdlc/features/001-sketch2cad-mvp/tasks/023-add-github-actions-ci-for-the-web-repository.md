@@ -1,7 +1,8 @@
 ---
 id: 001-023
 title: "Add GitHub Actions CI for the web repository"
-status: todo
+status: partial
+unmet: ["contract job fails on a hand-edited schema.d.ts in a real run, run URL recorded (simulated locally, needs GitHub)", "audit job fails on a vulnerable dependency in a real run (simulated locally with lodash 4.17.11, needs GitHub)", "run summary shows ci_duration_minutes in a real workflow run (needs GitHub)"]
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-021, 001-017, 001-015]
