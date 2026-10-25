@@ -21,6 +21,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from sketch2cad.audit.chain import EventKind, append_event
+from sketch2cad.calibration.rectify import enqueue_rectify
 from sketch2cad.config import Settings
 from sketch2cad.db.models import (
     Calibration,
@@ -379,7 +380,8 @@ def accept(
     Locks the plan row, rejects a plan that cannot be calibrated (409) and ``as_metric``
     when it is not allowed (422), deactivates the previous calibration, moves the plan from
     ``CALIBRATION_PENDING`` to ``EDITING`` and appends ``calibration.proposed`` and
-    ``calibration.accepted``. Runs in the caller's transaction; the caller commits.
+    ``calibration.accepted``. Queues the ``rectify`` job (idempotent on the calibration
+    content, none for ``none``). Runs in the caller's transaction; the caller commits.
     """
     db.refresh(plan, with_for_update=True)
     proposal = propose(db, plan, data, tolerances)
@@ -440,6 +442,7 @@ def accept(
         as_metric,
         plan.id,
     )
+    enqueue_rectify(db, plan, calibration)
     return calibration
 
 

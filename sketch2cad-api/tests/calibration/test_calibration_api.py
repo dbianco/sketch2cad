@@ -35,6 +35,7 @@ from sketch2cad.db.models import (
     UserRole,
 )
 from sketch2cad.geometry import apply_h, invert_h
+from sketch2cad.worker.app import apply_schema, to_conninfo
 
 PASSWORD = "correct horse battery staple"  # noqa: S105 - test fixture
 CASES_URL = f"{API_V1_PREFIX}/case-files"
@@ -48,14 +49,23 @@ CENTER_PX = apply_h(PAPER_TO_IMAGE, (100.0, 50.0))
 
 
 @pytest.fixture(scope="module")
-def tables(db_engine: Any) -> Iterator[None]:
-    """Create the application tables in the isolated schema and drop them afterwards."""
+def tables(db_engine: Any, database_url: str, test_schema: str) -> Iterator[None]:
+    """Create the application tables in the isolated schema and drop them afterwards.
+
+    The Procrastinate schema is applied too, since accepting a calibration defers
+    ``rectify``; the schema is emptied afterwards so later modules see no leftovers.
+    """
     db_engine.dispose()
     Base.metadata.create_all(db_engine)
+    apply_schema(to_conninfo(database_url, options=f"-csearch_path={test_schema}"))
     try:
         yield
     finally:
         Base.metadata.drop_all(db_engine)
+        with db_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{test_schema}" CASCADE'))
+            connection.execute(text(f'CREATE SCHEMA "{test_schema}"'))
+        db_engine.dispose()
 
 
 @pytest.fixture
@@ -65,7 +75,7 @@ def factory(
     yield db_session_factory
     names = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
     with db_session_factory() as db:
-        db.execute(text(f"TRUNCATE {names} CASCADE"))
+        db.execute(text(f"TRUNCATE {names}, procrastinate_jobs CASCADE"))
         db.commit()
 
 

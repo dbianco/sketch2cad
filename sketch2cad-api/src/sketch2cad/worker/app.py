@@ -13,7 +13,8 @@ it is converted to a libpq conninfo, and its query parameters (for example
 
 Importing this module has no side effects: the module-level ``app`` that the
 Procrastinate CLI loads is built on first access. Registered tasks: ``rasterize``
-(:mod:`sketch2cad.worker.tasks_raster`) and ``qc`` (:mod:`sketch2cad.worker.tasks_qc`).
+(:mod:`sketch2cad.worker.tasks_raster`), ``qc`` (:mod:`sketch2cad.worker.tasks_qc`) and
+``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`).
 """
 
 import argparse
@@ -30,7 +31,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 from sketch2cad.logging import configure_logging
-from sketch2cad.worker import tasks_qc, tasks_raster
+from sketch2cad.worker import tasks_qc, tasks_raster, tasks_rectify
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -87,6 +88,7 @@ def create_worker_app(conninfo: str | None = None) -> procrastinate.App:
     app = procrastinate.App(connector=procrastinate.PsycopgConnector(conninfo=conninfo))
     tasks_raster.register(app)
     tasks_qc.register(app)
+    tasks_rectify.register(app)
     return app
 
 
