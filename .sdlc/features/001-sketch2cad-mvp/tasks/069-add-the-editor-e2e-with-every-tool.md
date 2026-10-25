@@ -1,7 +1,8 @@
 ---
 id: 001-069
 title: "Add the editor E2E with every tool"
-status: todo
+status: partial
+unmet: ["Measure step of H2-11 (CU-04 medir): the editor has no measure tool, so the E2E asserts nothing for it"]
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-067, 001-064, 001-068]
