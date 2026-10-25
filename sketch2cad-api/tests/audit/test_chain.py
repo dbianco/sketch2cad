@@ -61,6 +61,8 @@ SPEC_KINDS = {
     "access.denied",
     "config.changed",
 }
+# Kinds beyond the spec minimum: reopening creates a new draft revision (spec section 9.2).
+EXTRA_KINDS = {"revision.reopened"}
 
 
 @pytest.fixture(scope="module")
@@ -325,5 +327,5 @@ def test_payload_that_jcs_cannot_represent_is_rejected(
 
 
 def test_event_kinds_match_spec_section_14_1() -> None:
-    assert {kind.value for kind in EventKind} == SPEC_KINDS
-    assert len(EventKind) == 28
+    assert {kind.value for kind in EventKind} == SPEC_KINDS | EXTRA_KINDS
+    assert len(EventKind) == 29

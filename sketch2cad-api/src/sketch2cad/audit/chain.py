@@ -39,7 +39,7 @@ AUTH_CHAIN_SEED = b"auth"
 
 
 class EventKind(StrEnum):
-    """Minimum event kinds of spec section 14.1."""
+    """Minimum event kinds of spec section 14.1, plus ``revision.reopened`` (section 9.2)."""
 
     CASE_FILE_CREATED = "case_file.created"
     MEMBER_ADDED = "member.added"
@@ -60,6 +60,7 @@ class EventKind(StrEnum):
     ENTITY_DELETED = "entity.deleted"
     PLAN_TRANSITION = "plan.transition"
     REVISION_FROZEN = "revision.frozen"
+    REVISION_REOPENED = "revision.reopened"
     EXPORT_REQUESTED = "export.requested"
     ARTIFACT_CREATED = "artifact.created"
     ARTIFACT_DOWNLOADED = "artifact.downloaded"

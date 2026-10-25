@@ -1458,7 +1458,7 @@
         "type": "string"
       },
       "EventKind": {
-        "description": "Minimum event kinds of spec section 14.1.",
+        "description": "Minimum event kinds of spec section 14.1, plus ``revision.reopened`` (section 9.2).",
         "enum": [
           "case_file.created",
           "member.added",
@@ -1479,6 +1479,7 @@
           "entity.deleted",
           "plan.transition",
           "revision.frozen",
+          "revision.reopened",
           "export.requested",
           "artifact.created",
           "artifact.downloaded",
