@@ -1,7 +1,7 @@
 ---
 id: 001-004
 title: "Create Alembic setup and the initial migration (user, session, case_file, case_member)"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-003]
