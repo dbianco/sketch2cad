@@ -1,7 +1,7 @@
 ---
 id: 001-067
 title: "Make the editor keyboard-accessible and audit it with axe"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-062, 001-063, 001-066, 001-065]
