@@ -1,7 +1,7 @@
 ---
 id: 001-032
 title: "Add case permissions, member endpoint and access.denied events"
-status: todo
+status: in_review
 milestone: "H1 — Expedientes e ingesta"
 repository: sketch2cad
 depends_on: [001-030, 001-012]
