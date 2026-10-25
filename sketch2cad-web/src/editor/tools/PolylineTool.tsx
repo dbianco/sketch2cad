@@ -2,15 +2,11 @@
 // open polyline (2+ vertices); Shift + click adds the last vertex and closes it, and C closes it
 // with the vertices placed so far (3+ vertices either way). Backspace removes the last vertex and
 // Esc drops the drawing. The entity goes to the palette's active layer through the editor store.
+// Each vertex is snapped like the line tool's (orthogonally to the previous vertex); creation is
+// recorded as `create` only.
 import type { Point2 } from "../store/types";
-import {
-  addOnDrawingLayer,
-  drawingLayer,
-  worldPoint,
-  type EditorTool,
-  type ToolContext,
-} from "../ui/editorUi";
-import { DraftPreview, apart } from "./LineTool";
+import { addOnDrawingLayer, drawingLayer, type EditorTool, type ToolContext } from "../ui/editorUi";
+import { DraftPreview, apart, snappedDrawPoint } from "./LineTool";
 
 /** Vertices the API requires (spec 8.2): an open polyline needs 2, a closed one 3. */
 export const MIN_OPEN_VERTICES = 2;
@@ -29,10 +25,10 @@ export function createPolylineTool(context: ToolContext): EditorTool {
 
   return {
     onPointerDown(pointer) {
-      const point = worldPoint(pointer.world);
-      if (point === null || drawingLayer(ui.getState(), context.catalog) === null) return true;
       const { draft } = ui.getState();
       const last = draft[draft.length - 1];
+      const point = snappedDrawPoint(context, pointer, last === undefined ? [] : [last]);
+      if (point === null || drawingLayer(ui.getState(), context.catalog) === null) return true;
       // A press on the previous vertex (the second press of a double-click) adds nothing.
       const next =
         last !== undefined && !apart(last, point, pointer.scale) ? draft : [...draft, point];
@@ -40,7 +36,8 @@ export function createPolylineTool(context: ToolContext): EditorTool {
       return true;
     },
     onPointerMove(pointer) {
-      if (ui.getState().draft.length > 0) ui.getState().setHover(worldPoint(pointer.world));
+      const last = ui.getState().draft.at(-1);
+      if (last !== undefined) ui.getState().setHover(snappedDrawPoint(context, pointer, [last]));
     },
     onDoubleClick() {
       finish(ui.getState().draft, false);

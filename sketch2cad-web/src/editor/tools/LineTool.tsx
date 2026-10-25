@@ -1,8 +1,11 @@
 // Line tool (jotdown H2, CU-04): two clicks, or a press-drag-release, create a `line` entity on
-// the palette's active layer through the editor store. Esc drops the first point.
+// the palette's active layer through the editor store. Esc drops the first point. Both points are
+// snapped with the snap settings (the end also orthogonally to the start); a new entity is
+// recorded only as `create` with the snapped coordinates: snap operation names are for edits.
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import { svgPoints, type CanvasPointer } from "../canvas/EditorCanvas";
+import { resolveSnap } from "../panels/SnapSettings";
 import type { Point2 } from "../store/types";
 import {
   addOnDrawingLayer,
@@ -23,6 +26,17 @@ export const SAME_PLACE_PX = 3;
 /** Whether `a` and `b` are at least SAME_PLACE_PX apart on screen. */
 export function apart(a: Point2, b: Point2, scale: number): boolean {
   return Math.hypot(a[0] - b[0], a[1] - b[1]) * scale >= SAME_PLACE_PX;
+}
+
+/** Pointer world point snapped for a new vertex joined to `anchors`; null when not finite. */
+export function snappedDrawPoint(
+  context: ToolContext,
+  pointer: CanvasPointer,
+  anchors: readonly Point2[],
+): Point2 | null {
+  const point = worldPoint(pointer.world);
+  if (point === null) return null;
+  return resolveSnap(context, point, { anchors, exclude: null, scale: pointer.scale }).point;
 }
 
 /** Rubber band from the draft points to the pointer. */
@@ -56,9 +70,9 @@ export function createLineTool(context: ToolContext): EditorTool {
 
   return {
     onPointerDown(pointer: CanvasPointer) {
-      const point = worldPoint(pointer.world);
-      if (point === null || drawingLayer(ui.getState(), context.catalog) === null) return true;
       const [start] = ui.getState().draft;
+      const point = snappedDrawPoint(context, pointer, start === undefined ? [] : [start]);
+      if (point === null || drawingLayer(ui.getState(), context.catalog) === null) return true;
       if (start === undefined) {
         ui.getState().setDraft([point]);
         dragging = true;
@@ -68,11 +82,12 @@ export function createLineTool(context: ToolContext): EditorTool {
       return true;
     },
     onPointerMove(pointer) {
-      if (ui.getState().draft.length > 0) ui.getState().setHover(worldPoint(pointer.world));
+      const [start] = ui.getState().draft;
+      if (start !== undefined) ui.getState().setHover(snappedDrawPoint(context, pointer, [start]));
     },
     onPointerUp(pointer) {
       const [start] = ui.getState().draft;
-      const point = worldPoint(pointer.world);
+      const point = start === undefined ? null : snappedDrawPoint(context, pointer, [start]);
       if (dragging && start !== undefined && point !== null && apart(start, point, pointer.scale)) {
         finish(start, point, pointer.scale);
       }

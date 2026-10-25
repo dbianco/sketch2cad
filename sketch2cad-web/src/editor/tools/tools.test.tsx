@@ -404,6 +404,7 @@ describe("palette", () => {
     const buttons = TOOL_BUTTONS.map((tool) => screen.getByRole("button", { name: tool.label }));
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Seleccionar",
+      "Editar vértices",
       "Línea",
       "Polilínea",
       "Punto",
@@ -442,6 +443,7 @@ describe("palette", () => {
       ["P", "polyline"],
       ["o", "point"],
       ["t", "text"],
+      ["e", "vertex"],
       ["v", "select"],
     ] as const) {
       key(shortcut);

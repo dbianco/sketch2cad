@@ -26,6 +26,7 @@ export interface ToolButton {
 
 export const TOOL_BUTTONS: readonly ToolButton[] = [
   { id: "select", label: "Seleccionar", caption: "Elegir", shortcut: "V" },
+  { id: "vertex", label: "Editar vértices", caption: "Vértices", shortcut: "E" },
   { id: "line", label: "Línea", caption: "Línea", shortcut: "L" },
   { id: "polyline", label: "Polilínea", caption: "Polilín.", shortcut: "P" },
   { id: "point", label: "Punto", caption: "Punto", shortcut: "O" },

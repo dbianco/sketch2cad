@@ -4,10 +4,11 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { CanvasTool, Catalog } from "../canvas/EditorCanvas";
 import { layerFlags, type LayerFlagsByName } from "../canvas/layers";
+import type { SnapSettingsStore } from "../panels/SnapSettings";
 import type { EditorStore } from "../store/entities";
 import type { EntityId, Geometry, Point2 } from "../store/types";
 
-export type ToolId = "select" | "line" | "polyline" | "point" | "text";
+export type ToolId = "select" | "vertex" | "line" | "polyline" | "point" | "text";
 
 /** Layer reserved for the export sheet (spec 12.1): never drawn on in the editor. */
 export const SHEET_LAYER = "L_SHEET";
@@ -86,6 +87,8 @@ export interface ToolContext {
   store: StoreApi<EditorStore>;
   ui: StoreApi<EditorUiStore>;
   catalog: Catalog;
+  /** Snap settings; the editor's `snapSettings` instance when omitted. */
+  snap?: StoreApi<SnapSettingsStore>;
 }
 
 /** A canvas tool that also takes the editor's keys (see EditorWorkspace). */
