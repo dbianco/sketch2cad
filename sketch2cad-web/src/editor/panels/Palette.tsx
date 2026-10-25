@@ -64,14 +64,17 @@ export function shortcutTool(event: KeyboardEvent): ToolId | undefined {
 export interface PaletteProps {
   ui: StoreApi<EditorUiStore>;
   catalog: Catalog;
+  /** Read-only plan: every tool button and the shortcuts are disabled. */
+  disabled?: boolean;
 }
 
-export function Palette({ ui, catalog }: PaletteProps) {
+export function Palette({ ui, catalog, disabled = false }: PaletteProps) {
   const activeTool = useStore(ui, (state) => state.activeTool);
   const layerFlags = useStore(ui, (state) => state.layerFlags);
   const activeLayer = useStore(ui, (state) => resolveActiveLayer(state, catalog));
 
   useEffect(() => {
+    if (disabled) return;
     function onKeyDown(event: KeyboardEvent) {
       const tool = shortcutTool(event);
       if (tool === undefined) return;
@@ -80,7 +83,7 @@ export function Palette({ ui, catalog }: PaletteProps) {
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [ui]);
+  }, [ui, disabled]);
 
   const drawable = activeLayer !== null && isDrawable({ layerFlags }, catalog, activeLayer);
 
@@ -95,6 +98,7 @@ export function Palette({ ui, catalog }: PaletteProps) {
             aria-pressed={activeTool === tool.id}
             aria-keyshortcuts={tool.shortcut}
             title={`${tool.label} (${tool.shortcut})`}
+            disabled={disabled}
             onClick={() => ui.getState().setTool(tool.id)}
           >
             {tool.caption}
@@ -105,6 +109,7 @@ export function Palette({ ui, catalog }: PaletteProps) {
         {PALETTE_TEXT.layer}{" "}
         <select
           aria-label={PALETTE_TEXT.layer}
+          disabled={disabled}
           value={activeLayer ?? ""}
           onChange={(event) => ui.getState().setActiveLayer(event.target.value)}
         >

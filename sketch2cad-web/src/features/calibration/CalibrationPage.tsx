@@ -13,7 +13,7 @@ export function planCalibrationPath(caseId: string, planId: string): string {
   return `/cases/${encodeURIComponent(caseId)}/plans/${encodeURIComponent(planId)}/calibration`;
 }
 
-/** Route of the plan editor (the real editor is mounted there by a later task). */
+/** Route of the plan editor (features/plans/EditorPage.tsx). */
 export function planEditorPath(caseId: string, planId: string): string {
   return `/cases/${encodeURIComponent(caseId)}/plans/${encodeURIComponent(planId)}/editor`;
 }
@@ -106,15 +106,5 @@ export function PlanCalibrationPage() {
       source={state.source}
       onAccepted={(plan) => void navigate(planEditorPath(caseId, plan.id))}
     />
-  );
-}
-
-/** Placeholder of the editor route until the editor task mounts `EditorWorkspace` here. */
-export function PlanEditorPage() {
-  return (
-    <section style={page}>
-      <h1 style={{ margin: 0, fontSize: 26 }}>{M.editorTitle}</h1>
-      <p>{M.editorPending}</p>
-    </section>
   );
 }

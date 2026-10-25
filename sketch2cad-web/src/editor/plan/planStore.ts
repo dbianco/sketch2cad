@@ -22,6 +22,8 @@ export interface PlanState {
   lease: LeaseOut | null;
   /** Signed-in user, to tell whether `lease` is theirs. */
   userId: string | null;
+  /** The editor only views the plan: its status forbids edits, or the lease is someone else's. */
+  readOnly: boolean;
 }
 
 export interface PlanActions {
@@ -32,6 +34,7 @@ export interface PlanActions {
   /** Record that nobody (or someone else, `lease`) holds the lease. */
   setLease(lease: LeaseOut | null): void;
   setUserId(userId: string | null): void;
+  setReadOnly(readOnly: boolean): void;
   reset(): void;
 }
 
@@ -46,6 +49,7 @@ export function initialPlanState(): PlanState {
     localFrame: null,
     lease: null,
     userId: null,
+    readOnly: false,
   };
 }
 
@@ -65,6 +69,7 @@ export function createPlanStore(initial: Partial<PlanState> = {}): StoreApi<Plan
     acquiredLease: (lease) => set({ lease, userId: lease.user_id }),
     setLease: (lease) => set({ lease }),
     setUserId: (userId) => set({ userId }),
+    setReadOnly: (readOnly) => set({ readOnly }),
     reset: () => set(initialPlanState()),
   }));
 }
@@ -89,4 +94,15 @@ export function holdsLease(
     lease.user_id === userId &&
     Date.parse(lease.expires_at) > now
   );
+}
+
+/** The lease of another user that has not expired at `now`, if any (V-12). */
+export function otherHolder(
+  state: Pick<PlanState, "lease" | "userId">,
+  now: number = Date.now(),
+): LeaseOut | null {
+  const { lease, userId } = state;
+  return lease !== null && lease.user_id !== userId && Date.parse(lease.expires_at) > now
+    ? lease
+    : null;
 }

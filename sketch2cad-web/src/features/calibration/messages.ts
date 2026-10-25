@@ -49,8 +49,6 @@ export const CALIBRATION_MESSAGES = {
   withinTolerance: (max: number) => `Dentro del límite de ${formatMm(max)}`,
   basisCheck: "Medido en los puntos de control.",
   basisControl: "Medido en las esquinas: marca puntos de control para medir el error real.",
-  editorTitle: "Editor del plano",
-  editorPending: "El editor se monta en esta ruta en una tarea posterior.",
 } as const;
 
 export const SOURCE_MODE_LABELS: Readonly<Record<SourceMode, string>> = {

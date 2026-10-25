@@ -8,7 +8,9 @@
 // active tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work anywhere
 // except while typing in a field. The snap settings panel configures snapping for every tool.
 // The plan store (plan/planStore.ts) gives the local frame: the north arrow is drawn over the
-// canvas once a plan is open, and the local frame tool's panel changes the frame.
+// canvas once a plan is open, and the local frame tool's panel changes the frame. When the plan
+// store says `readOnly` (status or lease, see features/plans/LeaseBanner.tsx) the palette is
+// disabled and the canvas gets no tool, so it only selects and pans as a viewer.
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
@@ -74,15 +76,21 @@ export function EditorWorkspace({
   const layerFlags = useStore(ui, (state) => state.layerFlags);
   const planOpen = useStore(plan, (state) => state.planId !== null);
   const northDeg = useStore(plan, (state) => state.localFrame?.north_angle_deg ?? 0);
+  const readOnly = useStore(plan, (state) => state.readOnly);
   const tool = useMemo(
-    () => TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap, symbols, paperScale }),
-    [activeTool, store, ui, catalog, snap, symbols, paperScale],
+    () =>
+      readOnly
+        ? undefined
+        : TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap, symbols, paperScale }),
+    [readOnly, activeTool, store, ui, catalog, snap, symbols, paperScale],
   );
 
   useEffect(() => {
+    if (tool === undefined) return;
+    const active = tool;
     function onKeyDown(event: KeyboardEvent) {
       if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return;
-      if (tool.onKeyDown?.(event) === true) event.preventDefault();
+      if (active.onKeyDown?.(event) === true) event.preventDefault();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -90,7 +98,7 @@ export function EditorWorkspace({
 
   return (
     <div className="editor-workspace" style={{ display: "flex" }}>
-      <Palette ui={ui} catalog={catalog} />
+      <Palette ui={ui} catalog={catalog} disabled={readOnly} />
       <EditorCanvas
         {...canvasProps}
         catalog={catalog}
@@ -100,9 +108,13 @@ export function EditorWorkspace({
         onLayerFlagsChange={(flags) => ui.getState().setLayerFlags(flags)}
         overlay={planOpen ? <NorthArrow northDeg={northDeg} /> : undefined}
       />
-      {activeTool === "select" && <SelectionPanel store={store} ui={ui} catalog={catalog} />}
-      {activeTool === "symbol" && <SymbolPicker picker={symbols} catalog={catalog} />}
-      {activeTool === "frame" && <LocalFramePanel ui={ui} store={store} plan={plan} api={api} />}
+      {!readOnly && activeTool === "select" && (
+        <SelectionPanel store={store} ui={ui} catalog={catalog} />
+      )}
+      {!readOnly && activeTool === "symbol" && <SymbolPicker picker={symbols} catalog={catalog} />}
+      {!readOnly && activeTool === "frame" && (
+        <LocalFramePanel ui={ui} store={store} plan={plan} api={api} />
+      )}
       <SnapSettings snap={snap} />
     </div>
   );
