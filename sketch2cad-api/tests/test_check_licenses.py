@@ -87,11 +87,11 @@ def test_allowed_file_has_the_dec6_families_and_no_copyleft() -> None:
         ("MIT", "allowed"),
         ("Apache-2.0 OR BSD-2-Clause", "allowed"),
         ("Apache Software License; BSD License", "allowed"),
-        ("MIT AND ISC", "needs-exception"),
+        ("MIT AND EUPL-1.2", "needs-exception"),
         ("GPL-3.0-only OR MIT", "allowed"),
         ("MIT AND GPL-3.0-only", "forbidden"),
         ("LGPL-3.0-only", "needs-exception"),
-        ("MIT-0", "needs-exception"),
+        ("EUPL-1.2", "needs-exception"),
         ("UNKNOWN", "needs-exception"),
         ("GNU Affero General Public License v3", "forbidden"),
         ("AGPL-3.0-or-later", "forbidden"),
@@ -157,15 +157,15 @@ def test_exception_with_unknown_status_fails() -> None:
 
 def test_pending_exception_passes_with_a_warning() -> None:
     pending = {
-        "package": "cffi",
+        "package": "somepkg",
         "version": "*",
-        "license": "MIT-0",
+        "license": "EUPL-1.2",
         "reason": "Owner to decide.",
         "status": "pending-owner-decision",
     }
-    report = _run([("cffi", "2.1.1", "MIT-0")], [pending])
+    report = _run([("somepkg", "2.1.1", "EUPL-1.2")], [pending])
     assert report.errors == []
-    assert report.warnings == ["cffi 2.1.1: MIT-0 (exception pending-owner-decision)"]
+    assert report.warnings == ["somepkg 2.1.1: EUPL-1.2 (exception pending-owner-decision)"]
 
 
 def test_agpl_is_denied_even_with_an_exception() -> None:

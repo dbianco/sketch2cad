@@ -80,6 +80,9 @@ ALIASES: dict[str, str] = {
     "gnu affero general public license v3": "AGPL-3.0",
     "gnu affero general public license v3 or later (agplv3+)": "AGPL-3.0-or-later",
     "agplv3": "AGPL-3.0",
+    "mozilla public license 2.0 (mpl 2.0)": "MPL-2.0",
+    "isc license (iscl)": "ISC",
+    "isc license": "ISC",
     "unknown": "UNKNOWN",
     "": "UNKNOWN",
 }

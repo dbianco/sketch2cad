@@ -1,10 +1,9 @@
 # CI for the web app (sketch2cad-web/). Jotdown H0-6 (duration, report only), H0-7 (licenses),
 # H0-8 (pnpm audit), H0-9 (gitleaks) and decision D-7 (generated API client).
 #
-# Action pinning: actions/checkout is pinned to the full commit SHA of v4.2.2 (same as
-# api-ci.yml). pnpm/action-setup and actions/setup-node use their major tag v4 because their
-# commit SHAs could not be verified when this file was written; replace them with the SHAs of
-# the releases you audit. gitleaks runs as a Docker image pinned by tag and digest.
+# Action pinning: every action is pinned to a full commit SHA resolved through the GitHub API
+# (major tags dereferenced to their commit; the trailing comment names the tag). Moving to a
+# newer major is a deliberate change. gitleaks runs as a Docker image pinned by tag and digest.
 # Tool versions match sketch2cad-web/Dockerfile (node 24.22.1, pnpm 11.20.0).
 name: web-ci
 
@@ -46,11 +45,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           package_json_file: sketch2cad-web/package.json
-      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -63,11 +62,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           package_json_file: sketch2cad-web/package.json
-      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -80,11 +79,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           package_json_file: sketch2cad-web/package.json
-      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -98,11 +97,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           package_json_file: sketch2cad-web/package.json
-      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -114,11 +113,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           package_json_file: sketch2cad-web/package.json
-      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
       # pnpm audit reads the lockfile only, so no install is needed. It exits 1 when it lists
@@ -154,11 +153,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: pnpm/action-setup@v4 # major tag: SHA not verified, see header
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: ${{ env.PNPM_VERSION }}
           package_json_file: sketch2cad-web/package.json
-      - uses: actions/setup-node@v4 # major tag: SHA not verified, see header
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm

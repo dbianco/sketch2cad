@@ -6,7 +6,8 @@
 # LGPL is accepted by DEC-6 only through one documented exception per dependency in
 # license-exceptions.toml, so it is deliberately NOT listed here.
 # GPL and AGPL are forbidden and cannot be allowed by any exception (spec section 2.2).
-# Do not extend this list without an owner decision recorded in the PRD.
+# Extended by owner decision on 2026-10-25: any permissive or weak file-level license is acceptable
+# (ISC, BlueOak, MIT-0, 0BSD, Zlib, CC0, CC-BY, MPL-2.0). Copyleft GPL/AGPL stays forbidden.
 
 MIT
 
@@ -19,3 +20,13 @@ Apache-2.0
 
 # Python Software Foundation License.
 PSF-2.0
+
+ISC
+BlueOak-1.0.0
+MIT-0
+0BSD
+Zlib
+CC0-1.0
+CC-BY-3.0
+CC-BY-4.0
+MPL-2.0
