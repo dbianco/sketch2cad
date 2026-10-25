@@ -1,7 +1,7 @@
 ---
 id: 001-066
 title: "Add the lease banner and the review transition UI"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-060, 001-058]
