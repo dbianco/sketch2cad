@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { CaseListPage } from "../features/cases/CaseListPage";
+import {
+  PlanCalibrationPage,
+  PlanEditorPage,
+  SourceCalibrationPage,
+} from "../features/calibration/CalibrationPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { UploadPage } from "../features/sources/UploadPage";
 import { useAuth } from "../features/auth/authStore";
@@ -8,6 +13,15 @@ import { useAuth } from "../features/auth/authStore";
 export const LOGIN_PATH = "/login";
 export const HOME_PATH = "/";
 export const UPLOAD_PATH = "/cases/:caseId/upload";
+export const SOURCE_CALIBRATION_PATH = "/cases/:caseId/sources/:sourceId/calibration";
+export const PLAN_CALIBRATION_PATH = "/cases/:caseId/plans/:planId/calibration";
+export const PLAN_EDITOR_PATH = "/cases/:caseId/plans/:planId/editor";
+
+const PROTECTED_ROUTES = [
+  { path: SOURCE_CALIBRATION_PATH, page: <SourceCalibrationPage /> },
+  { path: PLAN_CALIBRATION_PATH, page: <PlanCalibrationPage /> },
+  { path: PLAN_EDITOR_PATH, page: <PlanEditorPage /> },
+];
 
 function NotFoundPage() {
   return (
@@ -63,6 +77,9 @@ export function AppRoutes() {
           </RequireAuth>
         }
       />
+      {PROTECTED_ROUTES.map(({ path, page }) => (
+        <Route key={path} path={path} element={<RequireAuth>{page}</RequireAuth>} />
+      ))}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

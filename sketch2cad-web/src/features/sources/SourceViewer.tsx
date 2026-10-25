@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 
 /** Longest side, in pixels, of the derived preview the viewer requests. */
@@ -118,22 +125,81 @@ const styles = {
   image: { display: "block", maxWidth: "100%", maxHeight: 420, userSelect: "none" },
   message: { margin: 0, padding: 12, fontSize: 14 },
   alert: { margin: 0, padding: "8px 10px", color: "#8A1C1C", background: "#FDECEC", borderRadius: 4 },
+  overlay: { position: "relative", display: "inline-block" },
+  marker: {
+    position: "absolute",
+    width: 18,
+    height: 18,
+    transform: "translate(-50%, -50%)",
+    borderRadius: "50%",
+    background: "#B3261E",
+    border: "2px solid #fff",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: "18px",
+    textAlign: "center",
+    pointerEvents: "none",
+  },
 } satisfies Record<string, CSSProperties>;
+
+/** Pointer travel, in screen pixels, above which a press is a pan and not a click. */
+const CLICK_SLOP_PX = 4;
+
+/** A point marked on the source, in natural pixels of the original image. */
+export interface MarkedPoint {
+  px: [number, number];
+  label: string;
+  color?: string;
+}
+
+/**
+ * Point marking over the preview. Clicks are reported in natural pixels of the original
+ * (`imageSize` is the source `width_px` x `height_px`), not of the downscaled preview.
+ */
+export interface SourceMarking {
+  imageSize: { width: number; height: number };
+  points: readonly MarkedPoint[];
+  onPoint: (px: [number, number]) => void;
+}
 
 export interface SourceViewerProps {
   sourceId: string;
   alt: string;
+  marking?: SourceMarking;
 }
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 /**
  * Pan and zoom viewer of the raster source (D-14: `react-zoom-pan-pinch` is used only here,
  * never for the SVG editor). Buttons and the `+`, `-` and `0` keys (while the viewer has
- * focus) zoom in, zoom out and reset. The current scale is exposed in `data-scale`.
+ * focus) zoom in, zoom out and reset. The current scale is exposed in `data-scale`. With
+ * `marking`, a click (not a pan) on the image reports a point in original pixels and the
+ * marked points are drawn over the image, zooming with it.
  */
-export function SourceViewer({ sourceId, alt }: SourceViewerProps) {
+export function SourceViewer({ sourceId, alt, marking }: SourceViewerProps) {
   const preview = usePreview(sourceId);
   const controlsRef = useRef<ReactZoomPanPinchRef | null>(null);
+  const pressRef = useRef<{ x: number; y: number } | null>(null);
   const [scale, setScale] = useState(1);
+
+  function handleImageClick(event: MouseEvent<HTMLImageElement>): void {
+    if (marking === undefined) return;
+    const press = pressRef.current;
+    if (press !== null && Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_SLOP_PX) {
+      return; // the press panned the image
+    }
+    // The bounding box includes the zoom transform, so the fraction maps to the original.
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const { width, height } = marking.imageSize;
+    marking.onPoint([
+      round2(clamp01((event.clientX - rect.left) / rect.width) * width),
+      round2(clamp01((event.clientY - rect.top) / rect.height) * height),
+    ]);
+  }
 
   const zoomIn = () => void controlsRef.current?.zoomIn(undefined, 0);
   const zoomOut = () => void controlsRef.current?.zoomOut(undefined, 0);
@@ -206,7 +272,33 @@ export function SourceViewer({ sourceId, alt }: SourceViewerProps) {
           onTransform={(_ref, state) => setScale(state.scale)}
         >
           <TransformComponent wrapperStyle={styles.stage}>
-            <img src={preview.objectUrl} alt={alt} draggable={false} style={styles.image} />
+            <div style={styles.overlay}>
+              <img
+                src={preview.objectUrl}
+                alt={alt}
+                draggable={false}
+                style={marking === undefined ? styles.image : { ...styles.image, cursor: "crosshair" }}
+                onMouseDown={(event) => {
+                  pressRef.current = { x: event.clientX, y: event.clientY };
+                }}
+                onClick={handleImageClick}
+              />
+              {marking?.points.map((point, index) => (
+                <span
+                  key={index}
+                  aria-hidden="true"
+                  data-testid="source-marker"
+                  style={{
+                    ...styles.marker,
+                    background: point.color ?? styles.marker.background,
+                    left: `${String((point.px[0] / marking.imageSize.width) * 100)}%`,
+                    top: `${String((point.px[1] / marking.imageSize.height) * 100)}%`,
+                  }}
+                >
+                  {point.label}
+                </span>
+              ))}
+            </div>
           </TransformComponent>
         </TransformWrapper>
       )}
