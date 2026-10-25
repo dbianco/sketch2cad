@@ -1,19 +1,11 @@
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
+import { CaseListPage } from "../features/cases/CaseListPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { useAuth } from "../features/auth/authStore";
 
 export const LOGIN_PATH = "/login";
 export const HOME_PATH = "/";
-
-function HomePage() {
-  return (
-    <>
-      <h1>Sketch2CAD</h1>
-      <p>Aplicación en construcción.</p>
-    </>
-  );
-}
 
 function NotFoundPage() {
   return (
@@ -57,7 +49,7 @@ export function AppRoutes() {
         path={HOME_PATH}
         element={
           <RequireAuth>
-            <HomePage />
+            <CaseListPage />
           </RequireAuth>
         }
       />

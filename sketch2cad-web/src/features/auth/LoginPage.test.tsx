@@ -95,6 +95,7 @@ describe("LoginPage", () => {
     mockApi({
       "GET /api/v1/auth/me": unauthorized,
       "POST /api/v1/auth/login": () => jsonResponse({ user: USER }),
+      "GET /api/v1/case-files": () => jsonResponse({ items: [] }),
     });
     renderAt("/login");
 
@@ -103,7 +104,7 @@ describe("LoginPage", () => {
     await waitFor(() => {
       expect(currentPath()).toBe("/");
     });
-    expect(screen.getByText("Aplicación en construcción.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Expedientes" })).toBeTruthy();
     expect(authStore.getState()).toEqual({ status: "authenticated", user: USER });
     const loginCall = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({

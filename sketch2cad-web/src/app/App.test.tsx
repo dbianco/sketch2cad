@@ -24,9 +24,9 @@ describe("App", () => {
     authStore.reset();
     vi.stubGlobal(
       "fetch",
-      vi.fn<typeof fetch>(() =>
+      vi.fn<typeof fetch>((input) =>
         Promise.resolve(
-          new Response(JSON.stringify({ user: USER }), {
+          new Response(JSON.stringify(String(input).startsWith("/api/v1/case-files") ? { items: [] } : { user: USER }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           }),
@@ -46,17 +46,18 @@ describe("App", () => {
     expect(screen.getByRole("status").textContent).toBe("Cargando…");
   });
 
-  it("renders the shell heading", async () => {
+  it("renders the shell header", async () => {
+    renderAt("/");
+
+    expect(await screen.findByText("Sketch2CAD")).toBeTruthy();
+  });
+
+  it("renders the case list at the root path", async () => {
     renderAt("/");
 
     const heading = await screen.findByRole("heading", { level: 1 });
-    expect(heading.textContent).toBe("Sketch2CAD");
-  });
-
-  it("renders the home route placeholder at the root path", async () => {
-    renderAt("/");
-
-    expect(await screen.findByText("Aplicación en construcción.")).toBeTruthy();
+    expect(heading.textContent).toBe("Expedientes");
+    expect(await screen.findByText("Aún no tienes expedientes.")).toBeTruthy();
     expect(screen.getByText("ana")).toBeTruthy();
   });
 
