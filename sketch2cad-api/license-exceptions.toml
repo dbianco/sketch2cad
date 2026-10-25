@@ -46,3 +46,10 @@ version = "*"
 license = "Mozilla Public License 2.0 (MPL 2.0)"
 status = "pending-owner-decision"
 reason = "MPL-2.0 (file-level weak copyleft) CA bundle pulled by requests, a dependency of the dev-only pip-audit tool used by the CI audit job; not shipped with the API image and used unmodified. Owner must decide whether to accept MPL-2.0 for dev tooling."
+
+[[exception]]
+package = "numpy"
+version = "*"
+license = "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+status = "pending-owner-decision"
+reason = "Runtime dependency of ezdxf (DXF export, spike 2 / decision D-3). The compound expression includes 0BSD, Zlib and CC0-1.0, which are permissive but not in the DEC-6 allow-list; owner must decide whether to accept them."

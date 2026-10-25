@@ -1,0 +1,52 @@
+{
+  "plan_id": "7f3c2a9e-4b1d-4e8a-9c55-2d6f0b8e1a37",
+  "revision_number": 3,
+  "snapshot_sha256": "9b2e6c0f4a8d1e3b5c7a9f0e2d4b6a8c1e3f5a7b9d0c2e4f6a8b0d2c4e6f8a01",
+  "frozen_at": "2026-10-25T09:30:00+00:00",
+  "metric_status": "metric",
+  "generator_version": "sketch2cad-spike-dxf-repro/0.1.0",
+  "paper_scale": 100,
+  "layers": [
+    { "name": "L_STRUCTURE", "color": 7 },
+    { "name": "L_ACCESS", "color": 4 },
+    { "name": "L_EVIDENCE", "color": 1 },
+    { "name": "L_SYMBOLS", "color": 3 },
+    { "name": "L_DIMENSIONS", "color": 2 },
+    { "name": "L_TEXT", "color": 7 },
+    { "name": "L_ORIENTATION", "color": 5 },
+    { "name": "L_ANNOTATIONS", "color": 6 },
+    { "name": "L_CONTROL", "color": 8 },
+    { "name": "L_SHEET", "color": 7 }
+  ],
+  "entities": [
+    {
+      "kind": "polyline",
+      "layer": "L_STRUCTURE",
+      "closed": true,
+      "points": [[0.0, 0.0], [4.25, 0.0], [4.25, 3.125], [0.0, 3.125]]
+    },
+    {
+      "kind": "text",
+      "layer": "L_TEXT",
+      "text": "Habitación 1",
+      "insert": [1.2, 1.5],
+      "height_mm_paper": 2.5
+    },
+    {
+      "kind": "symbol",
+      "symbol_id": "evidence_marker",
+      "layer": "L_EVIDENCE",
+      "insert": [2.0, 1.0],
+      "size_mm_paper": 6.0,
+      "attributes": { "evidence_number": "1" }
+    },
+    {
+      "kind": "dimension",
+      "layer": "L_DIMENSIONS",
+      "p1": [0.0, 0.0],
+      "p2": [4.25, 0.0],
+      "distance": -0.5,
+      "declared_text": "4,25 m"
+    }
+  ]
+}
