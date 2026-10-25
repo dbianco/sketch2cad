@@ -39,3 +39,10 @@ version = "*"
 license = "MIT-0"
 status = "pending-owner-decision"
 reason = "MIT No Attribution, transitive dependency of argon2-cffi-bindings (password hashing). Not literally in the allow-list; owner must decide whether to add MIT-0."
+
+[[exception]]
+package = "certifi"
+version = "*"
+license = "Mozilla Public License 2.0 (MPL 2.0)"
+status = "pending-owner-decision"
+reason = "MPL-2.0 (file-level weak copyleft) CA bundle pulled by requests, a dependency of the dev-only pip-audit tool used by the CI audit job; not shipped with the API image and used unmodified. Owner must decide whether to accept MPL-2.0 for dev tooling."

@@ -23,6 +23,7 @@ dev = [
     "pyright>=1.1.390",
     "httpx2>=2.16.0",
     "pip-licenses>=5.5.5",
+    "pip-audit>=2.7",
 ]
 
 [build-system]

@@ -1,0 +1,15 @@
+# Accepted pip-audit findings checked by scripts/check_audit.py (jotdown H0-8).
+#
+# HIGH, CRITICAL and unknown-severity findings fail CI unless listed here. Schema:
+#
+#   [[exception]]
+#   id            = "GHSA-xxxx-xxxx-xxxx"  # vulnerability id or one of its aliases (CVE, PYSEC)
+#   package       = "example-package"      # distribution name reported by pip-audit
+#   justification = "Why the risk is acceptable and how it is mitigated."  # non-empty
+#   expires       = 2026-12-31             # TOML date; after it the exception fails CI
+#   status        = "accepted-risk"        # or "pending-owner-decision"
+#
+# Exceptions that match no current finding are stale and fail CI, so remove them once the
+# dependency is upgraded. Keep this file empty unless a finding cannot be fixed yet.
+
+exception = []
