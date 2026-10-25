@@ -1,7 +1,7 @@
 ---
 id: 001-074
 title: "Recompute dependent entities when a reference moves"
-status: todo
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-073]
