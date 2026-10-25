@@ -33,6 +33,7 @@ packages = ["src/sketch2cad"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["perf: real-timing performance measurements"]
 
 [tool.ruff]
 line-length = 100
