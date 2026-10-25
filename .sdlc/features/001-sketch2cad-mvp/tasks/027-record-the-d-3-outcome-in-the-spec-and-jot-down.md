@@ -1,7 +1,7 @@
 ---
 id: 001-027
 title: "Record the D-3 outcome in the spec and Jot Down"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-026, 001-025]
