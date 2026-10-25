@@ -229,6 +229,119 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "SourceOut": {
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "case_file_id": {
+            "format": "uuid",
+            "title": "Case File Id",
+            "type": "string"
+          },
+          "dpi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dpi"
+          },
+          "exif": {
+            "additionalProperties": true,
+            "title": "Exif",
+            "type": "object"
+          },
+          "height_px": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Px"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "original_filename": {
+            "title": "Original Filename",
+            "type": "string"
+          },
+          "qc": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qc"
+          },
+          "qc_job_id": {
+            "format": "uuid",
+            "title": "Qc Job Id",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "uploaded_at": {
+            "format": "date-time",
+            "title": "Uploaded At",
+            "type": "string"
+          },
+          "uploaded_by": {
+            "format": "uuid",
+            "title": "Uploaded By",
+            "type": "string"
+          },
+          "width_px": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Px"
+          }
+        },
+        "required": [
+          "id",
+          "case_file_id",
+          "original_filename",
+          "media_type",
+          "byte_size",
+          "sha256",
+          "width_px",
+          "height_px",
+          "dpi",
+          "exif",
+          "qc",
+          "qc_job_id",
+          "uploaded_by",
+          "uploaded_at"
+        ],
+        "title": "SourceOut",
+        "type": "object"
+      },
       "UserEnvelope": {
         "properties": {
           "user": {
@@ -852,6 +965,120 @@
         "summary": "Add Case Member",
         "tags": [
           "case-files"
+        ]
+      }
+    },
+    "/api/v1/case-files/{case_id}/sources": {
+      "post": {
+        "description": "Ingest one source file (multipart fields ``file`` and ``client_sha256``).\n\nThe size cap is enforced while the body streams in (413). The server SHA-256 must equal\n``client_sha256`` (422) and the content must be a JPEG, PNG, TIFF or single-page PDF by\nits bytes (415); nothing is stored when a rule fails. Requires ``edit``.",
+        "operationId": "upload_source_api_v1_case_files__case_id__sources_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "client_sha256": {
+                    "pattern": "^[0-9a-fA-F]{64}$",
+                    "type": "string"
+                  },
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file",
+                  "client_sha256"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "The file exceeds 50 MB (V-02)."
+          },
+          "415": {
+            "description": "Not a JPEG, PNG, TIFF or single-page PDF by content (V-01)."
+          },
+          "422": {
+            "description": "Malformed upload, or client_sha256 differs from the server (V-03)."
+          }
+        },
+        "summary": "Upload Source",
+        "tags": [
+          "sources"
         ]
       }
     },

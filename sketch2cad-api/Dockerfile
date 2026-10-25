@@ -33,6 +33,10 @@ ENV PATH=/app/.venv/bin:$PATH \
 
 RUN useradd --uid 10001 --user-group --no-create-home --home-dir /app --shell /usr/sbin/nologin app
 
+# Mount point of the `objects` volume (STORAGE_ROOT); a new named volume copies this
+# ownership, so the unprivileged user can write objects.
+RUN mkdir -p /app/storage && chown app:app /app/storage
+
 WORKDIR /app
 
 COPY --from=build /app/.venv ./.venv

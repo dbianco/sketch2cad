@@ -7,6 +7,9 @@ name: sketch2cad
 
 x-app-environment: &app-environment
   DATABASE_URL: postgresql+psycopg://sketch2cad:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/sketch2cad
+  # Object storage: objects/ and tmp/ must share one filesystem (hard-link publishing),
+  # so the whole root is one volume.
+  STORAGE_ROOT: /app/storage
 
 services:
   db:
@@ -39,6 +42,8 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
       SIGNING_KEY_PATH: ${SIGNING_KEY_PATH:?SIGNING_KEY_PATH is required}
       APP_ENV: ${APP_ENV:?APP_ENV is required}
+    volumes:
+      - objects:/app/storage
     depends_on:
       db:
         condition: service_healthy
@@ -64,6 +69,8 @@ services:
       - python -m sketch2cad.worker.app apply-schema && exec procrastinate --app=sketch2cad.worker.app.app worker
     environment:
       <<: *app-environment
+    volumes:
+      - objects:/app/storage
     depends_on:
       db:
         condition: service_healthy
@@ -90,3 +97,4 @@ services:
 
 volumes:
   db-data:
+  objects:

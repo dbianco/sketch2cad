@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     """Session lifetime (``auth.session_ttl_minutes``); optional, defaults to 8 hours."""
     AUTH_LOCKOUT_MINUTES: int = Field(default=15, gt=0)
     """Account lock duration after too many failed logins (``auth.lockout_minutes``)."""
+    STORAGE_ROOT: str = Field(default="storage", min_length=1)
+    """Root directory of the filesystem object storage (holds ``objects/`` and ``tmp/``).
+
+    Both subdirectories must live on one filesystem, since objects are published with a
+    hard link. Relative paths resolve against the working directory (``/app`` in the image).
+    """
 
 
 def get_settings() -> Settings:

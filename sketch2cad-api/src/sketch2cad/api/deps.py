@@ -1,4 +1,4 @@
-"""Shared FastAPI dependencies: settings, the authenticated user, CSRF and case permissions."""
+"""Shared FastAPI dependencies: settings, the user, CSRF, case permissions and storage."""
 
 import logging
 import uuid
@@ -24,6 +24,7 @@ from sketch2cad.config import Settings, get_settings
 from sketch2cad.db import session as db_session
 from sketch2cad.db.models import CaseFile, User, UserSession
 from sketch2cad.db.session import get_session
+from sketch2cad.storage import FilesystemStorage, Storage
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,11 @@ def require_csrf(
             record.id,
         )
         raise ProblemError(403, "Forbidden", "A valid CSRF token is required.")
+
+
+def get_storage(settings: Annotated[Settings, Depends(get_app_settings)]) -> Storage:
+    """Filesystem object storage rooted at ``STORAGE_ROOT``."""
+    return FilesystemStorage(settings.STORAGE_ROOT)
 
 
 def get_audit_session_factory() -> sessionmaker[Session]:

@@ -5,8 +5,8 @@ El fichero `sketch2cad-api/docker-compose.yml` levanta la pila completa con el n
 | Servicio | Imagen | Qué hace | Healthcheck |
 |---|---|---|---|
 | `db` | `postgres:16`, volumen `db-data` | Base de datos | `pg_isready` por TCP |
-| `api` | `sketch2cad-api:local` (`sketch2cad-api/Dockerfile`) | `alembic upgrade head` y después uvicorn en el puerto 8000 | `GET /healthz` con `urllib` de Python |
-| `worker` | `sketch2cad-api:local` | Aplica el esquema de Procrastinate (idempotente) y arranca el worker | `python -m sketch2cad.worker.health` |
+| `api` | `sketch2cad-api:local` (`sketch2cad-api/Dockerfile`), volumen `objects` | `alembic upgrade head` y después uvicorn en el puerto 8000 | `GET /healthz` con `urllib` de Python |
+| `worker` | `sketch2cad-api:local`, volumen `objects` | Aplica el esquema de Procrastinate (idempotente) y arranca el worker | `python -m sketch2cad.worker.health` |
 | `web` | `sketch2cad-web:local` (`sketch2cad-web/Dockerfile`) | nginx con el bundle; reenvía `/api/` a `api:8000` | `HEALTHCHECK` del Dockerfile |
 
 `api` y `worker` esperan a que `db` esté sano; `web` espera a que `api` esté sano. Solo `web` se publica en el host, en `127.0.0.1:${WEB_PORT:-18080}`. `db` y `api` no se publican.
@@ -22,6 +22,7 @@ Los secretos solo llegan por variables de entorno; el fichero compose no contien
 | `SIGNING_KEY_PATH` | sí | Ruta del fichero de clave de firma dentro del contenedor. Por ahora es solo una ruta: el fichero llega en H4. |
 | `APP_ENV` | sí | Entorno de la aplicación. Con `dev` las cookies no llevan `Secure` (necesario sobre HTTP en local). |
 | `WEB_PORT` | no | Puerto del host para `web` (18080 si está vacío). |
+| `STORAGE_ROOT` | no | Raíz del almacenamiento de objetos (`objects/` y `tmp/`, que deben estar en el mismo sistema de ficheros). Compose la fija en `/app/storage`, montada sobre el volumen `objects` en `api` y `worker`; fuera de compose vale `storage` bajo el directorio de trabajo. |
 
 Para un arranque manual, copia `.env.example` a `.env` (no se versiona) y rellena los valores; compose lee `.env` automáticamente:
 
@@ -30,7 +31,7 @@ cp .env.example .env    # y rellenar POSTGRES_PASSWORD, SESSION_SECRET, SIGNING_
 docker compose -p sketch2cad up -d --build --wait
 docker compose -p sketch2cad ps
 docker compose -p sketch2cad exec api python -m sketch2cad.cli create-user --username <usuario> --role <rol>   # la contraseña se lee por stdin
-docker compose -p sketch2cad down -v       # borra también el volumen de la base
+docker compose -p sketch2cad down -v       # borra también los volúmenes de la base y de los objetos
 ```
 
 ## Prueba de humo

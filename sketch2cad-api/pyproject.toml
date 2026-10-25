@@ -16,6 +16,9 @@ dependencies = [
     "uvicorn>=0.32",
     "ezdxf>=1.4.5",
     "rfc8785>=0.1.4",
+    "pillow>=13.0.0",
+    "python-multipart>=0.0.32",
+    "pypdfium2>=5.14.0",
 ]
 
 [dependency-groups]
