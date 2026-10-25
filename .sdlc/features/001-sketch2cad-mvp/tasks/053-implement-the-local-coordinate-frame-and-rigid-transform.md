@@ -1,7 +1,7 @@
 ---
 id: 001-053
 title: "Implement the local coordinate frame and rigid transform"
-status: todo
+status: in_review
 milestone: "H2 — Calibración y editor"
 repository: sketch2cad
 depends_on: [001-052]
