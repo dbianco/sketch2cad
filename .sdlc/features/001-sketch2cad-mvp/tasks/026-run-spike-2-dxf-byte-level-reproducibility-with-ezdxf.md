@@ -1,7 +1,7 @@
 ---
 id: 001-026
 title: "Run spike 2: DXF byte-level reproducibility with ezdxf"
-status: todo
+status: in_review
 milestone: "H0 — Fundación operativa"
 repository: sketch2cad
 depends_on: [001-001]
