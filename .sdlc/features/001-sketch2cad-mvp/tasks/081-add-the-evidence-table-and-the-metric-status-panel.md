@@ -1,7 +1,7 @@
 ---
 id: 001-081
 title: "Add the evidence table and the metric status panel"
-status: todo
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-078]

@@ -13,6 +13,9 @@ export const TOOL_SHORTCUTS: Readonly<Record<ToolId, string>> = {
   text: "T",
   symbol: "S",
   frame: "F",
+  fixlength: "D",
+  triangulate: "G",
+  baseline: "B",
 };
 
 /** Tools that place points on the canvas, so the keyboard cursor drives them. */
@@ -23,6 +26,9 @@ export const CURSOR_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
   "text",
   "symbol",
   "frame",
+  "fixlength",
+  "triangulate",
+  "baseline",
 ]);
 
 /** Key that opens the keyboard help. */
@@ -100,6 +106,9 @@ const TOOL_NAMES: Readonly<Record<ToolId, string>> = {
   text: "Texto",
   symbol: "Símbolo",
   frame: "Sistema local",
+  fixlength: "Fijar longitud",
+  triangulate: "Triangulación",
+  baseline: "Base + offset",
 };
 
 /** Everything the keyboard help lists, in Spanish. */
@@ -140,6 +149,16 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       },
       { keys: "Seleccionar: Supr o Retroceso", description: "Borrar la selección" },
       { keys: "Vértices: Tab y flechas", description: "Elegir un vértice y moverlo" },
+      {
+        keys: "Fijar longitud: Intro, Intro",
+        description: "Elegir el segmento y después su vértice ancla (o Tab hasta el extremo)",
+      },
+      { keys: "Fijar longitud: Esc", description: "Cancelar el segmento elegido" },
+      {
+        keys: "Triangulación y Base + offset: Intro",
+        description: "Elegir el punto a fijar y después las referencias A y B",
+      },
+      { keys: "Triangulación y Base + offset: Esc", description: "Quitar los puntos elegidos" },
     ],
   },
   {

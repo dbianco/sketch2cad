@@ -44,7 +44,7 @@ export interface EntitiesDoc {
 }
 
 /** Changed fields of a `PATCH /entities/{id}` (an `EntityPatch` without `operation`). */
-export type EntityPatchPayload = Omit<Schemas["EntityPatch"], "operation">;
+export type EntityPatchPayload = Partial<Omit<Schemas["EntityPatch"], "operation">>;
 
 /** One API call a user operation needs, before it is sent. */
 export type ApiOperation =

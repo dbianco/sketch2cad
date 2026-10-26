@@ -32,7 +32,11 @@ from sketch2cad.geometry.frame import (
     rigid_between,
     world_frame,
 )
-from sketch2cad.plans.service import active_calibration, current_revision
+from sketch2cad.plans.service import (
+    active_calibration,
+    current_revision,
+    recompute_metric_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +133,7 @@ def set_local_frame(
         transform = rigid_between(world_frame(old, scale), world_frame(frame, scale))
         count = _transform_entities(db, revision.id, transform)
     calibration.local_frame = frame.to_json()
-    db.flush()
+    recompute_metric_status(db, plan)
     kind = EventKind.LOCAL_FRAME_SET if previous is None else EventKind.LOCAL_FRAME_CHANGED
     append_event(
         db,

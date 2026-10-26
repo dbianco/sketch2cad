@@ -8,7 +8,7 @@
 // calibration's image_to_paper homography to paper mm, then to the local frame, and the canvas
 // stretches the preview over their bounding box. That is exact for scans; for photographs
 // (perspective) and rotated frames the image is only approximately under the entities.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
@@ -28,9 +28,12 @@ import { editorStore, type EditorStore } from "../../editor/store/entities";
 import { flushQueue } from "../../editor/store/sync";
 import type { Point2 } from "../../editor/store/types";
 import { useAuth } from "../auth/authStore";
+import { EvidenceTable } from "../evidence/EvidenceTable";
+import { EVIDENCE_MESSAGES } from "../evidence/messages";
 import { previewUrl } from "../sources/SourceViewer";
 import { enterReadOnly, LeaseBanner } from "./LeaseBanner";
 import { EDITABLE_STATUSES, PLAN_MESSAGES as M } from "./messages";
+import { MetricStatusPanel } from "./MetricStatusPanel";
 import { planReviewPath } from "./ReviewPage";
 
 /** Quiet time after the last edit before the queue is sent. */
@@ -141,6 +144,8 @@ export function EditorPage({
   const [state, setState] = useState<Loaded>({ kind: "loading" });
   const sync = useQueueSync(api, store, plan, syncDelayMs);
   const readOnly = useStore(plan, (s) => s.readOnly);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const evidenceId = useId();
 
   useEffect(() => {
     let active = true;
@@ -197,7 +202,23 @@ export function EditorPage({
         <p role="status" aria-live="polite" style={{ margin: 0 }}>
           {readOnly && sync === "synced" ? null : SYNC_LABELS[sync]}
         </p>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+          <button
+            type="button"
+            aria-expanded={evidenceOpen}
+            aria-controls={evidenceId}
+            onClick={() => setEvidenceOpen((open) => !open)}
+          >
+            {EVIDENCE_MESSAGES.title}
+          </button>
+          <MetricStatusPanel planId={loaded.id} api={api} store={store} />
+        </div>
       </header>
+      {evidenceOpen ? (
+        <div id={evidenceId} style={{ padding: "0 12px", maxHeight: "40vh", overflowY: "auto" }}>
+          <EvidenceTable caseId={loaded.case_file_id} api={api} store={store} plan={plan} />
+        </div>
+      ) : null}
       <LeaseBanner
         planId={loaded.id}
         status={loaded.status}

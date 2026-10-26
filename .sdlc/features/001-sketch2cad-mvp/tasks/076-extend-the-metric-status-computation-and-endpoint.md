@@ -1,7 +1,7 @@
 ---
 id: 001-076
 title: "Extend the metric status computation and endpoint"
-status: todo
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-073, 001-075, 001-057]

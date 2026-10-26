@@ -140,6 +140,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/case-files/{case_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Case Evidence
+         * @description Evidence register of the case file, ordered by number. Requires ``read``.
+         */
+        get: operations["get_case_evidence_api_v1_case_files__case_id__evidence_get"];
+        put?: never;
+        /**
+         * Post Case Evidence
+         * @description Register evidence with the next number of the case file and ``evidence.created``.
+         *
+         *     Requires ``edit``.
+         */
+        post: operations["post_case_evidence_api_v1_case_files__case_id__evidence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/case-files/{case_id}/members": {
         parameters: {
             query?: never;
@@ -254,9 +280,33 @@ export interface paths {
          * @description Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.
          *
          *     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
-         *     optional ``reason``. Requires ``edit``.
+         *     optional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``
+         *     and set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires
+         *     ``edit``.
          */
         patch: operations["patch_entity_api_v1_entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/evidence/{evidence_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Evidence
+         * @description Change the label and/or attributes with ``evidence.updated``; the number stays.
+         *
+         *     Requires ``edit`` on the evidence's case file.
+         */
+        patch: operations["patch_evidence_api_v1_evidence__evidence_id__patch"];
         trace?: never;
     };
     "/api/v1/jobs/{job_id}": {
@@ -399,6 +449,31 @@ export interface paths {
          *     transform (null when only the North changes). An unchanged frame writes nothing.
          */
         put: operations["put_local_frame_api_v1_plans__plan_id__local_frame_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}/metric-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Metric Status
+         * @description Metric status of the plan and the entities that keep it from ``metric``.
+         *
+         *     Computed from the active calibration and the live entities of the current revision
+         *     with the same rule that keeps ``plan.metric_status`` up to date on every change, so
+         *     ``status`` equals that field. Writes nothing. Requires ``read`` on the plan's case
+         *     file; others get 403 and an ``access.denied`` event.
+         */
+        get: operations["get_metric_status_api_v1_plans__plan_id__metric_status_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -785,6 +860,9 @@ export interface components {
         /**
          * DimensionGeometry
          * @description ``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.
+         *
+         *     A client-sent ``measured_value_m`` is ignored and replaced by the ``p1_m``-``p2_m``
+         *     distance; ``declared_value_m`` is kept as sent (``sketch2cad.entities.dimensions``).
          */
         DimensionGeometry: {
             /** Declared Value M */
@@ -944,12 +1022,16 @@ export interface components {
         /**
          * EntityIn
          * @description A new entity drawn by hand; provenance, review and metric fields are set by the server.
+         *
+         *     ``evidence_id`` places evidence of the plan's case file; only points and symbols may.
          */
         EntityIn: {
             /** Attributes */
             attributes?: {
                 [key: string]: string | number | boolean | null;
             };
+            /** Evidence Id */
+            evidence_id?: string | null;
             /** Geometry */
             geometry: components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"];
             /** Layer */
@@ -969,10 +1051,14 @@ export interface components {
          * @description Edit operations of ``PATCH /entities/{id}``, recorded in ``entity.updated``.
          * @enum {string}
          */
-        EntityOperation: "move_vertex" | "snap_orthogonal" | "snap_endpoint" | "snap_grid" | "relabel" | "reclassify";
+        EntityOperation: "move_vertex" | "snap_orthogonal" | "snap_endpoint" | "snap_grid" | "relabel" | "reclassify" | "fix_length" | "triangulate" | "baseline_offset";
         /**
          * EntityOut
          * @description An entity of spec section 8.2; ``created_by`` is null for system entities.
+         *
+         *     ``discrepancy`` is set for dimensions only (null for other types): true when
+         *     ``|declared_value_m - measured_value_m|`` exceeds ``dimension.discrepancy_tolerance_m``.
+         *     It is computed on every read and never stored.
          */
         EntityOut: {
             /** Attributes */
@@ -989,6 +1075,8 @@ export interface components {
             created_by: string | null;
             /** Deleted At */
             deleted_at: string | null;
+            /** Discrepancy */
+            discrepancy: boolean | null;
             /** Evidence Id */
             evidence_id: string | null;
             /** Geometry */
@@ -1028,13 +1116,49 @@ export interface components {
          * @description An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.
          *
          *     ``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs
-         *     ``layer``; ``relabel`` needs ``geometry`` or ``attributes``.
+         *     ``layer``; ``relabel`` needs ``geometry``, ``attributes`` or ``evidence_id`` (evidence
+         *     of the plan's case file, or ``null`` to drop the reference; only ``relabel`` takes
+         *     it, and only for points and symbols). Moving a point or symbol
+         *     that has a ``constraint`` needs ``confirm_constraint_removal = true`` (409
+         *     ``constraint_removal_required`` otherwise); it removes the constraint and sets
+         *     ``metric_origin`` to ``none`` (spec section 11.3).
+         *
+         *     The other operations take only their own fields and the server computes the geometry:
+         *
+         *     - ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and
+         *       the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).
+         *     - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances
+         *       ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is
+         *       the candidate closest to the current position; ``alt`` is the other one).
+         *     - ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,
+         *       ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.
          */
         EntityPatch: {
+            /** Anchor Vertex */
+            anchor_vertex?: number | null;
             /** Attributes */
             attributes?: {
                 [key: string]: string | number | boolean | null;
             } | null;
+            /** Base A */
+            base_a?: string | null;
+            /** Base B */
+            base_b?: string | null;
+            /**
+             * Confirm Constraint Removal
+             * @default false
+             */
+            confirm_constraint_removal: boolean;
+            /** D A M */
+            d_a_m?: number | string | null;
+            /** D B M */
+            d_b_m?: number | string | null;
+            /** D M */
+            d_m?: number | string | null;
+            /** Evidence Id */
+            evidence_id?: string | null;
+            /** Free Vertex */
+            free_vertex?: number | null;
             /** Geometry */
             geometry?: (components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"]) | null;
             /** Layer */
@@ -1042,6 +1166,84 @@ export interface components {
             operation: components["schemas"]["EntityOperation"];
             /** Reason */
             reason?: string | null;
+            /** Ref A */
+            ref_a?: string | null;
+            /** Ref B */
+            ref_b?: string | null;
+            /** S M */
+            s_m?: number | string | null;
+            /** Side */
+            side?: ("left" | "right") | null;
+            /** Solution */
+            solution?: ("nearest" | "alt") | null;
+            /** Value M */
+            value_m?: number | string | null;
+        };
+        /**
+         * EntityPatchOut
+         * @description The edited entity; ``triangulate`` also returns its candidate positions.
+         *
+         *     ``candidates`` holds the 1 (tangent circles) or 2 intersection points, the first to the
+         *     left of the direction from ``ref_a`` to ``ref_b``; ``chosen_candidate`` is the index of
+         *     the one applied. Both are null for every other operation.
+         */
+        EntityPatchOut: {
+            /** Attributes */
+            attributes: {
+                [key: string]: unknown;
+            };
+            /** Candidates */
+            candidates?: [
+                number,
+                number
+            ][] | null;
+            /** Chosen Candidate */
+            chosen_candidate?: number | null;
+            /** Confidence */
+            confidence: number | null;
+            /** Constraint */
+            constraint: {
+                [key: string]: unknown;
+            } | null;
+            /** Created By */
+            created_by: string | null;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Discrepancy */
+            discrepancy: boolean | null;
+            /** Evidence Id */
+            evidence_id: string | null;
+            /** Geometry */
+            geometry: components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Region */
+            image_region: {
+                [key: string]: unknown;
+            } | null;
+            /** Layer */
+            layer: string;
+            metric_origin: components["schemas"]["MetricOrigin"];
+            /** Model Version */
+            model_version: string | null;
+            review_status: components["schemas"]["ReviewStatus"];
+            /**
+             * Revision Id
+             * Format: uuid
+             */
+            revision_id: string;
+            /** Revision Number */
+            revision_number: number;
+            source: components["schemas"]["EntitySource"];
+            type: components["schemas"]["EntityType"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * EntitySource
@@ -1115,6 +1317,69 @@ export interface components {
             items: components["schemas"]["EventOut"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /**
+         * EvidenceCreate
+         * @description New evidence; ``attributes`` values are JSON primitives, like entity attributes.
+         */
+        EvidenceCreate: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Label */
+            label: string;
+        };
+        /**
+         * EvidenceListOut
+         * @description Evidence of a case file ordered by number.
+         */
+        EvidenceListOut: {
+            /** Items */
+            items: components["schemas"]["EvidenceOut"][];
+        };
+        /** EvidenceOut */
+        EvidenceOut: {
+            /** Attributes */
+            attributes: {
+                [key: string]: unknown;
+            };
+            /**
+             * Case File Id
+             * Format: uuid
+             */
+            case_file_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /** Number */
+            number: number;
+        };
+        /**
+         * EvidencePatch
+         * @description An edit of ``label`` and/or ``attributes`` (replaced whole); ``number`` is immutable.
+         */
+        EvidencePatch: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: string | number | boolean | null;
+            } | null;
+            /** Label */
+            label?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1262,6 +1527,28 @@ export interface components {
          * @enum {string}
          */
         MetricStatus: "metric" | "approximate" | "non_metric";
+        /**
+         * MetricStatusOut
+         * @description Metric status of a plan and what keeps it from ``metric`` (spec section 11.3).
+         *
+         *     ``blocking_entities`` are the ids of the live entities of the current revision in
+         *     ``L_STRUCTURE`` or ``L_ACCESS``, or referencing an evidence item, whose
+         *     ``metric_origin`` is not metric; ``reasons`` maps each of them to its reason code (that
+         *     ``metric_origin``: ``trace_only`` or ``none``). A plan without an accepted calibration is
+         *     ``non_metric`` with no blocking entity. ``discrepant_dimensions`` lists the dimensions
+         *     whose declared and measured values disagree; they do not change ``status``.
+         */
+        MetricStatusOut: {
+            /** Blocking Entities */
+            blocking_entities: string[];
+            /** Discrepant Dimensions */
+            discrepant_dimensions: string[];
+            /** Reasons */
+            reasons: {
+                [key: string]: string;
+            };
+            status: components["schemas"]["MetricStatus"];
+        };
         /** PlanCreate */
         PlanCreate: {
             /**
@@ -1873,6 +2160,107 @@ export interface operations {
             };
         };
     };
+    get_case_evidence_api_v1_case_files__case_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceListOut"];
+                };
+            };
+            /** @description The user lacks the permission on the case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The case file does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_case_evidence_api_v1_case_files__case_id__evidence_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                case_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvidenceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceOut"];
+                };
+            };
+            /** @description The user lacks the permission on the case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The case file does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_case_member_api_v1_case_files__case_id__members_post: {
         parameters: {
             query?: never;
@@ -2114,7 +2502,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid body, or a layer or symbol not in the active catalog. */
+            /** @description Invalid body, a layer or symbol not in the active catalog, an ``evidence_id`` that is not evidence of the plan's case file (or set on an entity that is not a point or symbol), or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2149,7 +2537,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EntityOut"];
+                    "application/json": components["schemas"]["EntityPatchOut"];
                 };
             };
             /** @description The user lacks the permission on the plan's case file (access.denied). */
@@ -2173,12 +2561,66 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid body, or a layer or symbol not in the active catalog. */
+            /** @description Invalid body, a layer or symbol not in the active catalog, an ``evidence_id`` that is not evidence of the plan's case file (or set on an entity that is not a point or symbol), or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    patch_evidence_api_v1_evidence__evidence_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                evidence_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvidencePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceOut"];
+                };
+            };
+            /** @description The user lacks the permission on the case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The evidence does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -2567,6 +3009,53 @@ export interface operations {
             };
         };
     };
+    get_metric_status_api_v1_plans__plan_id__metric_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricStatusOut"];
+                };
+            };
+            /** @description The user lacks ``read`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     post_transition_api_v1_plans__plan_id__transition_post: {
         parameters: {
             query?: never;
@@ -2723,7 +3212,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid body, or a layer or symbol not in the active catalog. */
+            /** @description Invalid body, a layer or symbol not in the active catalog, an ``evidence_id`` that is not evidence of the plan's case file (or set on an entity that is not a point or symbol), or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes. */
             422: {
                 headers: {
                     [name: string]: unknown;

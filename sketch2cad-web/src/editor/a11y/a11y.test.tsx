@@ -80,7 +80,7 @@ describe("shortcuts", () => {
   it("is the single source of the palette's tool keys", () => {
     for (const button of TOOL_BUTTONS) expect(button.shortcut).toBe(TOOL_SHORTCUTS[button.id]);
     const tools = SHORTCUT_GROUPS[0]?.entries.map((entry) => entry.keys);
-    expect(tools).toEqual(["V", "E", "L", "P", "O", "T", "S", "F"]);
+    expect(tools).toEqual(["V", "E", "L", "P", "O", "T", "S", "F", "D", "G", "B"]);
   });
 
   it("maps arrows and modifiers to cursor steps", () => {

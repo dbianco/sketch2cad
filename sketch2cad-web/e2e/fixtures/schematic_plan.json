@@ -1,0 +1,59 @@
+{
+  "description": "Seed and script of e2e/triangulation.spec.ts. Coordinates are world metres (Y up). The scan_segment calibration makes 1000 px of synthetic_sketch.png (2000 x 2828 px) span 100 mm of paper at 1:100 (provisional in the schematic sketch, declared in the scaled drawing), so the source image covers x 0..20 m and y -28.28..0 m. Two walls meet at the corner C = (4, -16) and are drawn short (5,50 m and 3,50 m, as in a sketch); their declared lengths are 6,00 m and 4,00 m. A and B are reference points at C and at the far end of wall 1 once fixed. The evidence marker is drawn near P.",
+  "case": {
+    "incident_type": "traffic_collision",
+    "incident_date": "2026-10-02",
+    "description": "Triangulation E2E",
+    "declared_location": "Esquina de los muros"
+  },
+  "plans": {
+    "schematic": {
+      "plan": { "title": "Croquis esquemático", "source_mode": "schematic_sketch" },
+      "calibration": {
+        "method": "scan_segment",
+        "control_points": [{ "image_px": [200, 200] }, { "image_px": [1200, 200] }],
+        "segment_mm": 100,
+        "as_metric": false
+      }
+    },
+    "scaled": {
+      "plan": { "title": "Dibujo a escala", "source_mode": "scaled_drawing" },
+      "calibration": {
+        "method": "scan_segment",
+        "control_points": [{ "image_px": [200, 200] }, { "image_px": [1200, 200] }],
+        "segment_mm": 100,
+        "paper_scale": 100,
+        "as_metric": true
+      }
+    }
+  },
+  "walls": [
+    {
+      "drawn": [[4, -16], [9.5, -16]],
+      "anchor_vertex": 0,
+      "length": "6,00",
+      "length_m": 6,
+      "fixed": [[4, -16], [10, -16]]
+    },
+    {
+      "drawn": [[4, -16], [4, -12.5]],
+      "anchor_vertex": 0,
+      "length": "4,00",
+      "length_m": 4,
+      "fixed": [[4, -16], [4, -12]]
+    }
+  ],
+  "reference_layer": "L_CONTROL",
+  "references": { "A": [4, -16], "B": [10, -16] },
+  "marker": { "at": [6.5, -13.5], "drawn_x": "6,50", "drawn_y": "-13,50", "evidence_number": 1 },
+  "evidence": ["Vehículo A", "Casquillo"],
+  "triangulation": {
+    "d_a": "3,60",
+    "d_b": "4,80",
+    "hand_calculation": "|AB| = 6. Along AB from A: a = (dA^2 - dB^2 + |AB|^2) / (2 |AB|) = (12,96 - 23,04 + 36) / 12 = 2,16. Off AB: h = sqrt(dA^2 - a^2) = sqrt(12,96 - 4,6656) = 2,88 (a 3-4-5 triangle scaled by 1,2, right angle at P). Candidates (6,16, -13,12) and (6,16, -18,88); the first is nearest to the drawn marker.",
+    "expected": [6.16, -13.12],
+    "expected_x": "6,16",
+    "expected_y": "-13,12"
+  },
+  "rejection": { "d_a": "1,00", "d_b": "1,00" }
+}

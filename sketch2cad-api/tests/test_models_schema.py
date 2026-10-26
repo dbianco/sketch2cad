@@ -24,6 +24,7 @@ APPLICATION_TABLES = {
     "calibration",
     "revision",
     "entity",
+    "evidence",
     "catalog",
     "artifact",
 }

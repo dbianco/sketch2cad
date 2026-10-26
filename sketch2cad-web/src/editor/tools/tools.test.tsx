@@ -37,6 +37,7 @@ function entityOut(id: string, layer: string, geometry: Geometry): EntityOut {
     constraint: null,
     created_by: null,
     deleted_at: null,
+    discrepancy: null,
     evidence_id: null,
     image_region: null,
     metric_origin: "none",
@@ -411,6 +412,9 @@ describe("palette", () => {
       "Texto",
       "Símbolo",
       "Sistema local",
+      "Fijar longitud",
+      "Triangulación",
+      "Base + offset",
     ]);
     for (const [index, button] of buttons.entries()) {
       expect(button.getAttribute("title")).toBe(

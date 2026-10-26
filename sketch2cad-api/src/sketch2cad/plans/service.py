@@ -9,7 +9,9 @@ chosen.
 
 :func:`recompute_metric_status` refreshes ``plan.metric_status`` from the active
 calibration and the live entities of the current revision (spec section 11.3); callers run
-it in the same transaction as every change that can alter it.
+it in the same transaction as every change that can alter it (entity create, edit, delete
+and recompute, calibration accept, local frame, revision freeze and reopen). It writes the
+field only through :func:`~sketch2cad.geometry.metric_status.apply_metric_status`.
 """
 
 import logging
@@ -33,9 +35,11 @@ from sketch2cad.db.models import (
     SourceMode,
     User,
 )
+from sketch2cad.entities.dimensions import DimensionTolerances, dimension_discrepancy
 from sketch2cad.geometry.metric_status import (
     MetricEntity,
     MetricStatusResult,
+    apply_metric_status,
     compute_metric_status,
 )
 
@@ -136,8 +140,15 @@ def current_revision(db: Session, plan: Plan) -> Revision | None:
     return db.get(Revision, plan.current_revision_id)
 
 
-def metric_status_of(db: Session, plan: Plan) -> MetricStatusResult:
-    """Metric status of ``plan`` from its active calibration and current live entities."""
+def metric_status_of(
+    db: Session, plan: Plan, tolerances: DimensionTolerances | None = None
+) -> MetricStatusResult:
+    """Metric status of ``plan`` from its active calibration and current live entities.
+
+    ``tolerances`` only decides ``discrepant_dimensions`` (spec default when ``None``); the
+    status never depends on it.
+    """
+    tolerances = tolerances or DimensionTolerances()
     calibration = active_calibration(db, plan)
     entities: list[MetricEntity] = []
     if plan.current_revision_id is not None:
@@ -151,6 +162,7 @@ def metric_status_of(db: Session, plan: Plan) -> MetricStatusResult:
                 layer=entity.layer,
                 metric_origin=entity.metric_origin,
                 references_evidence=entity.evidence_id is not None,
+                discrepancy=dimension_discrepancy(entity.type, entity.geometry, tolerances) is True,
             )
             for entity in db.scalars(query.order_by(Entity.id))
         ]
@@ -170,6 +182,6 @@ def recompute_metric_status(db: Session, plan: Plan) -> MetricStatusResult:
     """
     db.flush()
     result = metric_status_of(db, plan)
-    plan.metric_status = MetricStatus(result.status)
+    apply_metric_status(plan, result, MetricStatus)
     db.flush()
     return result

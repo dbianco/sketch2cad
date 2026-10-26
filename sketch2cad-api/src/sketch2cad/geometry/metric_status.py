@@ -5,30 +5,36 @@ its active calibration (method and ``as_metric``) and lightweight entity inputs.
 are the plain strings stored in the database, so ``StrEnum`` members of
 ``sketch2cad.db.models`` can be passed and compared directly.
 
-Initial rule set (H2):
+Rule set (H2, extended in H3):
 
 - A plan without an accepted calibration, or calibrated with method ``none``, is
   ``non_metric`` and lists no blocking entities: the calibration blocks it, not an entity.
 - Otherwise every live entity in ``L_STRUCTURE`` or ``L_ACCESS``, or referencing an
   evidence item, whose ``metric_origin`` is not metric (``trace_only``, ``none``) blocks
-  ``metric``; any blocking entity makes the plan ``approximate``.
+  ``metric``; any blocking entity makes the plan ``approximate``. Its reason code
+  (:func:`blocking_reason`) is that ``metric_origin``.
 - With no blocking entity the plan is ``metric`` when some relevant entity exists (all of
   them carry a metric origin), or, when there is none, only for a ``scaled_drawing`` whose
   calibration was accepted as metric: a ``schematic_sketch`` gets its metric truth from
   dimensions, so an empty one stays ``approximate``.
 
-Hand-drawn entities get ``scaled_drawing`` in a ``scaled_drawing`` plan whose calibration
-was accepted as metric, otherwise ``none`` (:func:`default_metric_origin`).
+- A declared ``dimension`` whose declared and measured values disagree (``discrepancy``)
+  is reported in ``discrepant_dimensions`` but does not change the status: spec section
+  11.3 only marks it, the status depends on ``metric_origin`` alone, and ``L_DIMENSIONS``
+  is not a metric layer.
 
-Extension point (H3): dimension-based origins (``declared_dimension``, ``triangulation``,
-``baseline_offset``) are assigned by the H3 editor tools, not here; H3 extends
-:func:`is_blocking` (for example, a polyline is ``declared_dimension`` only when every
-segment has a declared length) and :func:`default_metric_origin` per ``entity_type``.
+Hand-drawn entities get ``scaled_drawing`` in a ``scaled_drawing`` plan whose calibration
+was accepted as metric, otherwise ``none`` (:func:`default_metric_origin`). The H3 tools
+assign the dimension-based origins (``declared_dimension``, ``triangulation``,
+``baseline_offset``) on the entity itself, so the rule reads them as stored.
+
+:func:`apply_metric_status` is the only place that writes a plan's ``metric_status``: it
+takes any object with that attribute (the ORM ``Plan``) and a converter to its stored type.
 """
 
-from collections.abc import Iterable
-from dataclasses import dataclass
-from typing import Final
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from typing import Any, Final, Protocol
 
 METRIC: Final = "metric"
 APPROXIMATE: Final = "approximate"
@@ -58,14 +64,31 @@ class MetricEntity:
     metric_origin: str
     references_evidence: bool = False
     deleted: bool = False
+    discrepancy: bool = False
 
 
 @dataclass(frozen=True)
 class MetricStatusResult:
-    """Metric status of a plan and the ids of the entities that keep it from ``metric``."""
+    """Metric status of a plan and the ids of the entities that keep it from ``metric``.
+
+    ``reasons`` pairs each blocking id with its :func:`blocking_reason`, in the order of
+    ``blocking_entities``; ``discrepant_dimensions`` lists the live dimensions flagged with
+    a discrepancy. Both are derived details and take no part in equality.
+    """
 
     status: str
     blocking_entities: tuple[str, ...] = ()
+    reasons: tuple[tuple[str, str], ...] = field(default=(), compare=False)
+    discrepant_dimensions: tuple[str, ...] = field(default=(), compare=False)
+
+
+class MetricStatusHolder(Protocol):
+    """Anything that stores a metric status, such as the ORM ``Plan``.
+
+    The attribute is ``Any`` because an ORM column is typed as its descriptor.
+    """
+
+    metric_status: Any
 
 
 def is_calibrated(calibration_method: str | None) -> bool:
@@ -78,9 +101,20 @@ def is_relevant(entity: MetricEntity) -> bool:
     return not entity.deleted and (entity.layer in METRIC_LAYERS or entity.references_evidence)
 
 
+def blocking_reason(entity: MetricEntity) -> str | None:
+    """Why ``entity`` keeps the plan from ``metric``, or ``None`` when it does not.
+
+    The reason code is the entity's non-metric ``metric_origin`` (``trace_only`` or
+    ``none``) for a relevant live entity.
+    """
+    if not is_relevant(entity) or entity.metric_origin in METRIC_ORIGINS:
+        return None
+    return entity.metric_origin
+
+
 def is_blocking(entity: MetricEntity) -> bool:
-    """Whether ``entity`` keeps the plan from ``metric``; H3 refines this rule."""
-    return is_relevant(entity) and entity.metric_origin not in METRIC_ORIGINS
+    """Whether ``entity`` keeps the plan from ``metric`` (:func:`blocking_reason`)."""
+    return blocking_reason(entity) is not None
 
 
 def compute_metric_status(
@@ -89,21 +123,41 @@ def compute_metric_status(
     as_metric: bool,
     entities: Iterable[MetricEntity],
 ) -> MetricStatusResult:
-    """Metric status of a plan under the initial rule set of the module docstring.
+    """Metric status of a plan under the rule set of the module docstring.
 
     ``calibration_method`` is the method of the plan's active accepted calibration, or
     ``None`` when there is none. Deleted entities are ignored. ``blocking_entities`` keeps
     the input order.
     """
+    live = [entity for entity in entities if not entity.deleted]
+    discrepant = tuple(entity.id for entity in live if entity.discrepancy)
     if not is_calibrated(calibration_method):
-        return MetricStatusResult(NON_METRIC)
-    relevant = [entity for entity in entities if is_relevant(entity)]
-    blocking = tuple(entity.id for entity in relevant if is_blocking(entity))
-    if blocking:
-        return MetricStatusResult(APPROXIMATE, blocking)
+        return MetricStatusResult(NON_METRIC, discrepant_dimensions=discrepant)
+    relevant = [entity for entity in live if is_relevant(entity)]
+    reasons = tuple(
+        (entity.id, reason)
+        for entity in relevant
+        if (reason := blocking_reason(entity)) is not None
+    )
+    if reasons:
+        blocking = tuple(entity_id for entity_id, _ in reasons)
+        return MetricStatusResult(APPROXIMATE, blocking, reasons, discrepant)
     if relevant or (as_metric and source_mode == SCALED_DRAWING_MODE):
-        return MetricStatusResult(METRIC)
-    return MetricStatusResult(APPROXIMATE)
+        return MetricStatusResult(METRIC, discrepant_dimensions=discrepant)
+    return MetricStatusResult(APPROXIMATE, discrepant_dimensions=discrepant)
+
+
+def apply_metric_status[T](
+    holder: MetricStatusHolder, result: MetricStatusResult, convert: Callable[[str], T]
+) -> T:
+    """Store ``result.status`` in ``holder.metric_status`` through ``convert``; return it.
+
+    The single write of a plan's metric status: callers pass the ORM ``Plan`` and its enum
+    (``MetricStatus``) as ``convert``.
+    """
+    value = convert(result.status)
+    holder.metric_status = value
+    return value
 
 
 def default_metric_origin(
@@ -115,10 +169,10 @@ def default_metric_origin(
     """``metric_origin`` of an entity drawn by hand (spec section 11.3).
 
     ``scaled_drawing`` in a ``scaled_drawing`` plan whose active calibration was accepted as
-    metric; otherwise ``none`` (a hand-placed entity without a dimension). ``entity_type``
-    is not used by the initial rule set; it is the H3 extension point.
+    metric; otherwise ``none`` (a hand-placed entity without a dimension), whatever the
+    ``entity_type``: the H3 tools set the dimension-based origins afterwards.
     """
-    del entity_type  # H3 extension point
+    del entity_type  # same default for every type (spec section 11.3)
     if source_mode == SCALED_DRAWING_MODE and is_calibrated(calibration_method) and as_metric:
         return ORIGIN_SCALED_DRAWING
     return ORIGIN_NONE

@@ -21,7 +21,16 @@ from sketch2cad.cases.permissions import (
 )
 from sketch2cad.config import Settings, get_settings
 from sketch2cad.db import session as db_session
-from sketch2cad.db.models import CaseFile, Entity, Plan, Revision, Source, User, UserSession
+from sketch2cad.db.models import (
+    CaseFile,
+    Entity,
+    Evidence,
+    Plan,
+    Revision,
+    Source,
+    User,
+    UserSession,
+)
 from sketch2cad.db.session import get_session
 from sketch2cad.storage import FilesystemStorage, Storage
 
@@ -340,5 +349,37 @@ def require_entity_permission(permission: str) -> Callable[..., Entity]:
             request, db, audit_factory, user, revision.plan_id, required, entity_not_found
         )
         return entity
+
+    return dependency
+
+
+def evidence_not_found() -> ProblemError:
+    return ProblemError(404, "Not Found", "The evidence does not exist.")
+
+
+def require_evidence_permission(permission: str) -> Callable[..., Evidence]:
+    """Dependency factory: the ``{evidence_id}`` evidence if the user holds ``permission``.
+
+    The permission is checked on the evidence's case file. A missing or malformed id gives
+    404 without an event; a denial is a 403 with ``access.denied`` on that case file.
+    """
+    required = CasePermission(permission).value
+
+    def dependency(
+        evidence_id: str,
+        request: Request,
+        db: Annotated[Session, Depends(get_session)],
+        user: Annotated[User, Depends(get_current_user)],
+        audit_factory: Annotated[sessionmaker[Session], Depends(get_audit_session_factory)],
+    ) -> Evidence:
+        evidence = db.get(Evidence, _parse_uuid(evidence_id, evidence_not_found))
+        if evidence is None:
+            raise evidence_not_found()
+        case_file = db.get(CaseFile, evidence.case_file_id)
+        if case_file is None:  # pragma: no cover - guaranteed by the foreign key
+            raise evidence_not_found()
+        if required not in case_permissions(db, user.id, case_file):
+            raise _deny(request, db, audit_factory, user, case_file, required)
+        return evidence
 
     return dependency

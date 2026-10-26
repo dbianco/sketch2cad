@@ -12,6 +12,7 @@ from fastapi import Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from sketch2cad.api.deps import (
+    get_app_settings,
     get_current_user,
     require_csrf,
     require_entity_permission,
@@ -19,9 +20,17 @@ from sketch2cad.api.deps import (
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
+from sketch2cad.config import Settings
 from sketch2cad.db.models import Entity, Revision, User
 from sketch2cad.db.session import get_session
-from sketch2cad.entities.schemas import EntitiesCreate, EntityListOut, EntityOut, EntityPatch
+from sketch2cad.entities.dimensions import DimensionTolerances, dimension_discrepancy
+from sketch2cad.entities.schemas import (
+    EntitiesCreate,
+    EntityListOut,
+    EntityOut,
+    EntityPatch,
+    EntityPatchOut,
+)
 from sketch2cad.entities.service import (
     EntityConflictError,
     EntityGoneError,
@@ -51,13 +60,31 @@ EDIT_RESPONSES: dict[int | str, dict[str, Any]] = {
         "(``code`` ``V-10`` when validated), or the user does not hold the plan's edit "
         "lease (``code`` ``V-12`` with ``holder``, or ``lease_required``).",
     },
-    422: {"description": "Invalid body, or a layer or symbol not in the active catalog."},
+    422: {
+        "description": "Invalid body, a layer or symbol not in the active catalog, an "
+        "``evidence_id`` that is not evidence of the plan's case file (or set on an entity "
+        "that is not a point or symbol), or a "
+        "``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: "
+        "``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not "
+        "cross, ``V-07`` when a reference is not metric or depends on the entity. "
+        "Nothing changes.",
+    },
 }
 
 ReasonQuery = Annotated[str | None, Query(min_length=1)]
 
 
-def entity_out(entity: Entity, revision_number: int) -> EntityOut:
+def get_dimension_tolerances(
+    settings: Annotated[Settings, Depends(get_app_settings)],
+) -> DimensionTolerances:
+    """``dimension.discrepancy_tolerance_m`` of the current settings, read per request."""
+    return DimensionTolerances.from_settings(settings)
+
+
+Tolerances = Annotated[DimensionTolerances, Depends(get_dimension_tolerances)]
+
+
+def entity_out(entity: Entity, revision_number: int, tolerances: DimensionTolerances) -> EntityOut:
     return EntityOut.model_validate(
         {
             "id": entity.id,
@@ -78,12 +105,15 @@ def entity_out(entity: Entity, revision_number: int) -> EntityOut:
             "created_by": entity.created_by,
             "updated_at": entity.updated_at,
             "deleted_at": entity.deleted_at,
+            "discrepancy": dimension_discrepancy(entity.type, entity.geometry, tolerances),
         }
     )
 
 
-def _list_out(entities: list[Entity], revision: Revision) -> EntityListOut:
-    return EntityListOut(entities=[entity_out(e, revision.number) for e in entities])
+def _list_out(
+    entities: list[Entity], revision: Revision, tolerances: DimensionTolerances
+) -> EntityListOut:
+    return EntityListOut(entities=[entity_out(e, revision.number, tolerances) for e in entities])
 
 
 def _client_ip(request: Request) -> str | None:
@@ -98,7 +128,11 @@ def _rejected(db: Session, exc: Exception) -> ProblemError:
     if isinstance(exc, EntityConflictError):
         extensions = {**exc.extensions, **({} if exc.code is None else {"code": exc.code})}
         return ProblemError(409, HTTPStatus.CONFLICT.phrase, str(exc), extensions=extensions)
-    return ProblemError(422, HTTPStatus.UNPROCESSABLE_ENTITY.phrase, str(exc))
+    code = getattr(exc, "code", None)
+    extensions = {} if code is None else {"code": code}
+    return ProblemError(
+        422, HTTPStatus.UNPROCESSABLE_ENTITY.phrase, str(exc), extensions=extensions
+    )
 
 
 def _revision_number(db: Session, entity: Entity) -> int:
@@ -111,9 +145,10 @@ def _revision_number(db: Session, entity: Entity) -> int:
 def get_revision_entities(
     revision: Annotated[Revision, Depends(require_revision_permission("read"))],
     db: Annotated[Session, Depends(get_session)],
+    tolerances: Tolerances,
 ) -> EntityListOut:
     """Entities of the revision ordered by id, without soft-deleted ones. Requires ``read``."""
-    return _list_out(list_entities(db, revision), revision)
+    return _list_out(list_entities(db, revision), revision, tolerances)
 
 
 @router.post(
@@ -128,6 +163,7 @@ def create_revision_entities(
     revision: Annotated[Revision, Depends(require_revision_permission("edit"))],
     db: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_current_user)],
+    tolerances: Tolerances,
 ) -> EntityListOut:
     """Create one or more hand-drawn entities, in request order, with ``entity.created`` each.
 
@@ -139,7 +175,7 @@ def create_revision_entities(
     except (EntityConflictError, EntityInputError) as exc:
         raise _rejected(db, exc) from None
     db.commit()
-    return _list_out(entities, revision)
+    return _list_out(entities, revision, tolerances)
 
 
 @router.patch("/entities/{entity_id}", dependencies=EDIT_DEPENDENCIES, responses=EDIT_RESPONSES)
@@ -149,18 +185,25 @@ def patch_entity(
     entity: Annotated[Entity, Depends(require_entity_permission("edit"))],
     db: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_current_user)],
-) -> EntityOut:
+    tolerances: Tolerances,
+) -> EntityPatchOut:
     """Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.
 
     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
-    optional ``reason``. Requires ``edit``.
+    optional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``
+    and set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires
+    ``edit``.
     """
     try:
-        update_entity(db, entity, user, body, _client_ip(request))
+        update = update_entity(db, entity, user, body, _client_ip(request))
     except (EntityGoneError, EntityConflictError, EntityInputError) as exc:
         raise _rejected(db, exc) from None
     db.commit()
-    return entity_out(entity, _revision_number(db, entity))
+    out = entity_out(entity, _revision_number(db, entity), tolerances)
+    candidates = None if update.candidates is None else [list(c) for c in update.candidates]
+    return EntityPatchOut.model_validate(
+        {**out.model_dump(), "candidates": candidates, "chosen_candidate": update.chosen}
+    )
 
 
 @router.delete("/entities/{entity_id}", dependencies=EDIT_DEPENDENCIES, responses=EDIT_RESPONSES)
@@ -169,6 +212,7 @@ def remove_entity(
     entity: Annotated[Entity, Depends(require_entity_permission("edit"))],
     db: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_current_user)],
+    tolerances: Tolerances,
     reason: ReasonQuery = None,
 ) -> EntityOut:
     """Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.
@@ -180,4 +224,4 @@ def remove_entity(
     except (EntityGoneError, EntityConflictError) as exc:
         raise _rejected(db, exc) from None
     db.commit()
-    return entity_out(entity, _revision_number(db, entity))
+    return entity_out(entity, _revision_number(db, entity), tolerances)

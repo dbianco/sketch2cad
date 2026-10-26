@@ -1,8 +1,8 @@
-"""Plan endpoints: create a plan from a source, retrieve it, set its local frame,
-acquire or release its edit lease and move it through its states.
+"""Plan endpoints: create a plan from a source, retrieve it and its metric status, set its
+local frame, acquire or release its edit lease and move it through its states.
 
-REQ-03, US-04; the local frame is REQ-04, US-05; the edit lease is REQ-05, V-12; the
-transitions are REQ-10, US-14, V-09.
+REQ-03, US-04; the metric status is REQ-07, US-11; the local frame is REQ-04, US-05; the
+edit lease is REQ-05, V-12; the transitions are REQ-10, US-14, V-09.
 """
 
 import logging
@@ -24,7 +24,7 @@ from sketch2cad.api.deps import (
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
-from sketch2cad.api.routers.entities import EDIT_DEPENDENCIES
+from sketch2cad.api.routers.entities import EDIT_DEPENDENCIES, Tolerances
 from sketch2cad.cases.permissions import record_access_denied
 from sketch2cad.db.models import (
     Calibration,
@@ -52,6 +52,7 @@ from sketch2cad.plans.service import (
     active_calibration,
     create_plan,
     current_revision,
+    metric_status_of,
 )
 from sketch2cad.plans.transitions import (
     TRANSITION_PERMISSION,
@@ -213,6 +214,23 @@ class PlanOut(BaseModel):
     current_revision: RevisionSummaryOut | None
 
 
+class MetricStatusOut(BaseModel):
+    """Metric status of a plan and what keeps it from ``metric`` (spec section 11.3).
+
+    ``blocking_entities`` are the ids of the live entities of the current revision in
+    ``L_STRUCTURE`` or ``L_ACCESS``, or referencing an evidence item, whose
+    ``metric_origin`` is not metric; ``reasons`` maps each of them to its reason code (that
+    ``metric_origin``: ``trace_only`` or ``none``). A plan without an accepted calibration is
+    ``non_metric`` with no blocking entity. ``discrepant_dimensions`` lists the dimensions
+    whose declared and measured values disagree; they do not change ``status``.
+    """
+
+    status: MetricStatus
+    blocking_entities: list[uuid.UUID]
+    reasons: dict[str, str]
+    discrepant_dimensions: list[uuid.UUID]
+
+
 def _calibration_out(calibration: Calibration | None) -> CalibrationOut | None:
     if calibration is None:
         return None
@@ -250,20 +268,23 @@ def _out(
     revision: Revision | None,
     lease: LeaseHolder | None = None,
 ) -> PlanOut:
-    return PlanOut(
-        id=plan.id,
-        case_file_id=plan.case_file_id,
-        title=plan.title,
-        primary_source_id=plan.primary_source_id,
-        source_mode=plan.source_mode,
-        status=plan.status,
-        metric_status=plan.metric_status,
-        current_revision_id=plan.current_revision_id,
-        validated_revision_id=plan.validated_revision_id,
-        created_at=plan.created_at,
-        calibration=_calibration_out(calibration),
-        lease=None if lease is None else lease_out(lease),
-        current_revision=_revision_out(revision),
+    # A mapping, not keywords: only geometry.metric_status assigns ``metric_status``.
+    return PlanOut.model_validate(
+        {
+            "id": plan.id,
+            "case_file_id": plan.case_file_id,
+            "title": plan.title,
+            "primary_source_id": plan.primary_source_id,
+            "source_mode": plan.source_mode,
+            "status": plan.status,
+            "metric_status": plan.metric_status,
+            "current_revision_id": plan.current_revision_id,
+            "validated_revision_id": plan.validated_revision_id,
+            "created_at": plan.created_at,
+            "calibration": _calibration_out(calibration),
+            "lease": None if lease is None else lease_out(lease),
+            "current_revision": _revision_out(revision),
+        }
     )
 
 
@@ -322,6 +343,28 @@ def get_plan(
     event.
     """
     return plan_out(db, plan)
+
+
+@router.get("/plans/{plan_id}/metric-status", responses=GET_RESPONSES)
+def get_metric_status(
+    plan: Annotated[Plan, Depends(require_plan_permission("read"))],
+    db: Annotated[Session, Depends(get_session)],
+    tolerances: Tolerances,
+) -> MetricStatusOut:
+    """Metric status of the plan and the entities that keep it from ``metric``.
+
+    Computed from the active calibration and the live entities of the current revision
+    with the same rule that keeps ``plan.metric_status`` up to date on every change, so
+    ``status`` equals that field. Writes nothing. Requires ``read`` on the plan's case
+    file; others get 403 and an ``access.denied`` event.
+    """
+    result = metric_status_of(db, plan, tolerances)
+    return MetricStatusOut(
+        status=MetricStatus(result.status),
+        blocking_entities=[uuid.UUID(entity_id) for entity_id in result.blocking_entities],
+        reasons=dict(result.reasons),
+        discrepant_dimensions=[uuid.UUID(entity_id) for entity_id in result.discrepant_dimensions],
+    )
 
 
 @router.put(

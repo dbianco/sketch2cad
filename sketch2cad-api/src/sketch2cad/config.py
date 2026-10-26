@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     """Largest reprojection error accepted as metric (``calibration.max_reprojection_error_mm``)."""
     CALIBRATION_MAX_SCALE_DISCREPANCY_PCT: float = Field(default=1.0, gt=0)
     """Largest scale discrepancy within tolerance (``calibration.max_scale_discrepancy_pct``)."""
+    DIMENSION_DISCREPANCY_TOLERANCE_M: float = Field(default=0.02, gt=0)
+    """Declared vs measured difference above which a dimension is flagged, in metres
+    (``dimension.discrepancy_tolerance_m``)."""
 
 
 def get_settings() -> Settings:

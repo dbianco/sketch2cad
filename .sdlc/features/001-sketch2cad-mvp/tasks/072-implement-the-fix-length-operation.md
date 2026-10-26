@@ -1,7 +1,7 @@
 ---
 id: 001-072
 title: "Implement the fix-length operation"
-status: todo
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-071, 001-052]

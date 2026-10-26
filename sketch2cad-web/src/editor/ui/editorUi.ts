@@ -2,6 +2,8 @@
 // in-progress drawing of the active tool. None of it is part of the document or of the undo
 // history; it lives here so that the palette, the tools and the canvas share it.
 import { createStore, type StoreApi } from "zustand/vanilla";
+import type { ReactNode } from "react";
+import type { ApiClient } from "../../api/client";
 import type { CanvasTool, Catalog } from "../canvas/EditorCanvas";
 import { layerFlags, type LayerFlagsByName } from "../canvas/layers";
 import type { SnapSettingsStore } from "../panels/SnapSettings";
@@ -17,7 +19,10 @@ export type ToolId =
   | "point"
   | "text"
   | "symbol"
-  | "frame";
+  | "frame"
+  | "fixlength"
+  | "triangulate"
+  | "baseline";
 
 /** Layer reserved for the export sheet (spec 12.1): never drawn on in the editor. */
 export const SHEET_LAYER = "L_SHEET";
@@ -102,12 +107,16 @@ export interface ToolContext {
   symbols?: StoreApi<SymbolPickerStore>;
   /** Denominator of the plan's paper scale, as the canvas uses it (1:100 when omitted). */
   paperScale?: number;
+  /** API client of the tools that call the server (fix length); the same-origin client by default. */
+  api?: ApiClient;
 }
 
 /** A canvas tool that also takes the editor's keys (see EditorWorkspace). */
 export interface EditorTool extends CanvasTool {
   /** Return true when the key was used. */
   onKeyDown?(event: KeyboardEvent): boolean;
+  /** Side panel shown next to the canvas while the tool is active (triangulation, base + offset). */
+  panel?: ReactNode;
 }
 
 function finite(point: Point2): boolean {
