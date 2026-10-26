@@ -413,6 +413,8 @@ describe("palette", () => {
       "Símbolo",
       "Sistema local",
       "Fijar longitud",
+      "Triangulación",
+      "Base + offset",
     ]);
     for (const [index, button] of buttons.entries()) {
       expect(button.getAttribute("title")).toBe(

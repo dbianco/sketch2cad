@@ -43,6 +43,18 @@ export const TOOL_BUTTONS: readonly ToolButton[] = [
     caption: "Fijar longitud",
     shortcut: TOOL_SHORTCUTS.fixlength,
   },
+  {
+    id: "triangulate",
+    label: "Triangulación",
+    caption: "Triangulación",
+    shortcut: TOOL_SHORTCUTS.triangulate,
+  },
+  {
+    id: "baseline",
+    label: "Base + offset",
+    caption: "Base + offset",
+    shortcut: TOOL_SHORTCUTS.baseline,
+  },
 ];
 
 export const PALETTE_TEXT = {

@@ -81,14 +81,15 @@ function flushFailure(result: Exclude<FlushResult, { status: "drained" }>): Serv
 
 /**
  * Apply a server-computed operation to `entityId` (a store id) of `context.revisionId` and load
- * the server's entities into `store`.
+ * the server's entities into `store`. A `body` function is called after the queue is flushed with
+ * a resolver of store ids to server ids, for bodies that name other entities (references).
  */
 export async function runServerOperation(
   api: ServerOperationApi,
   store: StoreApi<EditorStore>,
   context: SyncContext,
   entityId: EntityId,
-  body: ServerOperationBody,
+  body: ServerOperationBody | ((serverId: (id: EntityId) => string) => ServerOperationBody),
   messages: Readonly<Record<string, string>> = {},
 ): Promise<ServerOperationResult> {
   const flushed = await flushQueue(api, store, context);
@@ -96,10 +97,12 @@ export async function runServerOperation(
 
   let entity: Schemas["EntityPatchOut"];
   try {
+    const serverId = (id: EntityId) => resolveServerId(id, store.getState().serverIds);
+    const payload = typeof body === "function" ? body(serverId) : body;
     entity = await api.patch("/api/v1/entities/{entity_id}", {
-      path: { entity_id: resolveServerId(entityId, store.getState().serverIds) },
+      path: { entity_id: serverId(entityId) },
       // The generated type marks the server-defaulted confirm_constraint_removal as required.
-      body: body as Schemas["EntityPatch"],
+      body: payload as Schemas["EntityPatch"],
     });
   } catch (error) {
     return { ok: false, message: serverOperationMessage(error, messages), error };
