@@ -81,12 +81,10 @@ def test_entities_per_layer_and_coordinates_round_trip(fixture_snapshot: dict[st
         for e in fixture_snapshot["entities"]
         if e["type"] in EXPORTED_TYPES
     )
-    found = tagged(doc)
+    core = [e for e in fixture_snapshot["entities"] if e["type"] in EXPORTED_TYPES]
+    found = {key: g for key, g in tagged(doc).items() if key in {e["id"] for e in core}}
     assert Counter((g.dxf.layer, g.dxftype()) for g in found.values()) == expected
-    for item in fixture_snapshot["entities"]:
-        if item["type"] not in EXPORTED_TYPES:
-            assert item["id"] not in found
-            continue
+    for item in core:
         graphic = found[item["id"]]
         if graphic.dxftype() == "LINE":
             points = [graphic.dxf.start, graphic.dxf.end]
@@ -146,10 +144,11 @@ def test_document_metadata_in_xdata(fixture_snapshot: dict[str, Any]) -> None:
 def test_draft_watermark_only_in_draft(fixture_snapshot: dict[str, Any]) -> None:
     final = read(export(fixture_snapshot, draft=False))
     draft = read(export(fixture_snapshot, draft=True))
-    assert [t.dxf.text for t in final.modelspace().query("TEXT")] == []
-    (watermark,) = draft.modelspace().query("TEXT")
+    sheet_texts = f"TEXT[layer=='{SHEET_LAYER}']"
+    assert [t.dxf.text for t in final.modelspace().query(sheet_texts)] == []
+    (watermark,) = draft.modelspace().query(sheet_texts)
     assert watermark.dxf.text == DRAFT_WATERMARK
-    assert watermark.dxf.layer == SHEET_LAYER
+    assert watermark.dxf.style == "S2C_TEXT"
     assert watermark.dxf.height == pytest.approx(10.0 * 100 / 1000)
     assert (watermark.dxf.insert.x, watermark.dxf.insert.y) == pytest.approx((-1.5, -2.0))
 

@@ -14,11 +14,12 @@ Structure:
   metadata is set (reproducibility settings of ``docs/spikes/dxf-reproducibility.md``);
 - :func:`write_bytes` writes to a text stream and encodes it (UTF-8, ``\\n`` line endings).
 
-Each snapshot entity type maps to a writer in :data:`ENTITY_WRITERS`. Types listed in
-:data:`DEFERRED_TYPES` (texts, symbols and dimensions) have no writer yet and are skipped;
-adding their writer to the table and removing them from the set is all it takes to export
-them. Every written entity carries XDATA ``entity_id=<uuid>`` under :data:`APP_ID` so the
-DXF can be traced back to the snapshot.
+Each snapshot entity type maps to a writer in :data:`ENTITY_WRITERS`: texts are written by
+:mod:`sketch2cad.export.dxf_text` and symbols (and the marker of evidence points) by
+:mod:`sketch2cad.export.dxf_symbols`. Types listed in :data:`DEFERRED_TYPES` (dimensions)
+have no writer yet and are skipped; adding their writer to the table and removing them from
+the set is all it takes to export them. Every written entity carries XDATA
+``entity_id=<uuid>`` under :data:`APP_ID` so the DXF can be traced back to the snapshot.
 """
 
 # ezdxf leaves ``dxfattribs`` parameters unannotated, so strict mode sees them as Unknown.
@@ -26,8 +27,8 @@ DXF can be traced back to the snapshot.
 
 import io
 import logging
-from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 from ezdxf import bbox, units
@@ -38,6 +39,12 @@ from ezdxf.layouts.layout import Modelspace
 
 from sketch2cad.catalog import CatalogDefinition
 from sketch2cad.export.dxf_layers import add_catalog_layers, catalog_layer_names
+from sketch2cad.export.dxf_symbols import (
+    UnknownSymbolError,
+    write_evidence_marker,
+    write_symbol,
+)
+from sketch2cad.export.dxf_text import TEXT_STYLE, add_text_style, paper_height_m, write_text
 from sketch2cad.plans.local_frame import PROVISIONAL_PAPER_SCALE
 from sketch2cad.revisions.snapshot import snapshot_sha256
 
@@ -56,7 +63,7 @@ XData = list[tuple[int, Any]]
 
 
 class DxfExportError(ValueError):
-    """The snapshot cannot be exported (unknown layer or type) or the audit failed."""
+    """The snapshot cannot be exported (unknown layer, type or symbol) or the audit failed."""
 
 
 @dataclass(frozen=True)
@@ -66,6 +73,7 @@ class ExportContext:
     catalog: CatalogDefinition
     paper_scale: int
     draft: bool
+    evidence_table: Sequence[Mapping[str, Any]] = field(default_factory=tuple[Any, ...])
 
 
 EntityWriter = Callable[[Modelspace, Mapping[str, Any], ExportContext], list[DXFGraphic]]
@@ -98,16 +106,20 @@ def _write_polyline(
 def _write_point(
     msp: Modelspace, entity: Mapping[str, Any], context: ExportContext
 ) -> list[DXFGraphic]:
+    """``POINT``, plus the evidence marker ``INSERT`` when the point places evidence."""
     (location,) = _coords(entity["geometry"])
-    return [msp.add_point(location, dxfattribs={"layer": entity["layer"]})]
+    point = msp.add_point(location, dxfattribs={"layer": entity["layer"]})
+    return [point, *write_evidence_marker(msp, entity, context)]
 
 
 ENTITY_WRITERS: dict[str, EntityWriter] = {
     "line": _write_line,
     "polyline": _write_polyline,
     "point": _write_point,
+    "text": write_text,
+    "symbol": write_symbol,
 }
-DEFERRED_TYPES = frozenset({"text", "symbol", "dimension"})
+DEFERRED_TYPES = frozenset({"dimension"})
 
 
 def paper_scale(snapshot: Mapping[str, Any]) -> int:
@@ -123,6 +135,7 @@ def new_document() -> Drawing:
     doc.header["$INSUNITS"] = INSUNITS_METERS
     doc.header["$MEASUREMENT"] = MEASUREMENT_METRIC
     doc.appids.add(APP_ID)
+    add_text_style(doc)
     return doc
 
 
@@ -163,7 +176,9 @@ def build_document(
     if SHEET_LAYER not in layers:
         raise DxfExportError(f"catalog {catalog.version!r} has no {SHEET_LAYER} layer")
     sha256 = snapshot_sha256(snapshot)
-    context = ExportContext(catalog, paper_scale(snapshot), draft)
+    context = ExportContext(
+        catalog, paper_scale(snapshot), draft, tuple(snapshot.get("evidence_table") or ())
+    )
     doc = new_document()
     add_catalog_layers(doc, catalog)
     msp = doc.modelspace()
@@ -234,7 +249,11 @@ def _add_entities(
                 raise DxfExportError(f"entity {entity['id']}: unknown type {entity['type']!r}")
             skipped += 1
             continue
-        for graphic in writer(msp, entity, context):
+        try:
+            graphics = writer(msp, entity, context)
+        except UnknownSymbolError as error:
+            raise DxfExportError(f"entity {entity['id']}: {error}") from error
+        for graphic in graphics:
             graphic.set_xdata(APP_ID, [(1000, f"entity_id={entity['id']}")])
             written.append(graphic)
     if skipped:
@@ -244,11 +263,10 @@ def _add_entities(
 
 def _add_watermark(msp: Modelspace, written: list[DXFGraphic], context: ExportContext) -> None:
     """``DRAFT — NOT VALIDATED`` on the sheet layer, at the lower left of the drawing."""
-    height = WATERMARK_HEIGHT_MM_PAPER * context.paper_scale / 1000.0
     msp.add_text(
         DRAFT_WATERMARK,
-        height=height,
-        dxfattribs={"layer": SHEET_LAYER, "insert": _lower_left(written)},
+        height=paper_height_m(WATERMARK_HEIGHT_MM_PAPER, context.paper_scale),
+        dxfattribs={"layer": SHEET_LAYER, "style": TEXT_STYLE, "insert": _lower_left(written)},
     )
 
 
