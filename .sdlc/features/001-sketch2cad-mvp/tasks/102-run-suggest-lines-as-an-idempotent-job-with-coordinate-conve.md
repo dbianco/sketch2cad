@@ -1,7 +1,7 @@
 ---
 id: 001-102
 title: "Run suggest_lines as an idempotent job with coordinate conversion"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-100, 001-051]
