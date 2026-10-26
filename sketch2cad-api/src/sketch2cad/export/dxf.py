@@ -15,10 +15,11 @@ Structure:
 - :func:`write_bytes` writes to a text stream and encodes it (UTF-8, ``\\n`` line endings).
 
 Each snapshot entity type maps to a writer in :data:`ENTITY_WRITERS`: texts are written by
-:mod:`sketch2cad.export.dxf_text` and symbols (and the marker of evidence points) by
-:mod:`sketch2cad.export.dxf_symbols`. Types listed in :data:`DEFERRED_TYPES` (dimensions)
-have no writer yet and are skipped; adding their writer to the table and removing them from
-the set is all it takes to export them. Every written entity carries XDATA
+:mod:`sketch2cad.export.dxf_text`, symbols (and the marker of evidence points) by
+:mod:`sketch2cad.export.dxf_symbols` and dimensions by :mod:`sketch2cad.export.dxf_dimensions`.
+Types listed in :data:`DEFERRED_TYPES` (none left) have no writer yet and are skipped;
+adding their writer to the table and removing them from the set is all it takes to export
+them. Every written entity carries XDATA
 ``entity_id=<uuid>`` under :data:`APP_ID` so the DXF can be traced back to the snapshot.
 """
 
@@ -38,6 +39,12 @@ from ezdxf.filemanagement import new as new_drawing
 from ezdxf.layouts.layout import Modelspace
 
 from sketch2cad.catalog import CatalogDefinition
+from sketch2cad.entities.dimensions import DimensionTolerances
+from sketch2cad.export.dxf_dimensions import (
+    DegenerateDimensionError,
+    add_dimension_styles,
+    write_dimension,
+)
 from sketch2cad.export.dxf_layers import add_catalog_layers, catalog_layer_names
 from sketch2cad.export.dxf_symbols import (
     UnknownSymbolError,
@@ -68,12 +75,17 @@ class DxfExportError(ValueError):
 
 @dataclass(frozen=True)
 class ExportContext:
-    """What entity writers may need besides the entity itself."""
+    """What entity writers may need besides the entity itself.
+
+    ``dimension_tolerances`` decides which dimensions are drawn with the alert style; the
+    snapshot does not store the discrepancy flag, so the export recomputes it.
+    """
 
     catalog: CatalogDefinition
     paper_scale: int
     draft: bool
     evidence_table: Sequence[Mapping[str, Any]] = field(default_factory=tuple[Any, ...])
+    dimension_tolerances: DimensionTolerances = field(default_factory=DimensionTolerances)
 
 
 EntityWriter = Callable[[Modelspace, Mapping[str, Any], ExportContext], list[DXFGraphic]]
@@ -118,8 +130,9 @@ ENTITY_WRITERS: dict[str, EntityWriter] = {
     "point": _write_point,
     "text": write_text,
     "symbol": write_symbol,
+    "dimension": write_dimension,
 }
-DEFERRED_TYPES = frozenset({"dimension"})
+DEFERRED_TYPES: frozenset[str] = frozenset()
 
 
 def paper_scale(snapshot: Mapping[str, Any]) -> int:
@@ -162,11 +175,17 @@ def build_document(
     *,
     draft: bool,
     generator_version: str,
+    dimension_tolerances: DimensionTolerances | None = None,
 ) -> Drawing:
     """The ezdxf document of ``snapshot``, audited and ready to write.
 
+    ``dimension_tolerances`` defaults to the spec tolerance (0.02 m); callers pass the
+    configured one (``DimensionTolerances.from_settings``) so the alert style of discrepant
+    dimensions matches the editor.
+
     Raises :class:`DxfExportError` when the snapshot names another catalog version, uses a
-    layer or entity type the export does not know, or the audit reports errors or fixes.
+    layer or entity type the export does not know, has a dimension whose points coincide,
+    or the audit reports errors or fixes.
     """
     if snapshot["catalog_version"] != catalog.version:
         raise DxfExportError(
@@ -177,9 +196,14 @@ def build_document(
         raise DxfExportError(f"catalog {catalog.version!r} has no {SHEET_LAYER} layer")
     sha256 = snapshot_sha256(snapshot)
     context = ExportContext(
-        catalog, paper_scale(snapshot), draft, tuple(snapshot.get("evidence_table") or ())
+        catalog,
+        paper_scale(snapshot),
+        draft,
+        tuple(snapshot.get("evidence_table") or ()),
+        dimension_tolerances or DimensionTolerances(),
     )
     doc = new_document()
+    add_dimension_styles(doc, context.paper_scale)
     add_catalog_layers(doc, catalog)
     msp = doc.modelspace()
     written = _add_entities(msp, snapshot["entities"], context, layers)
@@ -223,9 +247,16 @@ def export_dxf(
     *,
     draft: bool,
     generator_version: str,
+    dimension_tolerances: DimensionTolerances | None = None,
 ) -> bytes:
     """DXF R2013 bytes of the frozen ``snapshot`` (see :func:`build_document`)."""
-    doc = build_document(snapshot, catalog, draft=draft, generator_version=generator_version)
+    doc = build_document(
+        snapshot,
+        catalog,
+        draft=draft,
+        generator_version=generator_version,
+        dimension_tolerances=dimension_tolerances,
+    )
     return write_bytes(doc)
 
 
@@ -251,7 +282,7 @@ def _add_entities(
             continue
         try:
             graphics = writer(msp, entity, context)
-        except UnknownSymbolError as error:
+        except (UnknownSymbolError, DegenerateDimensionError) as error:
             raise DxfExportError(f"entity {entity['id']}: {error}") from error
         for graphic in graphics:
             graphic.set_xdata(APP_ID, [(1000, f"entity_id={entity['id']}")])
