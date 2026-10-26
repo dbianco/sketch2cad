@@ -1,7 +1,7 @@
 ---
 id: 001-077
 title: "Implement the evidence registry endpoints"
-status: todo
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-070, 001-032]
