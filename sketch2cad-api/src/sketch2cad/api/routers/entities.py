@@ -1,4 +1,6 @@
-"""Entity endpoints: list, create, edit and soft-delete entities of a revision (REQ-05, US-06).
+"""Entity endpoints: list, create, edit, soft-delete and bulk-review entities of a revision.
+
+REQ-05, US-06; the bulk review of suggestions covers REQ-17 and US-12.
 
 Every mutating route takes ``EDIT_DEPENDENCIES`` (CSRF); the edit lease is checked in the
 service gate :func:`~sketch2cad.entities.service.ensure_editable`, under the plan row lock.
@@ -19,10 +21,13 @@ from sketch2cad.api.deps import (
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
-from sketch2cad.db.models import Entity, Plan, Revision, User
+from sketch2cad.db.models import Entity, Plan, ReviewStatus, Revision, User
 from sketch2cad.db.session import get_session
+from sketch2cad.entities.bulk_review import BulkReviewError, bulk_review
 from sketch2cad.entities.dimensions import DimensionTolerances, dimension_discrepancy
 from sketch2cad.entities.schemas import (
+    BulkReviewIn,
+    BulkReviewOut,
     EntitiesCreate,
     EntityListOut,
     EntityOut,
@@ -65,6 +70,18 @@ EDIT_RESPONSES: dict[int | str, dict[str, Any]] = {
         "``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: "
         "``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not "
         "cross, ``V-07`` when a reference is not metric or depends on the entity. "
+        "Nothing changes.",
+    },
+}
+
+BULK_REVIEW_RESPONSES: dict[int | str, dict[str, Any]] = {
+    **EDIT_RESPONSES,
+    404: {"description": "The revision does not exist."},
+    422: {
+        "description": "Invalid body (empty, repeated or more than 2000 ids, a status other "
+        "than accepted or rejected), or ``code`` ``bulk_review_invalid`` when some id cannot "
+        "be reviewed: ``invalid_ids`` lists them and ``reasons`` maps each to "
+        "``not_in_revision``, ``deleted``, ``not_a_suggestion`` or ``invalid_transition``. "
         "Nothing changes.",
     },
 }
@@ -120,6 +137,11 @@ def _rejected(db: Session, exc: Exception) -> ProblemError:
     logger.warning("Rejected entity change: %s", type(exc).__name__)
     if isinstance(exc, EntityGoneError):
         return ProblemError(404, "Not Found", "The entity does not exist.")
+    if isinstance(exc, BulkReviewError):
+        extensions = {"code": exc.code, "invalid_ids": list(exc.reasons), "reasons": exc.reasons}
+        return ProblemError(
+            422, HTTPStatus.UNPROCESSABLE_ENTITY.phrase, str(exc), extensions=extensions
+        )
     if isinstance(exc, EntityConflictError):
         extensions = {**exc.extensions, **({} if exc.code is None else {"code": exc.code})}
         return ProblemError(409, HTTPStatus.CONFLICT.phrase, str(exc), extensions=extensions)
@@ -177,6 +199,44 @@ def create_revision_entities(
     return _list_out(entities, revision, revision_tolerances(db, revision))
 
 
+@router.post(
+    "/revisions/{revision_id}/entities:bulk-review",
+    dependencies=EDIT_DEPENDENCIES,
+    responses=BULK_REVIEW_RESPONSES,
+)
+def bulk_review_entities(
+    request: Request,
+    body: BulkReviewIn,
+    revision: Annotated[Revision, Depends(require_revision_permission("edit"))],
+    db: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> BulkReviewOut:
+    """Accept or reject suggestions of the revision in one transaction, all or nothing.
+
+    One ``entity.reviewed`` per changed entity; accepting promotes ``metric_origin``
+    (``scaled_drawing`` in a ``scaled_drawing`` plan calibrated as metric, else
+    ``trace_only``), rejecting also soft-deletes. Ids already in the target state are
+    left unchanged without an event. Requires ``edit`` and the edit lease.
+    """
+    try:
+        result = bulk_review(
+            db, revision, user, body.ids, ReviewStatus(body.review_status), _client_ip(request)
+        )
+    except (EntityConflictError, BulkReviewError) as exc:
+        raise _rejected(db, exc) from None
+    db.commit()
+    return BulkReviewOut.model_validate(
+        {
+            "review_status": body.review_status,
+            "changed": len(result.changed),
+            "unchanged": len(result.unchanged),
+            "changed_ids": result.changed,
+            "unchanged_ids": result.unchanged,
+            "metric_status": result.metric_status,
+        }
+    )
+
+
 @router.patch("/entities/{entity_id}", dependencies=EDIT_DEPENDENCIES, responses=EDIT_RESPONSES)
 def patch_entity(
     request: Request,
@@ -186,6 +246,9 @@ def patch_entity(
     user: Annotated[User, Depends(get_current_user)],
 ) -> EntityPatchOut:
     """Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.
+
+    Changing a pending suggestion marks it ``corrected`` (CA-05) and promotes its
+    ``metric_origin`` like an acceptance.
 
     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
     optional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``
@@ -214,7 +277,8 @@ def remove_entity(
 ) -> EntityOut:
     """Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.
 
-    ``reason`` is optional. Requires ``edit``.
+    Deleting a pending suggestion rejects it (``review_status`` ``rejected``). ``reason`` is
+    optional. Requires ``edit``.
     """
     try:
         delete_entity(db, entity, user, reason, _client_ip(request))

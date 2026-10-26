@@ -179,6 +179,81 @@
         "title": "ArtifactOut",
         "type": "object"
       },
+      "BulkReviewIn": {
+        "additionalProperties": false,
+        "description": "Body of ``POST /revisions/{id}/entities:bulk-review``: distinct suggestion ids.",
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          },
+          "review_status": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Review Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ids",
+          "review_status"
+        ],
+        "title": "BulkReviewIn",
+        "type": "object"
+      },
+      "BulkReviewOut": {
+        "description": "Outcome of a bulk review; ids keep the request order.\n\n``changed_ids`` got the new ``review_status`` (one ``entity.reviewed`` each; rejected\nones are also soft-deleted); ``unchanged_ids`` already had it (no event).\n``metric_status`` is the plan's status after the review.",
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "changed_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Changed Ids",
+            "type": "array"
+          },
+          "metric_status": {
+            "$ref": "#/components/schemas/MetricStatus"
+          },
+          "review_status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "unchanged_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Unchanged Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "review_status",
+          "changed",
+          "unchanged",
+          "changed_ids",
+          "unchanged_ids",
+          "metric_status"
+        ],
+        "title": "BulkReviewOut",
+        "type": "object"
+      },
       "CalibrationAcceptIn": {
         "description": "Calibration inputs plus whether to accept the calibration as metric.",
         "properties": {
@@ -5398,7 +5473,7 @@
     },
     "/api/v1/entities/{entity_id}": {
       "delete": {
-        "description": "Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.\n\n``reason`` is optional. Requires ``edit``.",
+        "description": "Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.\n\nDeleting a pending suggestion rejects it (``review_status`` ``rejected``). ``reason`` is\noptional. Requires ``edit``.",
         "operationId": "remove_entity_api_v1_entities__entity_id__delete",
         "parameters": [
           {
@@ -5506,7 +5581,7 @@
         ]
       },
       "patch": {
-        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``\nand set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires\n``edit``.",
+        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nChanging a pending suggestion marks it ``corrected`` (CA-05) and promotes its\n``metric_origin`` like an acceptance.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``\nand set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires\n``edit``.",
         "operationId": "patch_entity_api_v1_entities__entity_id__patch",
         "parameters": [
           {
@@ -6962,6 +7037,109 @@
           }
         },
         "summary": "Create Revision Entities",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/revisions/{revision_id}/entities:bulk-review": {
+      "post": {
+        "description": "Accept or reject suggestions of the revision in one transaction, all or nothing.\n\nOne ``entity.reviewed`` per changed entity; accepting promotes ``metric_origin``\n(``scaled_drawing`` in a ``scaled_drawing`` plan calibrated as metric, else\n``trace_only``), rejecting also soft-deletes. Ids already in the target state are\nleft unchanged without an event. Requires ``edit`` and the edit lease.",
+        "operationId": "bulk_review_entities_api_v1_revisions__revision_id__entities_bulk_review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "title": "Revision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkReviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The revision does not exist."
+          },
+          "409": {
+            "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
+          },
+          "422": {
+            "description": "Invalid body (empty, repeated or more than 2000 ids, a status other than accepted or rejected), or ``code`` ``bulk_review_invalid`` when some id cannot be reviewed: ``invalid_ids`` lists them and ``reasons`` maps each to ``not_in_revision``, ``deleted``, ``not_a_suggestion`` or ``invalid_transition``. Nothing changes."
+          }
+        },
+        "summary": "Bulk Review Entities",
         "tags": [
           "entities"
         ]

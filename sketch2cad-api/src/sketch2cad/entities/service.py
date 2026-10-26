@@ -16,8 +16,12 @@ polylines), store its ``constraint`` and set
 ``metric_origin = none`` (spec section 11.3). After any edit or deletion that changes an
 entity, the entities that depend on it through ``constraint.refs`` are recomputed
 (:mod:`sketch2cad.entities.recompute`), each with an ``entity.recomputed`` event in the
-same transaction. An entity may place evidence of its plan's case file (``evidence_id``,
-points and symbols only; :func:`_check_evidence`); a marker symbol's
+same transaction. Editing a pending suggestion (``review_status`` ``suggested``) is a human
+correction (CA-05): any change flips it to ``corrected`` and promotes its ``metric_origin``
+by :func:`reviewed_origin`; deleting one rejects it (``review_status`` ``rejected``). The
+bulk accept and reject live in :mod:`sketch2cad.entities.bulk_review`. An entity may
+place evidence of its plan's case file (``evidence_id``, points and symbols only;
+:func:`_check_evidence`); a marker symbol's
 ``evidence_number`` attribute follows that evidence (:func:`_sync_evidence_number`).
 Entities are edited only in a
 ``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by the user holding the
@@ -81,7 +85,11 @@ from sketch2cad.entities.schemas import (
 from sketch2cad.evidence.service import find_case_evidence
 from sketch2cad.geometry.constraints import would_create_cycle
 from sketch2cad.geometry.homography import Point
-from sketch2cad.geometry.metric_status import METRIC_ORIGINS, default_metric_origin
+from sketch2cad.geometry.metric_status import (
+    METRIC_ORIGINS,
+    default_metric_origin,
+    reviewed_metric_origin,
+)
 from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
 from sketch2cad.plans.service import active_calibration, recompute_metric_status
 
@@ -101,6 +109,8 @@ SERVER_ATTRIBUTES = (DECLARED_SEGMENTS, CONSTRAINT_ERROR)
 EXPORT_ONLY_LAYERS = frozenset({"L_SHEET"})
 # Entity types that may place evidence (spec section 2.1).
 EVIDENCE_TYPES = frozenset({"point", "symbol"})
+# Review states of a suggestion a person has approved (spec section 11.3).
+REVIEWED_STATUSES = frozenset({ReviewStatus.ACCEPTED.value, ReviewStatus.CORRECTED.value})
 # Catalog symbol whose ``evidence_number`` attribute shows the evidence it places.
 EVIDENCE_MARKER = "evidence_marker"
 
@@ -286,6 +296,37 @@ def initial_metric_origin(
     )
 
 
+def reviewed_origin(plan: Plan, calibration: Calibration | None, entity_type: str) -> MetricOrigin:
+    """``metric_origin`` of a suggestion a person accepted or corrected (spec section 11.3).
+
+    ``scaled_drawing`` in a ``scaled_drawing`` plan whose active calibration was accepted as
+    metric, else ``trace_only`` (:func:`reviewed_metric_origin`, same condition as
+    :func:`initial_metric_origin`).
+    """
+    return MetricOrigin(
+        reviewed_metric_origin(
+            plan.source_mode.value,
+            None if calibration is None else calibration.method,
+            calibration is not None and calibration.as_metric,
+            entity_type,
+        )
+    )
+
+
+def promote_reviewed(entity: Entity, calibration: Calibration | None, plan: Plan) -> None:
+    """Promote the ``trace_only`` origin of a reviewed suggestion by :func:`reviewed_origin`.
+
+    Only a ``trace_only`` entity without declared segment lengths changes: a stronger origin
+    (declared, constrained) is never downgraded, and partial declarations keep
+    ``trace_only`` as for hand-drawn entities (:func:`_apply_declarations`).
+    """
+    if entity.metric_origin != MetricOrigin.TRACE_ONLY.value:
+        return
+    if declared_origin(entity.geometry, entity.attributes) is not None:
+        return
+    entity.metric_origin = reviewed_origin(plan, calibration, entity.type).value
+
+
 def _record(
     db: Session,
     plan: Plan,
@@ -391,7 +432,9 @@ def update_entity(
 ) -> EntityUpdate:
     """Apply ``patch`` and append ``entity.updated`` with ``operation`` and ``reason``.
 
-    ``source`` and ``review_status`` are left unchanged; ``metric_origin`` changes with
+    ``source`` is left unchanged. A suggestion that the edit changes becomes ``corrected``
+    and its ``metric_origin`` is promoted (:func:`_correct_suggestion`, CA-05);
+    ``metric_origin`` also changes with
     the declared segment lengths (:func:`_apply_declarations`), with a constraint
     operation (:func:`_apply_constraint`) and when a constrained entity is moved by hand
     (:func:`_drop_moved_constraint`). Raises :class:`EntityGoneError`,
@@ -439,7 +482,10 @@ def update_entity(
     _sync_evidence_number(db, plan, entity)
     if patch.operation not in CONSTRAINT_OPERATIONS:
         _drop_moved_constraint(entity, old_geometry)
+    corrected = _correct_suggestion(entity, before)
     _apply_declarations(db, plan, entity, old_geometry, patch.operation)
+    if corrected:
+        promote_reviewed(entity, active_calibration(db, plan), plan)
     entity.updated_at = utc_now()
     db.flush()
     after = {**entity_state(entity), "operation": patch.operation.value}
@@ -459,6 +505,18 @@ def update_entity(
     recompute_metric_status(db, plan)
     logger.info("User %s applied %s to entity %s", user.id, patch.operation.value, entity.id)
     return update
+
+
+def _correct_suggestion(entity: Entity, before: dict[str, Any]) -> bool:
+    """Flip a pending suggestion that an edit changed to ``corrected``; return whether.
+
+    A person editing a suggestion reviews it (CA-05); ``source`` and ``confidence`` stay.
+    The ``entity.updated`` event's ``after`` records the new ``review_status``.
+    """
+    if entity.review_status != ReviewStatus.SUGGESTED.value or entity_state(entity) == before:
+        return False
+    entity.review_status = ReviewStatus.CORRECTED.value
+    return True
 
 
 CONSTRAINT_OPERATIONS = frozenset({EntityOperation.TRIANGULATE, EntityOperation.BASELINE_OFFSET})
@@ -630,7 +688,9 @@ def _apply_declarations(
     Runs after ``fix_length`` and after any edit that changed a geometry with
     declarations: every segment declared gives ``declared_dimension``, only some give
     ``trace_only`` (spec section 8.2); none left gives the hand-drawn default
-    (:func:`initial_metric_origin`) for a manual entity and ``trace_only`` otherwise.
+    (:func:`initial_metric_origin`) for a manual entity, the promotion rule
+    (:func:`reviewed_origin`) for an accepted or corrected suggestion and ``trace_only``
+    for a pending one.
     """
     if operation is not EntityOperation.FIX_LENGTH:
         if entity.geometry == old_geometry:
@@ -644,6 +704,8 @@ def _apply_declarations(
         if entity.source.get("method") == "manual":
             calibration = active_calibration(db, plan)
             origin = initial_metric_origin(plan, calibration, entity.type).value
+        elif entity.review_status in REVIEWED_STATUSES:
+            origin = reviewed_origin(plan, active_calibration(db, plan), entity.type).value
         else:
             origin = MetricOrigin.TRACE_ONLY.value
     entity.metric_origin = origin
@@ -660,13 +722,27 @@ def delete_entity(
 
     Entities fixed from it can no longer be recomputed: they keep their position and are
     marked (``constraint_error`` ``reference_missing``, ``metric_origin`` ``none``).
+    Deleting a pending suggestion rejects it: ``review_status`` becomes ``rejected`` and the
+    event's ``after`` records it (``{"review_status": "rejected"}``; null otherwise).
     """
     plan, _ = _lock_live(db, entity, user)
     before = entity_state(entity)
+    after: dict[str, Any] | None = None
+    if entity.review_status == ReviewStatus.SUGGESTED.value:
+        entity.review_status = ReviewStatus.REJECTED.value
+        after = {"review_status": entity.review_status}
     entity.deleted_at = entity.updated_at = utc_now()
     db.flush()
     _record(
-        db, plan, entity, user, EventKind.ENTITY_DELETED, client_ip, before=before, reason=reason
+        db,
+        plan,
+        entity,
+        user,
+        EventKind.ENTITY_DELETED,
+        client_ip,
+        before=before,
+        after=after,
+        reason=reason,
     )
     _recompute_dependents(db, plan, entity, user, client_ip)
     recompute_metric_status(db, plan)

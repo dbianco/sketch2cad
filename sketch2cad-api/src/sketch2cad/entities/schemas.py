@@ -23,7 +23,7 @@ from pydantic import (
 )
 
 from sketch2cad.catalog.schema import ATTRIBUTE_NAME, LAYER_NAME, SYMBOL_ID
-from sketch2cad.db.models import EntityType, MetricOrigin, ReviewStatus
+from sketch2cad.db.models import EntityType, MetricOrigin, MetricStatus, ReviewStatus
 from sketch2cad.entities.dimensions import measured_length
 
 # One request carries at most the entity count the editor is sized for (spec section 17).
@@ -338,3 +338,32 @@ class EntityListOut(BaseModel):
     """Entities of a revision, ordered by id; soft-deleted ones are left out."""
 
     entities: list[EntityOut]
+
+
+class BulkReviewIn(_Strict):
+    """Body of ``POST /revisions/{id}/entities:bulk-review``: distinct suggestion ids."""
+
+    ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=MAX_ENTITIES_PER_REQUEST)]
+    review_status: Literal[ReviewStatus.ACCEPTED, ReviewStatus.REJECTED]
+
+    @model_validator(mode="after")
+    def _distinct_ids(self) -> "BulkReviewIn":
+        if len(set(self.ids)) != len(self.ids):
+            raise ValueError("ids must be distinct")
+        return self
+
+
+class BulkReviewOut(BaseModel):
+    """Outcome of a bulk review; ids keep the request order.
+
+    ``changed_ids`` got the new ``review_status`` (one ``entity.reviewed`` each; rejected
+    ones are also soft-deleted); ``unchanged_ids`` already had it (no event).
+    ``metric_status`` is the plan's status after the review.
+    """
+
+    review_status: ReviewStatus
+    changed: int
+    unchanged: int
+    changed_ids: list[uuid.UUID]
+    unchanged_ids: list[uuid.UUID]
+    metric_status: MetricStatus
