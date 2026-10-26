@@ -1,7 +1,7 @@
 ---
 id: 001-090
 title: "Build the manifest and the Ed25519 signature"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-055, 001-031]
@@ -22,4 +22,4 @@ Implements: REQ-14
 
 - [ ] Signing and verifying the sample manifest passes; changing one byte of the manifest makes verification fail (`tests/package/test_manifest_signing.py`).
 - [ ] Startup with a key file of mode 0644 exits non-zero with a message naming the path (H4-11).
-- [ ] `rg -n 'BEGIN (PRIVATE|OPENSSH)' .` finds no key material in the repository (gitleaks job also green).
+- [ ] `rg -n 'BEGIN (PRIVATE|OPENSSH)' .` finds no key material in the repository except the two deliberate fake gitleaks self-test fixtures (`*/tests/fixtures/fake_secret.txt`, marked "FAKE TEST FIXTURE - NOT A REAL KEY"); gitleaks job also green (criterion reworded 2026-10-26: task 022 put those fixtures on purpose).
