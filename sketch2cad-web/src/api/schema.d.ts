@@ -280,6 +280,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Config Features
+         * @description Effective feature switches; any signed-in user.
+         *
+         *     ``ai_assist.enabled`` is the global override, else ``AI_ASSIST_ENABLED`` (default
+         *     true). When false the AI job kinds (``suggest_lines``, ``ocr_crop``) give 404 and no
+         *     suggestions are queued, so the client should hide their controls.
+         */
+        get: operations["get_config_features_api_v1_config_features_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Config Params
+         * @description Every configuration parameter with its default and overrides; any signed-in user.
+         *
+         *     Resolution order: override of the case's incident type, global override, default.
+         */
+        get: operations["get_config_params_api_v1_config_params_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/params/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Config Param
+         * @description Create or replace an override (admin); appends one ``config.changed`` event.
+         */
+        put: operations["put_config_param_api_v1_config_params__name__put"];
+        post?: never;
+        /**
+         * Delete Config Param
+         * @description Remove an override (admin); appends one ``config.changed`` event.
+         */
+        delete: operations["delete_config_param_api_v1_config_params__name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/entities/{entity_id}": {
         parameters: {
             query?: never;
@@ -294,7 +364,8 @@ export interface paths {
          * Remove Entity
          * @description Soft-delete the entity (sets ``deleted_at``; the row stays) with ``entity.deleted``.
          *
-         *     ``reason`` is optional. Requires ``edit``.
+         *     Deleting a pending suggestion rejects it (``review_status`` ``rejected``). ``reason`` is
+         *     optional. Requires ``edit``.
          */
         delete: operations["remove_entity_api_v1_entities__entity_id__delete"];
         options?: never;
@@ -302,6 +373,9 @@ export interface paths {
         /**
          * Patch Entity
          * @description Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.
+         *
+         *     Changing a pending suggestion marks it ``corrected`` (CA-05) and promotes its
+         *     ``metric_origin`` like an acceptance.
          *
          *     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
          *     optional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``
@@ -472,6 +546,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/plans/{plan_id}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Plan Job
+         * @description Queue a job on the plan (202); poll ``GET /jobs/{id}``. Requires ``edit``.
+         *
+         *     ``suggest_lines`` (relaunch): allowed while no entity of the plan is accepted,
+         *     corrected or manual, with the plan's edit lease. Soft-deletes the pending suggestions
+         *     (one ``entity.deleted`` event with their ids), supersedes earlier jobs and queues a new
+         *     one; it inserts its suggestions with ``suggestions.added``.
+         *
+         *     ``ocr_crop``: reads the number inside ``box_px`` of the plan's primary source; needs
+         *     neither the lease nor a calibration and writes nothing but the job. The succeeded job
+         *     carries ``result`` (:class:`OcrResultOut`).
+         *
+         *     Both kinds give 404 when ``ai_assist.enabled`` is false (``GET /config/features``).
+         */
+        post: operations["post_plan_job_api_v1_plans__plan_id__jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plans/{plan_id}/lease": {
         parameters: {
             query?: never;
@@ -597,9 +702,37 @@ export interface paths {
          * @description Create one or more hand-drawn entities, in request order, with ``entity.created`` each.
          *
          *     The server sets ``source`` (``manual``), ``review_status`` (``accepted``) and
-         *     ``metric_origin``. Requires ``edit``; 409 unless the revision is an editable draft.
+         *     ``metric_origin``. A dimension with ``ocr_job_id`` (a succeeded ``ocr_crop`` job of the
+         *     plan) gets ``source.method = ocr``, ``accepted`` when ``declared_value_m`` equals the
+         *     OCR value else ``corrected``, and also ``entity.reviewed``. Requires ``edit``; 409
+         *     unless the revision is an editable draft.
          */
         post: operations["create_revision_entities_api_v1_revisions__revision_id__entities_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/revisions/{revision_id}/entities:bulk-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Review Entities
+         * @description Accept or reject suggestions of the revision in one transaction, all or nothing.
+         *
+         *     One ``entity.reviewed`` per changed entity; accepting promotes ``metric_origin``
+         *     (``scaled_drawing`` in a ``scaled_drawing`` plan calibrated as metric, else
+         *     ``trace_only``), rejecting also soft-deletes. Ids already in the target state are
+         *     left unchanged without an event. Requires ``edit`` and the edit lease.
+         */
+        post: operations["bulk_review_entities_api_v1_revisions__revision_id__entities_bulk_review_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -698,6 +831,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiAssistFeatureOut */
+        AiAssistFeatureOut: {
+            /** Enabled */
+            enabled: boolean;
+        };
         /**
          * ArtifactDetailOut
          * @description ``manifest`` is the signed manifest of the final package the artifact belongs to.
@@ -778,6 +916,39 @@ export interface components {
             revision_id: string | null;
             /** Sha256 */
             sha256: string;
+        };
+        /**
+         * BulkReviewIn
+         * @description Body of ``POST /revisions/{id}/entities:bulk-review``: distinct suggestion ids.
+         */
+        BulkReviewIn: {
+            /** Ids */
+            ids: string[];
+            /**
+             * Review Status
+             * @enum {string}
+             */
+            review_status: "accepted" | "rejected";
+        };
+        /**
+         * BulkReviewOut
+         * @description Outcome of a bulk review; ids keep the request order.
+         *
+         *     ``changed_ids`` got the new ``review_status`` (one ``entity.reviewed`` each; rejected
+         *     ones are also soft-deleted); ``unchanged_ids`` already had it (no event).
+         *     ``metric_status`` is the plan's status after the review.
+         */
+        BulkReviewOut: {
+            /** Changed */
+            changed: number;
+            /** Changed Ids */
+            changed_ids: string[];
+            metric_status: components["schemas"]["MetricStatus"];
+            review_status: components["schemas"]["ReviewStatus"];
+            /** Unchanged */
+            unchanged: number;
+            /** Unchanged Ids */
+            unchanged_ids: string[];
         };
         /**
          * CalibrationAcceptIn
@@ -1011,6 +1182,12 @@ export interface components {
             version: string;
         };
         /**
+         * ConfigScope
+         * @description Who an override applies to.
+         * @enum {string}
+         */
+        ConfigScope: "global" | "incident_type";
+        /**
          * DimensionGeometry
          * @description ``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.
          *
@@ -1177,6 +1354,8 @@ export interface components {
          * @description A new entity drawn by hand; provenance, review and metric fields are set by the server.
          *
          *     ``evidence_id`` places evidence of the plan's case file; only points and symbols may.
+         *     ``ocr_job_id`` records that a dimension's ``declared_value_m`` was read by a succeeded
+         *     ``ocr_crop`` job of the plan, accepted or corrected by the user (REQ-18).
          */
         EntityIn: {
             /** Attributes */
@@ -1189,6 +1368,8 @@ export interface components {
             geometry: components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"];
             /** Layer */
             layer: string;
+            /** Ocr Job Id */
+            ocr_job_id?: string | null;
             type: components["schemas"]["EntityType"];
         };
         /**
@@ -1555,6 +1736,13 @@ export interface components {
             /** Scale */
             scale?: (50 | 100 | 200 | 250 | 500) | null;
         };
+        /**
+         * FeaturesOut
+         * @description Effective feature switches, for the client to hide controls of disabled features.
+         */
+        FeaturesOut: {
+            ai_assist: components["schemas"]["AiAssistFeatureOut"];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1586,6 +1774,7 @@ export interface components {
             id: string;
             /** Kind */
             kind: string;
+            result?: components["schemas"]["OcrResultOut"] | null;
             /** Result Ref */
             result_ref: string | null;
             /** Source Id */
@@ -1723,6 +1912,126 @@ export interface components {
             };
             status: components["schemas"]["MetricStatus"];
         };
+        /**
+         * OcrCropJobIn
+         * @description OCR of a crop of the plan's primary source (REQ-18).
+         */
+        OcrCropJobIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "ocr_crop";
+            params: components["schemas"]["OcrCropParams"];
+        };
+        /**
+         * OcrCropParams
+         * @description ``box_px = [x0, y0, x1, y1]``: pixels of the original image of ``source_id`` (its
+         *     300 dpi raster for a PDF), ``x0 < x1``, ``y0 < y1``, sides from 8 to 2000 px.
+         */
+        OcrCropParams: {
+            /** Box Px */
+            box_px: number[];
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+        };
+        /**
+         * OcrResultOut
+         * @description Reading of an ``ocr_crop`` job (spec section 10).
+         *
+         *     ``value_m`` is null when the text is not a usable distance (``reason``: ``empty``,
+         *     ``non_numeric``, ``non_positive`` or ``ambiguous``). ``preselect`` is true when there
+         *     is a value and ``confidence >= min_confidence`` (``ocr.min_confidence``).
+         */
+        OcrResultOut: {
+            /** Confidence */
+            confidence: number;
+            /** Min Confidence */
+            min_confidence: number;
+            /** Model Version */
+            model_version: string;
+            /** Preselect */
+            preselect: boolean;
+            /** Raw Text */
+            raw_text: string;
+            /** Reason */
+            reason: string | null;
+            /** Text */
+            text: string;
+            /** Unit Detected */
+            unit_detected: string | null;
+            /** Value M */
+            value_m: number | null;
+        };
+        /**
+         * OverrideIn
+         * @description New override value; ``incident_type`` only (and required) for scope ``incident_type``.
+         */
+        OverrideIn: {
+            incident_type?: components["schemas"]["IncidentType"] | null;
+            scope: components["schemas"]["ConfigScope"];
+            /** Value */
+            value: boolean | number | string;
+        };
+        /**
+         * OverrideOut
+         * @description A stored override; ``incident_type`` is null for scope ``global``.
+         */
+        OverrideOut: {
+            incident_type: components["schemas"]["IncidentType"] | null;
+            scope: components["schemas"]["ConfigScope"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Updated By
+             * Format: uuid
+             */
+            updated_by: string;
+            /** Value */
+            value: boolean | number | string;
+        };
+        /** ParamListOut */
+        ParamListOut: {
+            /** Params */
+            params: components["schemas"]["ParamOut"][];
+        };
+        /**
+         * ParamOut
+         * @description A parameter: ``default`` is the environment/code default; ``scopes`` the allowed
+         *     override scopes (empty: environment only); ``constraints`` its numeric bounds
+         *     (``gt``, ``ge``, ``lt``, ``le``).
+         */
+        ParamOut: {
+            /** Constraints */
+            constraints: {
+                [key: string]: number;
+            };
+            /** Default */
+            default: boolean | number | string;
+            /** Description */
+            description: string;
+            /** Env Var */
+            env_var: string;
+            /** Name */
+            name: string;
+            /** Overrides */
+            overrides: components["schemas"]["OverrideOut"][];
+            /** Scopes */
+            scopes: components["schemas"]["ConfigScope"][];
+            /** Section */
+            section: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "bool" | "int" | "float" | "str";
+        };
         /** PlanCreate */
         PlanCreate: {
             /**
@@ -1734,6 +2043,22 @@ export interface components {
             source_mode: components["schemas"]["SourceMode"];
             /** Title */
             title: string;
+        };
+        /**
+         * PlanJobIn
+         * @description ``suggest_lines`` on a plan. Its parameters come from the configuration
+         *     (``suggest_lines.*``), so ``params`` must be empty.
+         */
+        PlanJobIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "suggest_lines";
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * PlanOut
@@ -2695,6 +3020,192 @@ export interface operations {
             };
         };
     };
+    get_config_features_api_v1_config_features_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeaturesOut"];
+                };
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_config_params_api_v1_config_params_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamListOut"];
+                };
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_config_param_api_v1_config_params__name__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                name: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverrideIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamOut"];
+                };
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing CSRF token, or the user is not an admin (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown parameter, a scope the parameter does not allow, an ``incident_type`` missing for scope ``incident_type`` (or given for ``global``), or a value of the wrong type or outside the parameter bounds. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_config_param_api_v1_config_params__name__delete: {
+        parameters: {
+            query: {
+                scope: components["schemas"]["ConfigScope"];
+                incident_type?: components["schemas"]["IncidentType"] | null;
+            };
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                name: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamOut"];
+                };
+            };
+            /** @description Authentication is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing CSRF token, or the user is not an admin (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description There is no such override. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown parameter, a scope the parameter does not allow, an ``incident_type`` missing for scope ``incident_type`` (or given for ``global``), or a value of the wrong type or outside the parameter bounds. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     remove_entity_api_v1_entities__entity_id__delete: {
         parameters: {
             query?: {
@@ -3185,6 +3696,65 @@ export interface operations {
             };
         };
     };
+    post_plan_job_api_v1_plans__plan_id__jobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanJobIn"] | components["schemas"]["OcrCropJobIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist, or AI assist is disabled. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan is not editable or the user does not hold its edit lease (``V-10``, ``V-12`` with ``holder``, ``lease_required``); it has no calibration (``calibration_required``); an entity is accepted or manual (``suggestions_locked``); or its rectified image is not ready (``rectified_image_pending``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body: unknown kind, non-empty ``suggest_lines`` params; for ``ocr_crop`` a source that is not the plan's primary source (``ocr_source_invalid``) or a box outside the image or of an invalid size (``ocr_box_invalid``). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     post_lease_api_v1_plans__plan_id__lease_post: {
         parameters: {
             query?: never;
@@ -3562,6 +4132,65 @@ export interface operations {
                 content?: never;
             };
             /** @description Invalid body, a layer or symbol not in the active catalog, an ``evidence_id`` that is not evidence of the plan's case file (or set on an entity that is not a point or symbol), or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    bulk_review_entities_api_v1_revisions__revision_id__entities_bulk_review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                revision_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkReviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkReviewOut"];
+                };
+            };
+            /** @description The user lacks the permission on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body (empty, repeated or more than 2000 ids, a status other than accepted or rejected), or ``code`` ``bulk_review_invalid`` when some id cannot be reviewed: ``invalid_ids`` lists them and ``reasons`` maps each to ``not_in_revision``, ``deleted``, ``not_a_suggestion`` or ``invalid_transition``. Nothing changes. */
             422: {
                 headers: {
                     [name: string]: unknown;
