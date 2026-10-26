@@ -27,7 +27,7 @@ from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.auth.lockout import utc_now
 from sketch2cad.catalog import default_catalog
 from sketch2cad.db.models import Catalog, Entity, Plan, Revision, RevisionState, User
-from sketch2cad.plans.service import active_calibration
+from sketch2cad.plans.service import active_calibration, recompute_metric_status
 from sketch2cad.revisions.snapshot import build_snapshot, snapshot_sha256
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,7 @@ def freeze(db: Session, revision: Revision, user: User, client_ip: str | None = 
         raise RevisionConflictError(f"Revision {revision.number} is already frozen.")
     if plan.current_revision_id != revision.id:
         raise RevisionConflictError(f"Revision {revision.number} is not the current revision.")
+    recompute_metric_status(db, plan)  # the snapshot records it
     snapshot = revision_snapshot(db, plan, revision)
     digest = snapshot_sha256(snapshot)
     frozen = db.execute(
@@ -196,7 +197,7 @@ def reopen(db: Session, plan: Plan, user: User, client_ip: str | None = None) ->
         copy.constraint = _remap_constraint(copy.constraint, text_ids)
     db.add_all(copies)
     plan.current_revision_id = child.id
-    db.flush()
+    recompute_metric_status(db, plan)
     db.refresh(child)
     _append(
         db,

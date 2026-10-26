@@ -2428,6 +2428,45 @@
         "title": "MetricStatus",
         "type": "string"
       },
+      "MetricStatusOut": {
+        "description": "Metric status of a plan and what keeps it from ``metric`` (spec section 11.3).\n\n``blocking_entities`` are the ids of the live entities of the current revision in\n``L_STRUCTURE`` or ``L_ACCESS``, or referencing an evidence item, whose\n``metric_origin`` is not metric; ``reasons`` maps each of them to its reason code (that\n``metric_origin``: ``trace_only`` or ``none``). A plan without an accepted calibration is\n``non_metric`` with no blocking entity. ``discrepant_dimensions`` lists the dimensions\nwhose declared and measured values disagree; they do not change ``status``.",
+        "properties": {
+          "blocking_entities": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Blocking Entities",
+            "type": "array"
+          },
+          "discrepant_dimensions": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Discrepant Dimensions",
+            "type": "array"
+          },
+          "reasons": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MetricStatus"
+          }
+        },
+        "required": [
+          "status",
+          "blocking_entities",
+          "reasons",
+          "discrepant_dimensions"
+        ],
+        "title": "MetricStatusOut",
+        "type": "object"
+      },
       "PlanCreate": {
         "properties": {
           "primary_source_id": {
@@ -5016,6 +5055,71 @@
           }
         },
         "summary": "Put Local Frame",
+        "tags": [
+          "plans"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/metric-status": {
+      "get": {
+        "description": "Metric status of the plan and the entities that keep it from ``metric``.\n\nComputed from the active calibration and the live entities of the current revision\nwith the same rule that keeps ``plan.metric_status`` up to date on every change, so\n``status`` equals that field. Writes nothing. Requires ``read`` on the plan's case\nfile; others get 403 and an ``access.denied`` event.",
+        "operationId": "get_metric_status_api_v1_plans__plan_id__metric_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Metric Status",
         "tags": [
           "plans"
         ]
