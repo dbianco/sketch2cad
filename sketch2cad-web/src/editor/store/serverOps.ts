@@ -71,7 +71,10 @@ export function serverOperationMessage(
   return planErrorMessage(error, SERVER_OPERATION_TEXT.failed);
 }
 
-function flushFailure(result: Exclude<FlushResult, { status: "drained" }>): ServerOperationResult {
+type Failure = Extract<ServerOperationResult, { ok: false }>;
+
+/** Message of a queue that could not be drained before a server-side change. */
+export function flushFailure(result: Exclude<FlushResult, { status: "drained" }>): Failure {
   if (result.status === "busy") return { ok: false, message: SERVER_OPERATION_TEXT.busy };
   if (result.status === "conflict") {
     return { ok: false, message: serverOperationMessage(result.error), error: result.error };
@@ -108,7 +111,19 @@ export async function runServerOperation(
     return { ok: false, message: serverOperationMessage(error, messages), error };
   }
 
-  // Two rounds: edits queued during the PATCH are sent, then the entities are read again.
+  const reloaded = await reloadEntities(api, store, context);
+  return reloaded.ok ? { ok: true, entity } : reloaded;
+}
+
+/**
+ * Load the revision's entities into `store` after a server-side change. Two rounds: edits queued
+ * while the change was in flight are sent, then the entities are read again.
+ */
+export async function reloadEntities(
+  api: ServerOperationApi,
+  store: StoreApi<EditorStore>,
+  context: SyncContext,
+): Promise<{ ok: true } | Failure> {
   for (let round = 0; round < 2; round += 1) {
     try {
       const { entities } = await api.get("/api/v1/revisions/{revision_id}/entities", {
@@ -116,7 +131,7 @@ export async function runServerOperation(
       });
       if (store.getState().queue.ops.length === 0) {
         store.getState().load(context.revisionId, entities);
-        return { ok: true, entity };
+        return { ok: true };
       }
     } catch (error) {
       return { ok: false, message: SERVER_OPERATION_TEXT.reloadFailed, error };

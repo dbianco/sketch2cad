@@ -9,6 +9,10 @@
 // declared scale use the provisional 1:100 of spec section 10. Symbols follow their `size_mode`
 // (symbols.ts): `world_m` ones scale with the zoom, `paper_mm` ones (annotative) keep a constant
 // screen size, so only symbol elements re-render on zoom (ZoomContext).
+//
+// Pending suggestions (`review_status` "suggested" lines and polylines, jotdown H5) are not drawn
+// with their layer: they only appear through the `suggestionLayer` slot
+// (features/suggestions/SuggestionLayer.tsx), which the editor fills while AI assistance is on.
 import {
   createContext,
   memo,
@@ -118,6 +122,8 @@ export interface EditorCanvasProps {
    * metres; without it the arrow keys pan the view.
    */
   keyboardCursor?: { step: number };
+  /** SVG drawn above the layers: the pending suggestions (see `isSuggestion`). */
+  suggestionLayer?: ReactNode;
 }
 
 /** A pointer event as tools receive it. */
@@ -171,6 +177,22 @@ function useCanvasContext(): CanvasContextValue {
   const value = useContext(CanvasContext);
   if (value === null) throw new Error("Entity elements must be rendered inside EditorCanvas");
   return value;
+}
+
+/**
+ * True when a tool handles presses, so shapes drawn through a slot (`suggestionLayer`) let them
+ * reach the canvas instead of selecting on their own.
+ */
+export function useCanvasDelegate(): boolean {
+  return useCanvasContext().delegate;
+}
+
+/** A pending suggestion: drawn by the suggestion layer, not with its layer. */
+export function isSuggestion(entity: EditorEntity | undefined): boolean {
+  return (
+    entity?.remote?.review_status === "suggested" &&
+    (entity.geometry.kind === "line" || entity.geometry.kind === "polyline")
+  );
 }
 
 /** Zoom (px per metre) of the canvas, read only by symbol elements. */
@@ -498,6 +520,7 @@ export function EditorCanvas({
   onLayerFlagsChange,
   overlay,
   keyboardCursor,
+  suggestionLayer,
 }: EditorCanvasProps) {
   const { containerRef, width, height } = useContainerSize(fixedWidth, fixedHeight);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -514,7 +537,10 @@ export function EditorCanvas({
   /** `null` until the user moves the camera: meanwhile the canvas fits the content. */
   const [camera, setCamera] = useState<Camera | null>(null);
 
-  const groups = useMemo(() => groupByLayer(ids, byId), [ids, byId]);
+  const groups = useMemo(
+    () => groupByLayer(ids.filter((id) => !isSuggestion(byId[id])), byId),
+    [ids, byId],
+  );
   const layers = useMemo(() => layerViews(catalog.layers, groups.keys()), [catalog.layers, groups]);
   const delegate = tool !== undefined;
   const context = useMemo<CanvasContextValue>(
@@ -736,6 +762,7 @@ export function EditorCanvas({
                   flags={layerFlags(flags, layer.name)}
                 />
               ))}
+              {suggestionLayer}
             </CanvasContext.Provider>
             {tool?.preview !== undefined && <g pointerEvents="none">{tool.preview}</g>}
             {cursor.crosshair}

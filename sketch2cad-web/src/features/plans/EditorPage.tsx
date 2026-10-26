@@ -8,6 +8,9 @@
 // calibration's image_to_paper homography to paper mm, then to the local frame, and the canvas
 // stretches the preview over their bounding box. That is exact for scans; for photographs
 // (perspective) and rotated frames the image is only approximately under the entities.
+//
+// While AI assistance is on (GET /config/features), the header shows the suggestions' batch
+// panel and the canvas the suggestion layer (features/suggestions/); otherwise neither renders.
 import { useEffect, useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useStore } from "zustand";
@@ -32,6 +35,8 @@ import { EvidenceTable } from "../evidence/EvidenceTable";
 import { EVIDENCE_MESSAGES } from "../evidence/messages";
 import { planExportPath } from "../exports/messages";
 import { previewUrl } from "../sources/SourceViewer";
+import { BatchPanel } from "../suggestions/BatchPanel";
+import { SuggestionLayer } from "../suggestions/SuggestionLayer";
 import { enterReadOnly, LeaseBanner } from "./LeaseBanner";
 import { EDITABLE_STATUSES, PLAN_MESSAGES as M } from "./messages";
 import { MetricStatusPanel } from "./MetricStatusPanel";
@@ -213,6 +218,7 @@ export function EditorPage({
           >
             {EVIDENCE_MESSAGES.title}
           </button>
+          <BatchPanel api={api} store={store} plan={plan} />
           <MetricStatusPanel planId={loaded.id} api={api} store={store} />
         </div>
       </header>
@@ -241,6 +247,7 @@ export function EditorPage({
             : previewUrl(loaded.primary_source_id, IMAGE_MAX_SIDE)
         }
         imageBounds={state.imageBounds ?? undefined}
+        suggestionLayer={<SuggestionLayer store={store} api={api} />}
         width={width}
         height={height}
       />
