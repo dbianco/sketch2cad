@@ -1,7 +1,7 @@
 ---
 id: 001-087
 title: "Build the PDF sheet: frame, title block, scale selection"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-082]
