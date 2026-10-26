@@ -1,0 +1,36 @@
+# Optional CI check of the golden DXF in LibreCAD under xvfb (jotdown H4-2, spec CA-06).
+#
+# DISABLED (`if: false`): the headless open has never run on a GitHub runner. The Ubuntu
+# librecad package and its `dxf2pdf` command under xvfb-run are untested here, and FreeCAD
+# (the owner's viewer) is checked by hand per milestone. Reasons and the steps to enable the
+# job are in docs/dxf-viewers.md. Run it by hand from the Actions tab once enabled.
+#
+# Action pinning follows api-ci.yml (full commit SHA, tag in the trailing comment).
+name: dxf-viewers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: sketch2cad-api
+
+jobs:
+  librecad:
+    # Remove this line to enable the job (see docs/dxf-viewers.md).
+    if: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install LibreCAD and xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends librecad xvfb xauth
+      - name: Open the golden DXF
+        env:
+          DXF_VIEWER_REQUIRED: "1"
+        run: bash scripts/open_dxf_xvfb.sh tests/golden/plan.dxf
