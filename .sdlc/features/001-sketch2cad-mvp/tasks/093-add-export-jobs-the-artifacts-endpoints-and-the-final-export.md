@@ -1,7 +1,7 @@
 ---
 id: 001-093
 title: "Add export jobs, the artifacts endpoints and the final-export guards"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-091, 001-056]
