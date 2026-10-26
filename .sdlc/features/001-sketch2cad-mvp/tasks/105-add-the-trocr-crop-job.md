@@ -1,7 +1,7 @@
 ---
 id: 001-105
 title: "Add the TrOCR crop job"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-104, 001-102]
