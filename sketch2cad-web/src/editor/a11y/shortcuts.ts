@@ -16,7 +16,11 @@ export const TOOL_SHORTCUTS: Readonly<Record<ToolId, string>> = {
   fixlength: "D",
   triangulate: "G",
   baseline: "B",
+  ocr: "R",
 };
+
+/** Tools of the AI assistance: offered only while `ai_assist.enabled` is on (H5-7). */
+export const AI_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>(["ocr"]);
 
 /** Tools that place points on the canvas, so the keyboard cursor drives them. */
 export const CURSOR_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
@@ -29,6 +33,7 @@ export const CURSOR_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
   "fixlength",
   "triangulate",
   "baseline",
+  "ocr",
 ]);
 
 /** Key that opens the keyboard help. */
@@ -109,16 +114,20 @@ const TOOL_NAMES: Readonly<Record<ToolId, string>> = {
   fixlength: "Fijar longitud",
   triangulate: "Triangulación",
   baseline: "Base + offset",
+  ocr: "Leer cota (OCR)",
 };
 
 /** Everything the keyboard help lists, in Spanish. */
 export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   {
     title: "Herramientas",
-    entries: (Object.keys(TOOL_SHORTCUTS) as ToolId[]).map((tool) => ({
-      keys: TOOL_SHORTCUTS[tool],
-      description: TOOL_NAMES[tool],
-    })),
+    // The AI tools are left out: the help does not know whether AI assistance is on.
+    entries: (Object.keys(TOOL_SHORTCUTS) as ToolId[])
+      .filter((tool) => !AI_TOOLS.has(tool))
+      .map((tool) => ({
+        keys: TOOL_SHORTCUTS[tool],
+        description: TOOL_NAMES[tool],
+      })),
   },
   {
     title: "Cursor de teclado (lienzo con el foco y herramienta de dibujo activa)",

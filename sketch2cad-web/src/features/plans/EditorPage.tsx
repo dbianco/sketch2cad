@@ -10,7 +10,8 @@
 // (perspective) and rotated frames the image is only approximately under the entities.
 //
 // While AI assistance is on (GET /config/features), the header shows the suggestions' batch
-// panel and the canvas the suggestion layer (features/suggestions/); otherwise neither renders.
+// panel and the canvas the suggestion layer (features/suggestions/), and the palette the OCR crop
+// tool (editor/tools/OcrCropTool.tsx); otherwise none of them renders.
 import { useEffect, useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useStore } from "zustand";
@@ -35,6 +36,7 @@ import { EvidenceTable } from "../evidence/EvidenceTable";
 import { EVIDENCE_MESSAGES } from "../evidence/messages";
 import { planExportPath } from "../exports/messages";
 import { previewUrl } from "../sources/SourceViewer";
+import { useAiAssistEnabled } from "../suggestions/aiAssist";
 import { BatchPanel } from "../suggestions/BatchPanel";
 import { SuggestionLayer } from "../suggestions/SuggestionLayer";
 import { enterReadOnly, LeaseBanner } from "./LeaseBanner";
@@ -123,7 +125,13 @@ export function useQueueSync(
 type Loaded =
   | { kind: "loading" }
   | { kind: "error" }
-  | { kind: "ready"; plan: PlanOut; catalog: Catalog; imageBounds: WorldRect | null };
+  | {
+      kind: "ready";
+      plan: PlanOut;
+      catalog: Catalog;
+      imageBounds: WorldRect | null;
+      source: { id: string; widthPx: number; heightPx: number } | undefined;
+    };
 
 export interface EditorPageProps {
   api?: ApiClient;
@@ -152,6 +160,7 @@ export function EditorPage({
   const readOnly = useStore(plan, (s) => s.readOnly);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const evidenceId = useId();
+  const aiAssist = useAiAssistEnabled(api);
 
   useEffect(() => {
     let active = true;
@@ -176,7 +185,11 @@ export function EditorPage({
           source.width_px === null || source.height_px === null
             ? null
             : imageBoundsOf(loaded, source.width_px, source.height_px);
-        setState({ kind: "ready", plan: loaded, catalog, imageBounds });
+        const size =
+          source.width_px === null || source.height_px === null
+            ? undefined
+            : { id: source.id, widthPx: source.width_px, heightPx: source.height_px };
+        setState({ kind: "ready", plan: loaded, catalog, imageBounds, source: size });
       } catch {
         if (active) setState({ kind: "error" });
       }
@@ -248,6 +261,8 @@ export function EditorPage({
         }
         imageBounds={state.imageBounds ?? undefined}
         suggestionLayer={<SuggestionLayer store={store} api={api} />}
+        aiAssist={aiAssist}
+        source={state.source}
         width={width}
         height={height}
       />

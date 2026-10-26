@@ -6,8 +6,10 @@ import type { ReactNode } from "react";
 import type { ApiClient } from "../../api/client";
 import type { CanvasTool, Catalog } from "../canvas/EditorCanvas";
 import { layerFlags, type LayerFlagsByName } from "../canvas/layers";
+import type { WorldRect } from "../canvas/viewport";
 import type { SnapSettingsStore } from "../panels/SnapSettings";
 import type { SymbolPickerStore } from "../panels/SymbolPicker";
+import type { PlanStore } from "../plan/planStore";
 import type { EditorStore } from "../store/entities";
 import type { EntityId, Geometry, Point2 } from "../store/types";
 
@@ -22,7 +24,8 @@ export type ToolId =
   | "frame"
   | "fixlength"
   | "triangulate"
-  | "baseline";
+  | "baseline"
+  | "ocr";
 
 /** Layer reserved for the export sheet (spec 12.1): never drawn on in the editor. */
 export const SHEET_LAYER = "L_SHEET";
@@ -109,6 +112,19 @@ export interface ToolContext {
   paperScale?: number;
   /** API client of the tools that call the server (fix length); the same-origin client by default. */
   api?: ApiClient;
+  /** Plan store (lease, plan id) of the tools that need it (OCR crop). */
+  plan?: StoreApi<PlanStore>;
+  /** Source image shown under the canvas, for tools that work on its pixels (OCR crop). */
+  sourceImage?: SourceImage;
+}
+
+/** The plan's primary source as the canvas shows it: stretched over `bounds` (world metres). */
+export interface SourceImage {
+  sourceId: string;
+  /** Size of the original image (for a PDF, its 300 dpi raster) in pixels. */
+  widthPx: number;
+  heightPx: number;
+  bounds: WorldRect;
 }
 
 /** A canvas tool that also takes the editor's keys (see EditorWorkspace). */
