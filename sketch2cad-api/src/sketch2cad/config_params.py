@@ -126,7 +126,7 @@ _REGISTRY: tuple[tuple[str, str, frozenset[ConfigScope]], ...] = (
     ("suggest_lines.min_length_mm", "10", BOTH_SCOPES),
     ("suggest_lines.merge_angle_deg", "10", BOTH_SCOPES),
     ("ocr.min_confidence", "10", BOTH_SCOPES),
-    ("ai_assist.enabled", "19", ENVIRONMENT_ONLY),
+    ("ai_assist.enabled", "19", GLOBAL_ONLY),
     ("legal.disclaimer_enabled", "13.2", GLOBAL_ONLY),
 )
 """Name, spec section and allowed override scopes of every parameter."""
@@ -136,6 +136,10 @@ PARAMETERS: Mapping[str, ParamSpec] = {
     for name, section, scopes in _REGISTRY
 }
 """The registry; ``env_var`` is the name in upper case with ``_`` for ``.``."""
+
+
+AI_ASSIST_PARAM = "ai_assist.enabled"
+"""Global switch of the AI assistance (spec section 19); not a Split flag."""
 
 
 def param_spec(name: str) -> ParamSpec:
@@ -243,6 +247,15 @@ def get_param(
     for an unknown parameter.
     """
     return get_params([name], incident_type=incident_type, session=session)[name]
+
+
+def ai_assist_enabled(session: Session) -> bool:
+    """``ai_assist.enabled``: the global override, else ``AI_ASSIST_ENABLED`` (true by default).
+
+    The switch of the AI jobs (``suggest_lines``, ``ocr_crop``). Callers read it at every
+    request, enqueue and run, so an admin change applies without a restart.
+    """
+    return bool(get_param(AI_ASSIST_PARAM, session=session))
 
 
 def case_incident_type(session: Session, case_file_id: uuid.UUID) -> IncidentType | None:

@@ -1,6 +1,19 @@
 {
   "components": {
     "schemas": {
+      "AiAssistFeatureOut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "AiAssistFeatureOut",
+        "type": "object"
+      },
       "ArtifactDetailOut": {
         "description": "``manifest`` is the signed manifest of the final package the artifact belongs to.",
         "properties": {
@@ -2618,6 +2631,19 @@
           "mode"
         ],
         "title": "ExportIn",
+        "type": "object"
+      },
+      "FeaturesOut": {
+        "description": "Effective feature switches, for the client to hide controls of disabled features.",
+        "properties": {
+          "ai_assist": {
+            "$ref": "#/components/schemas/AiAssistFeatureOut"
+          }
+        },
+        "required": [
+          "ai_assist"
+        ],
+        "title": "FeaturesOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -5346,6 +5372,59 @@
         ]
       }
     },
+    "/api/v1/config/features": {
+      "get": {
+        "description": "Effective feature switches; any signed-in user.\n\n``ai_assist.enabled`` is the global override, else ``AI_ASSIST_ENABLED`` (default\ntrue). When false the AI job kinds (``suggest_lines``, ``ocr_crop``) give 404 and no\nsuggestions are queued, so the client should hide their controls.",
+        "operationId": "get_config_features_api_v1_config_features_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeaturesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Config Features",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/v1/config/params": {
       "get": {
         "description": "Every configuration parameter with its default and overrides; any signed-in user.\n\nResolution order: override of the case's incident type, global override, default.",
@@ -6449,7 +6528,7 @@
     },
     "/api/v1/plans/{plan_id}/jobs": {
       "post": {
-        "description": "Queue a job on the plan (202); poll ``GET /jobs/{id}``. Requires ``edit``.\n\n``suggest_lines`` (relaunch): allowed while no entity of the plan is accepted,\ncorrected or manual, with the plan's edit lease. Soft-deletes the pending suggestions\n(one ``entity.deleted`` event with their ids), supersedes earlier jobs and queues a new\none; it inserts its suggestions with ``suggestions.added``.\n\n``ocr_crop``: reads the number inside ``box_px`` of the plan's primary source; needs\nneither the lease nor a calibration and writes nothing but the job. The succeeded job\ncarries ``result`` (:class:`OcrResultOut`). 404 when ``ai_assist.enabled`` is false.",
+        "description": "Queue a job on the plan (202); poll ``GET /jobs/{id}``. Requires ``edit``.\n\n``suggest_lines`` (relaunch): allowed while no entity of the plan is accepted,\ncorrected or manual, with the plan's edit lease. Soft-deletes the pending suggestions\n(one ``entity.deleted`` event with their ids), supersedes earlier jobs and queues a new\none; it inserts its suggestions with ``suggestions.added``.\n\n``ocr_crop``: reads the number inside ``box_px`` of the plan's primary source; needs\nneither the lease nor a calibration and writes nothing but the job. The succeeded job\ncarries ``result`` (:class:`OcrResultOut`).\n\nBoth kinds give 404 when ``ai_assist.enabled`` is false (``GET /config/features``).",
         "operationId": "post_plan_job_api_v1_plans__plan_id__jobs_post",
         "parameters": [
           {

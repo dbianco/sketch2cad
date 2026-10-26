@@ -363,7 +363,7 @@ def test_admin_sets_and_removes_overrides_with_one_event_each(
     by_name = {p["name"]: p for p in listed.json()["params"]}
     assert set(by_name) == set(SPEC_DEFAULTS)
     assert by_name[TOLERANCE]["overrides"][0]["value"] == 0.05
-    assert by_name["ai_assist.enabled"]["scopes"] == []
+    assert by_name["ai_assist.enabled"]["scopes"] == ["global"]
 
     url = f"{PARAMS_URL}/{TOLERANCE}"
     params = {"scope": "incident_type", "incident_type": "traffic_collision"}
@@ -416,7 +416,11 @@ def test_a_write_without_csrf_token_is_rejected(
         (TOLERANCE, {"value": 0.05, "scope": "incident_type"}),
         (TOLERANCE, {"value": 0.05, "scope": "global", "incident_type": "traffic_collision"}),
         (TOLERANCE, {"value": 0.05, "scope": "case_file"}),
-        ("ai_assist.enabled", {"value": False, "scope": "global"}),
+        (
+            "ai_assist.enabled",
+            {"value": False, "scope": "incident_type", "incident_type": "other"},
+        ),
+        ("ai_assist.enabled", {"value": "false", "scope": "global"}),
         (
             "legal.disclaimer_enabled",
             {"value": False, "scope": "incident_type", "incident_type": "other"},

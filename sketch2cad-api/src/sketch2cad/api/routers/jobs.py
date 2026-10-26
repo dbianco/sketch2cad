@@ -19,6 +19,7 @@ from sketch2cad.api.deps import (
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
+from sketch2cad.config_params import ai_assist_enabled
 from sketch2cad.db.models import JobMeta, JobStatus, Plan, PlanStatus, Source, User
 from sketch2cad.db.session import get_session
 from sketch2cad.entities.service import EntityConflictError, ensure_editable
@@ -28,7 +29,6 @@ from sketch2cad.worker.tasks_ocr import OCR_JOB_KIND, enqueue_ocr_crop
 from sketch2cad.worker.tasks_suggest import (
     NO_CALIBRATION_MESSAGE,
     SuggestionsConflictError,
-    ai_assist_enabled,
     relaunch,
 )
 
@@ -182,6 +182,22 @@ def get_job(job: Annotated[JobMeta, Depends(_readable_job)]) -> JobOut:
     return job_out(job)
 
 
+def _ai_assist_disabled() -> ProblemError:
+    return ProblemError(404, "Not Found", "AI assist is disabled.")
+
+
+def require_ai_assist(db: Session) -> None:
+    """Raise 404 when ``ai_assist.enabled`` resolves to false (REQ-19).
+
+    The single gate of every AI job kind (``suggest_lines``, ``ocr_crop``). The value is
+    read on each request (global override, else ``AI_ASSIST_ENABLED``), so an admin change
+    through ``PUT /config/params/ai_assist.enabled`` applies without a restart.
+    """
+    if not ai_assist_enabled(db):
+        logger.info("Rejected an AI job: AI assist is disabled")
+        raise _ai_assist_disabled()
+
+
 def _conflict(db: Session, plan_id: uuid.UUID, exc: Exception) -> ProblemError:
     db.rollback()
     code: str | None = getattr(exc, "code", None)
@@ -216,11 +232,12 @@ def post_plan_job(
 
     ``ocr_crop``: reads the number inside ``box_px`` of the plan's primary source; needs
     neither the lease nor a calibration and writes nothing but the job. The succeeded job
-    carries ``result`` (:class:`OcrResultOut`). 404 when ``ai_assist.enabled`` is false.
+    carries ``result`` (:class:`OcrResultOut`).
+
+    Both kinds give 404 when ``ai_assist.enabled`` is false (``GET /config/features``).
     """
     plan_id = plan.id
-    if not ai_assist_enabled(db):
-        raise ProblemError(404, "Not Found", "AI assist is disabled.")
+    require_ai_assist(db)
     if isinstance(body, OcrCropJobIn):
         return _post_ocr_crop(db, plan, user, body.params)
     revision = current_revision(db, plan)
@@ -235,7 +252,7 @@ def post_plan_job(
     except (EntityConflictError, SuggestionsConflictError) as exc:
         raise _conflict(db, plan_id, exc) from None
     if job is None:  # pragma: no cover - the switch was checked above
-        raise ProblemError(404, "Not Found", "AI assist is disabled.")
+        raise _ai_assist_disabled()
     db.commit()
     logger.info("User %s relaunched suggest_lines on plan %s: job %s", user.id, plan_id, job.id)
     return job_out(job)

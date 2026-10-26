@@ -47,7 +47,7 @@ import sketch2cad.calibration.rectify as rectify_job
 import sketch2cad.worker.app as worker_app
 from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.auth.lockout import utc_now
-from sketch2cad.config_params import case_incident_type, get_param, get_params
+from sketch2cad.config_params import ai_assist_enabled, case_incident_type, get_params
 from sketch2cad.db.models import (
     Artifact,
     Calibration,
@@ -91,7 +91,6 @@ VISION_PIPELINE_VERSION = (
 """``entity.model_version`` and ``job_meta.model_version`` of the suggestions."""
 
 SUGGESTION_LAYER = "L_STRUCTURE"
-AI_ASSIST_PARAM = "ai_assist.enabled"
 IMAGE_RECTIFIED = "rectified"
 IMAGE_ORIGINAL = "original"
 NON_METRIC_ASSUMED_DPI = float(RASTER_DPI)
@@ -189,11 +188,6 @@ def suggest_key(plan: Plan, calibration: Calibration) -> str:
         "px_per_mm": rectify_job.PX_PER_MM,
     }
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
-
-
-def ai_assist_enabled(db: Session) -> bool:
-    """``ai_assist.enabled`` (environment only; true by default)."""
-    return bool(get_param(AI_ASSIST_PARAM, session=db))
 
 
 def _superseded(job: JobMeta) -> bool:
@@ -555,6 +549,8 @@ def _insert(db: Session, plan: Plan, job: JobMeta, inputs: _Inputs, found: list[
 def _skip_reason(db: Session, plan: Plan, job: JobMeta) -> str | None:
     if _superseded(job):
         return "superseded"
+    if not ai_assist_enabled(db):  # switched off after the job was queued
+        return "ai_assist_disabled"
     calibration = active_calibration(db, plan)
     if calibration is None or suggest_key(plan, calibration) != job.params.get("suggest_key"):
         return "calibration_changed"
@@ -589,9 +585,10 @@ def run_suggest_job(factory: sessionmaker[Session], storage: Storage, job_id: uu
     ``running`` commits first; the image is decoded and analyzed with no lock held; the
     plan row is then locked (before the job row, the order of accept and relaunch) and the
     entities, the event, the metric status and the final status commit together. A
-    finished job is left untouched; a superseded job, or one whose calibration changed,
-    ends ``succeeded`` with nothing inserted. Expected failures end ``failed`` with a
-    Spanish ``{cause, action}``; unexpected errors with :data:`INTERNAL_ERROR`, re-raised.
+    finished job is left untouched; a superseded job, one whose calibration changed, or any
+    job while ``ai_assist.enabled`` is false, ends ``succeeded`` with nothing inserted.
+    Expected failures end ``failed`` with a Spanish ``{cause, action}``; unexpected errors
+    with :data:`INTERNAL_ERROR`, re-raised.
     """
     if not _start(factory, job_id):
         with factory() as db:
@@ -600,7 +597,7 @@ def run_suggest_job(factory: sessionmaker[Session], storage: Storage, job_id: uu
     try:
         with factory() as db:
             job = db.get(JobMeta, job_id)
-            if job is None or _superseded(job):
+            if job is None or _superseded(job) or not ai_assist_enabled(db):
                 inputs = None
             else:
                 inputs = _load_inputs(db, storage, job)

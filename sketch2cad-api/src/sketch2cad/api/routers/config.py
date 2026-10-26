@@ -20,6 +20,7 @@ from sketch2cad.config_params import (
     PARAMETERS,
     ConfigValueError,
     ParamSpec,
+    ai_assist_enabled,
     delete_override,
     env_default,
     list_overrides,
@@ -132,6 +133,30 @@ def get_config_params(
     """
     rows = list_overrides(db)
     return ParamListOut(params=[_param_out(spec, rows) for spec in PARAMETERS.values()])
+
+
+class AiAssistFeatureOut(BaseModel):
+    enabled: bool
+
+
+class FeaturesOut(BaseModel):
+    """Effective feature switches, for the client to hide controls of disabled features."""
+
+    ai_assist: AiAssistFeatureOut
+
+
+@router.get("/config/features", responses={401: {"description": "Authentication is required."}})
+def get_config_features(
+    db: Annotated[Session, Depends(get_session)],
+    _user: Annotated[User, Depends(get_current_user)],
+) -> FeaturesOut:
+    """Effective feature switches; any signed-in user.
+
+    ``ai_assist.enabled`` is the global override, else ``AI_ASSIST_ENABLED`` (default
+    true). When false the AI job kinds (``suggest_lines``, ``ocr_crop``) give 404 and no
+    suggestions are queued, so the client should hide their controls.
+    """
+    return FeaturesOut(ai_assist=AiAssistFeatureOut(enabled=ai_assist_enabled(db)))
 
 
 @router.put(
