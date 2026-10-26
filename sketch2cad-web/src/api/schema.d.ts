@@ -1127,10 +1127,12 @@ export interface components {
          *
          *     - ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and
          *       the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).
-         *     - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances
+         *     - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b`` (each a
+         *       point or symbol id, or a :class:`VertexRef` ``{entity_id, vertex}``), distances
          *       ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is
          *       the candidate closest to the current position; ``alt`` is the other one).
-         *     - ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,
+         *     - ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``
+         *       (references as in ``triangulate``; two vertices of the same entity are allowed),
          *       ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.
          */
         EntityPatch: {
@@ -1141,9 +1143,9 @@ export interface components {
                 [key: string]: string | number | boolean | null;
             } | null;
             /** Base A */
-            base_a?: string | null;
+            base_a?: string | components["schemas"]["VertexRef"] | null;
             /** Base B */
-            base_b?: string | null;
+            base_b?: string | components["schemas"]["VertexRef"] | null;
             /**
              * Confirm Constraint Removal
              * @default false
@@ -1167,9 +1169,9 @@ export interface components {
             /** Reason */
             reason?: string | null;
             /** Ref A */
-            ref_a?: string | null;
+            ref_a?: string | components["schemas"]["VertexRef"] | null;
             /** Ref B */
-            ref_b?: string | null;
+            ref_b?: string | components["schemas"]["VertexRef"] | null;
             /** S M */
             s_m?: number | string | null;
             /** Side */
@@ -1898,6 +1900,23 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VertexRef
+         * @description A vertex of a ``line`` or ``polyline`` used as a metric reference (a wall corner).
+         *
+         *     PoC assumption (2026-10-26, D-15, to revisit with real sketches): ``triangulate`` and
+         *     ``baseline_offset`` may take a vertex of a wall whose lengths are declared (or that is
+         *     on a metric scaled drawing) as a reference, not only a point or symbol entity.
+         */
+        VertexRef: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Vertex */
+            vertex: number;
         };
     };
     responses: never;

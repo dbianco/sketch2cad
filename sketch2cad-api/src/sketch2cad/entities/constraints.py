@@ -8,12 +8,16 @@ computed from, so it can be recomputed when a reference moves::
     {"kind": "baseline_offset", "refs": [A, B],
      "params": {"s_m": 1.50, "d_m": 0.80, "side": "left"}}
 
-``refs`` are entity ids. For a baseline they are the base points A and B in order, which
-fixes the direction of the baseline and so the meaning of ``side``. The database only
+``refs`` are entity ids of points or symbols, or vertex references
+``{"entity_id": W, "vertex": 0}`` to a corner of a ``line`` or ``polyline`` (PoC
+assumption D-15, 2026-10-26, to revisit with real sketches); constraints stored with plain
+ids keep loading. For a baseline they are the base points A and B in order, which fixes the
+direction of the baseline and so the meaning of ``side``. The database only
 checks ``kind`` (``ck_entity_constraint_kind``); everything else is validated here.
 
 The module also holds what the ``triangulate`` and ``baseline_offset`` edits share: the
-position of a point-like entity (a ``point`` or the anchor of a ``symbol``), the V-07
+position of a point-like entity (a ``point`` or the anchor of a ``symbol``) or of a vertex
+reference, the V-07
 message and the parsing of the lengths typed by the user.
 """
 
@@ -21,11 +25,11 @@ import math
 import re
 import uuid
 from collections.abc import Mapping
-from typing import Annotated, Any, Final, Literal
+from typing import Annotated, Any, Final, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from sketch2cad.entities.schemas import Number, PositiveNumber
+from sketch2cad.entities.schemas import Number, PositiveNumber, Reference, VertexRef
 from sketch2cad.geometry.homography import Point
 from sketch2cad.geometry.metrics import DISTANCE_MESSAGE, parse_distance
 
@@ -35,7 +39,9 @@ V07_MESSAGE: Final = "Esta referencia no es métrica o depende del punto que int
 _SIGNED_NUMBER: Final = re.compile(r"[+-]?(?:[0-9]+(?:[.,][0-9]*)?|[.,][0-9]+)", re.ASCII)
 
 NonNegativeNumber = Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)]
-References = Annotated[list[uuid.UUID], Field(min_length=2, max_length=2)]
+References = Annotated[list[Reference], Field(min_length=2, max_length=2)]
+VERTEX_KINDS: Final = frozenset({"line", "polyline"})
+"""Geometry kinds whose vertices may serve as references (:class:`VertexRef`)."""
 
 
 class _Strict(BaseModel):
@@ -48,7 +54,7 @@ class _ConstraintBase(_Strict):
     @model_validator(mode="after")
     def _distinct_references(self) -> "_ConstraintBase":
         if self.refs[0] == self.refs[1]:
-            raise ValueError("the two references of a constraint must be different entities")
+            raise ValueError("the two references of a constraint must be different")
         return self
 
 
@@ -123,6 +129,51 @@ def point_position(geometry: Mapping[str, Any]) -> Point | None:
         x, y = geometry["anchor_m"]
     else:
         return None
+    return (float(x), float(y))
+
+
+def reference_entity_id(ref: Reference) -> uuid.UUID:
+    """The entity a reference points at: the id itself or the vertex's line or polyline."""
+    return ref.entity_id if isinstance(ref, VertexRef) else ref
+
+
+def stored_reference_ids(constraint: Any) -> list[uuid.UUID]:
+    """Entity ids of the ``refs`` of a stored ``entity.constraint`` (either form).
+
+    Lenient: malformed items are skipped, so a damaged row cannot break the graph.
+    """
+    if not isinstance(constraint, Mapping):
+        return []
+    refs: object = cast(Mapping[str, object], constraint).get("refs")
+    ids: list[uuid.UUID] = []
+    for ref in cast(list[object], refs) if isinstance(refs, list) else []:
+        raw = cast(Mapping[str, object], ref).get("entity_id") if isinstance(ref, Mapping) else ref
+        try:
+            ids.append(uuid.UUID(str(raw)))
+        except ValueError:
+            continue
+    return ids
+
+
+class VertexOutOfRangeError(LookupError):
+    """A vertex reference names a vertex its line or polyline does not have."""
+
+
+def reference_position(ref: Reference, geometry: Mapping[str, Any]) -> Point | None:
+    """Position of ``ref`` in the referenced entity's ``geometry``.
+
+    ``None`` when the kind cannot serve: a plain id needs a point or symbol, a vertex
+    reference a line or polyline. Raises :class:`VertexOutOfRangeError` for a vertex index
+    the geometry lacks.
+    """
+    if not isinstance(ref, VertexRef):
+        return point_position(geometry)
+    if geometry.get("kind") not in VERTEX_KINDS:
+        return None
+    coords = geometry["coords_m"]
+    if ref.vertex >= len(coords):
+        raise VertexOutOfRangeError(ref.vertex)
+    x, y = coords[ref.vertex]
     return (float(x), float(y))
 
 

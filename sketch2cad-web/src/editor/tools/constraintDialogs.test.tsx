@@ -21,6 +21,7 @@ const P_ID = "00000000-0000-4000-8000-0000000000p1";
 const A_ID = "00000000-0000-4000-8000-0000000000a1";
 const B_ID = "00000000-0000-4000-8000-0000000000b1";
 const LINE_ID = "00000000-0000-4000-8000-0000000000e2";
+const WALL_ID = "00000000-0000-4000-8000-0000000000w1";
 const PATCH_URL = `/api/v1/entities/${P_ID}`;
 const ENTITIES_URL = `/api/v1/revisions/${REVISION_ID}/entities`;
 const PATCH_THEN_RELOAD = [`PATCH ${PATCH_URL}`, `GET ${ENTITIES_URL}`];
@@ -54,6 +55,16 @@ function pointOut(id: string, at: Point2, layer = "L_EVIDENCE"): EntityOut {
     source: { method: "manual" },
     updated_at: "2026-10-25T00:00:00Z",
   };
+}
+
+/** A wall from A to B with declared lengths: its corners are metric references (D-15). */
+function wallOut(kind: "line" | "polyline" = "line"): EntityOut {
+  const geometry =
+    kind === "line"
+      ? { kind, coords_m: [A, B] }
+      : // (5, 2) keeps the view extent, and so the keyboard cursor start, of the other tests.
+        { kind, coords_m: [A, B, [5, 2] as Point2], closed: false };
+  return { ...pointOut(WALL_ID, A, "L_STRUCTURE"), type: kind, geometry };
 }
 
 const LOCKED = { visible: true, locked: true };
@@ -99,6 +110,8 @@ interface SetupOptions {
   tool?: ToolId;
   readOnly?: boolean;
   lockedTarget?: boolean;
+  /** Loaded instead of the point to fix and the references A and B. */
+  entities?: EntityOut[];
 }
 
 function setup(options: SetupOptions = {}) {
@@ -115,7 +128,7 @@ function setup(options: SetupOptions = {}) {
   });
   const api = createApiClient({ fetch: fetchMock });
   const store = createEditorStore();
-  store.getState().load(REVISION_ID, entitiesAt(P));
+  store.getState().load(REVISION_ID, options.entities ?? entitiesAt(P));
   const ui = createEditorUiStore({
     activeTool: options.tool ?? "triangulate",
     layerFlags: options.lockedTarget === true ? { L_EVIDENCE: LOCKED } : {},
@@ -285,6 +298,8 @@ describe("triangulation dialog", () => {
     triangulateSetup({ patch: json({ title: "x", code: "V-07" }, 422) });
     await apply();
     expect(screen.getByRole("alert").textContent).toBe(V07);
+    // The wall-corner hint is only for vertex references.
+    expect(screen.queryByText(CONSTRAINT_TEXT.cornerHint)).toBeNull();
   });
 
   it.each(["0", "-3", "abc", ""])("distance %j shows V-04 and sends nothing", async (value) => {
@@ -402,5 +417,118 @@ describe("baseline-offset dialog", () => {
     baselineSetup("1", "1", { patch: json({ title: "x", code: "V-07" }, 422) });
     await apply();
     expect(screen.getByRole("alert").textContent).toBe(V07);
+  });
+});
+
+describe("wall corners as references (D-15)", () => {
+  /** Only the point to fix and the wall from A to B. */
+  const WALL_ONLY = (kind: "line" | "polyline" = "line") => [pointOut(P_ID, P), wallOut(kind)];
+
+  function chips() {
+    return screen.getAllByTestId("constraint-chip").map((chip) => chip.textContent);
+  }
+
+  it("picks the wall's vertices, previews from them and sends {entity_id, vertex}", async () => {
+    const { calls, click } = setup({ entities: WALL_ONLY() });
+    click(P);
+    click(A);
+    // The same corner twice is not a second reference.
+    click(A);
+    expect(chips()[2]).toContain(CONSTRAINT_TEXT.empty);
+    click([B[0] + 0.05, B[1]]);
+    expect(chips()).toEqual([
+      expect.stringContaining("Punto a fijar: Punto en x 2,00 m · y 2,00 m"),
+      expect.stringContaining("Referencia A: Esquina 1 de Línea (x 0,00 m · y 0,00 m)"),
+      expect.stringContaining("Referencia B: Esquina 2 de Línea (x 5,00 m · y 0,00 m)"),
+    ]);
+    type(TRIANGULATION_TEXT.distanceA, "3");
+    type(TRIANGULATION_TEXT.distanceB, "4");
+    expect(candidates().map((m) => m.getAttribute("d"))).toEqual(["M1.8,-2.4h0", "M1.8,2.4h0"]);
+    await apply();
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual(PATCH_THEN_RELOAD);
+    expect(calls[0]?.body).toEqual({
+      operation: "triangulate",
+      ref_a: { entity_id: WALL_ID, vertex: 0 },
+      ref_b: { entity_id: WALL_ID, vertex: 1 },
+      d_a_m: 3,
+      d_b_m: 4,
+      solution: "nearest",
+    });
+  });
+
+  it("a point or symbol under the pointer wins over a wall vertex", async () => {
+    const { calls } = triangulateSetup({ entities: [...entitiesAt(P), wallOut()] });
+    expect(chips()[1]).toContain("Referencia A: Punto en x 0,00 m · y 0,00 m");
+    await apply();
+    expect(calls[0]?.body).toMatchObject({ ref_a: A_ID, ref_b: B_ID });
+  });
+
+  it("the point to fix is never a wall vertex", () => {
+    const { click } = setup({ entities: WALL_ONLY() });
+    click(A);
+    expect(chips()[0]).toContain(CONSTRAINT_TEXT.empty);
+    expect(screen.getByRole("status").textContent).toContain("(un punto o un símbolo)");
+    click(P);
+    expect(screen.getByRole("status").textContent).toContain("una esquina de una línea");
+  });
+
+  it("names polyline corners and picks them with the keyboard cursor", () => {
+    const { svg } = setup({ entities: WALL_ONLY("polyline") });
+    svg.focus();
+    const key = (k: string, times = 1, altKey = false) => {
+      for (let i = 0; i < times; i += 1) fireEvent.keyDown(svg, { key: k, altKey });
+    };
+    // Same path as the keyboard test above: (2, 2), then (0, 0), then (5, 0).
+    key("ArrowUp", 1, true);
+    key("ArrowLeft", 5);
+    key("Enter");
+    key("ArrowDown", 2, true);
+    key("ArrowLeft", 2, true);
+    key("Enter");
+    key("ArrowRight", 5, true);
+    key("Enter");
+    expect(chips()).toEqual([
+      expect.stringContaining("Punto en x 2,00 m · y 2,00 m"),
+      expect.stringContaining("Esquina 1 de Polilínea (x 0,00 m · y 0,00 m)"),
+      expect.stringContaining("Esquina 2 de Polilínea (x 5,00 m · y 0,00 m)"),
+    ]);
+  });
+
+  it("a 422 V-07 shows the PRD message and the fix-length hint", async () => {
+    const { click } = setup({
+      entities: WALL_ONLY(),
+      patch: json({ title: "x", code: "V-07" }, 422),
+    });
+    click(P);
+    click(A);
+    click(B);
+    type(TRIANGULATION_TEXT.distanceA, "3");
+    type(TRIANGULATION_TEXT.distanceB, "4");
+    await apply();
+    expect(screen.getByRole("alert").textContent).toBe(V07);
+    expect(screen.getByText(CONSTRAINT_TEXT.cornerHint)).toBeTruthy();
+    // Editing a value drops the message and its hint.
+    type(TRIANGULATION_TEXT.distanceA, "3,5");
+    expect(screen.queryByText(CONSTRAINT_TEXT.cornerHint)).toBeNull();
+  });
+
+  it("baseline_offset from the two corners of the same wall", async () => {
+    const { calls, click } = setup({ tool: "baseline", entities: WALL_ONLY() });
+    click(P);
+    click(A);
+    click(B);
+    type(BASELINE_TEXT.along, "1,5");
+    type(BASELINE_TEXT.offset, "0,8");
+    expect(screen.getByTestId("constraint-baseline").getAttribute("points")).toBe("0,0 5,0");
+    expect(candidates().map((m) => m.getAttribute("d"))).toEqual(["M1.5,-0.8h0"]);
+    await apply();
+    expect(calls[0]?.body).toEqual({
+      operation: "baseline_offset",
+      base_a: { entity_id: WALL_ID, vertex: 0 },
+      base_b: { entity_id: WALL_ID, vertex: 1 },
+      s_m: 1.5,
+      d_m: 0.8,
+      side: "left",
+    });
   });
 });

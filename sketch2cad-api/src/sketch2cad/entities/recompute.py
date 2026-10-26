@@ -3,7 +3,8 @@
 An entity placed by ``triangulate`` or ``baseline_offset`` stores its ``constraint``; when
 one of its references moves (or is deleted), every entity that depends on it directly or
 indirectly is placed again from its stored constraint and the current positions of its
-references. Dependents are visited breadth-first and recomputed so that an entity comes
+references (a vertex reference uses the current coordinates of that vertex of its line
+or polyline). Dependents are visited breadth-first and recomputed so that an entity comes
 after the dependents it refers to; a cycle already stored in the database cannot hang the
 walk (each entity is recomputed at most once).
 
@@ -14,7 +15,8 @@ Rules, chosen so that a recompute is deterministic and idempotent:
   re-evaluated. Without a stored side (tangent at apply time, or older constraints) the
   candidate nearest to the current position wins, ties to the left.
 - When the entity cannot be placed (circles that no longer cross, ``V-06``; a reference
-  deleted or no longer a point; base points that coincide) it keeps its position and its
+  deleted or no longer a point, or a referenced vertex of a line or polyline that no longer
+  exists; base points that coincide) it keeps its position and its
   constraint, ``metric_origin`` becomes ``none`` and ``attributes.constraint_error`` names
   the cause. It is placed again, and the flag removed, on the next successful recompute.
 - When it can be placed but a reference is not metric (``V-07``) it follows the reference,
@@ -38,8 +40,12 @@ from sqlalchemy.orm import Session
 from sketch2cad.db.models import Entity, MetricOrigin
 from sketch2cad.entities.constraints import (
     TriangulationConstraint,
+    VertexOutOfRangeError,
     parse_constraint,
     point_position,
+    reference_entity_id,
+    reference_position,
+    stored_reference_ids,
     with_position,
 )
 from sketch2cad.geometry.constraints import dependents_breadth_first
@@ -74,7 +80,11 @@ class Recomputed:
 
 
 def constraint_graph(db: Session, revision_id: uuid.UUID) -> dict[uuid.UUID, list[uuid.UUID]]:
-    """``entity -> refs`` of the live constrained entities of the revision."""
+    """``entity -> refs`` of the live constrained entities of the revision.
+
+    A vertex reference contributes an edge to its line or polyline, so moving or stretching
+    a wall recomputes the points placed from its corners.
+    """
     query = select(Entity.id, Entity.constraint).where(
         Entity.revision_id == revision_id,
         Entity.deleted_at.is_(None),
@@ -82,8 +92,7 @@ def constraint_graph(db: Session, revision_id: uuid.UUID) -> dict[uuid.UUID, lis
     )
     graph: dict[uuid.UUID, list[uuid.UUID]] = {}
     for entity_id, constraint in db.execute(query):
-        refs: list[Any] = constraint.get("refs", []) if isinstance(constraint, dict) else []
-        graph[entity_id] = [uuid.UUID(str(ref)) for ref in refs]
+        graph[entity_id] = stored_reference_ids(constraint)
     return graph
 
 
@@ -142,14 +151,22 @@ def _recompute(db: Session, entity: Entity) -> str | None:
     except ValidationError:
         return _mark(entity, INVALID_CONSTRAINT)
     refs: list[Entity] = []
-    for ref_id in constraint.refs:
-        ref = db.get(Entity, ref_id)
+    positions: list[Point] = []
+    for ref_value in constraint.refs:
+        ref = db.get(Entity, reference_entity_id(ref_value))
         if ref is None or ref.deleted_at is not None or ref.revision_id != entity.revision_id:
             return _mark(entity, REFERENCE_MISSING)
+        try:
+            position = reference_position(ref_value, ref.geometry)
+        except VertexOutOfRangeError:
+            position = None
+        if position is None:
+            return _mark(entity, REFERENCE_MISSING)
         refs.append(ref)
-    a, b = (point_position(ref.geometry) for ref in refs)
+        positions.append(position)
+    a, b = positions
     current = point_position(entity.geometry)
-    if a is None or b is None or current is None:
+    if current is None:
         return _mark(entity, REFERENCE_MISSING)
     if isinstance(constraint, TriangulationConstraint):
         point = _triangulated(constraint, a, b, current)
