@@ -1,7 +1,7 @@
 ---
 id: 001-080
 title: "Add the triangulation and baseline-offset dialogs"
-status: todo
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-078]
