@@ -1,7 +1,7 @@
 ---
 id: 001-092
 title: "Write the standalone sketch2cad-verify tool"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-091]
