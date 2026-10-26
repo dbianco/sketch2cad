@@ -1,7 +1,7 @@
 ---
 id: 001-088
 title: "Add scale bar, north arrow, legend, evidence table and original annex"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-087]
