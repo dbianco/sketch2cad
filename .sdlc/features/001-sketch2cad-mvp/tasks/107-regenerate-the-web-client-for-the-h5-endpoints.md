@@ -1,7 +1,7 @@
 ---
 id: 001-107
 title: "Regenerate the web client for the H5 endpoints"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-106]
