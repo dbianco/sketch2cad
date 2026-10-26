@@ -262,6 +262,16 @@ describe("triangulation dialog", () => {
     expect(calls).toEqual([]);
   });
 
+  it("editing a distance clears the message of the previous attempt", async () => {
+    triangulateSetup({}, "1", "1");
+    await apply();
+    expect(screen.getByRole("alert").textContent).toBe(V06);
+    type(TRIANGULATION_TEXT.distanceA, "3");
+    type(TRIANGULATION_TEXT.distanceB, "4");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(candidates()).toHaveLength(2);
+  });
+
   it("a 422 V-06 from the server renders the PRD message", async () => {
     triangulateSetup({ patch: json({ title: "x", code: "V-06" }, 422) });
     await apply();

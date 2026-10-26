@@ -47,6 +47,12 @@ import {
   type ToolId,
 } from "./ui/editorUi";
 
+/**
+ * Width of the palette column: its buttons wrap inside it. Sized by its content, the row of 11
+ * tool buttons took ~820 px and left the canvas almost no width on a 1280 px screen.
+ */
+const PALETTE_COLUMN_WIDTH_PX = 240;
+
 export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => EditorTool>> = {
   select: createSelectTool,
   vertex: createVertexEditTool,
@@ -112,7 +118,14 @@ export function EditorWorkspace({
 
   return (
     <div className="editor-workspace" style={{ display: "flex", flex: 1, minHeight: 0 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          flex: `0 0 ${String(PALETTE_COLUMN_WIDTH_PX)}px`,
+        }}
+      >
         <Palette ui={ui} catalog={catalog} disabled={readOnly} />
         <HistoryButtons store={store} disabled={readOnly} />
         <KeyboardHelp />

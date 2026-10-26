@@ -4,8 +4,8 @@
 // editor store's entities: one row per placement (number, label, local X/Y in metres, metric
 // origin) and one "sin ubicar" row per item that this plan does not place.
 //
-// The number shown is always the register's: the `evidence_number` attribute of a marker symbol
-// is not kept in sync by the server. Assigning an item to the selected point or symbol is a
+// The number shown is always the register's; the server copies it into the `evidence_number`
+// attribute of a marker symbol that places the item (on create and relabel). Assigning an item to the selected point or symbol is a
 // `relabel` with `evidence_id`, a field the store does not model, so it goes through
 // runServerOperation, which reloads the entities afterwards.
 import { useEffect, useId, useState, type FormEvent } from "react";

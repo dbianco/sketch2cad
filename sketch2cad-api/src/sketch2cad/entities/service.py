@@ -16,7 +16,9 @@ from two metric references of the same revision, store its ``constraint`` and se
 entity, the entities that depend on it through ``constraint.refs`` are recomputed
 (:mod:`sketch2cad.entities.recompute`), each with an ``entity.recomputed`` event in the
 same transaction. An entity may place evidence of its plan's case file (``evidence_id``,
-points and symbols only; :func:`_check_evidence`). Entities are edited only in a
+points and symbols only; :func:`_check_evidence`); a marker symbol's
+``evidence_number`` attribute follows that evidence (:func:`_sync_evidence_number`).
+Entities are edited only in a
 ``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by the user holding the
 plan's edit lease (CU-04).
 """
@@ -93,6 +95,8 @@ SERVER_ATTRIBUTES = (DECLARED_SEGMENTS, CONSTRAINT_ERROR)
 EXPORT_ONLY_LAYERS = frozenset({"L_SHEET"})
 # Entity types that may place evidence (spec section 2.1).
 EVIDENCE_TYPES = frozenset({"point", "symbol"})
+# Catalog symbol whose ``evidence_number`` attribute shows the evidence it places.
+EVIDENCE_MARKER = "evidence_marker"
 
 
 class EntityConflictError(Exception):
@@ -185,6 +189,25 @@ def _check_evidence(
         raise EntityInputError("Only points and symbols may reference evidence.")
     if find_case_evidence(db, plan.case_file_id, evidence_id) is None:
         raise EntityInputError(f"Evidence {evidence_id} is not in this case file.")
+
+
+def _sync_evidence_number(db: Session, plan: Plan, entity: Entity) -> None:
+    """Make a marker's ``geometry.attributes.evidence_number`` equal its evidence's number.
+
+    The register's number is the truth (REQ-08): a symbol that places evidence and carries
+    the attribute (or is an ``evidence_marker``) would otherwise show a stale number on the
+    canvas and in exports after a ``relabel`` with ``evidence_id``. Points have no attribute.
+    """
+    geometry = entity.geometry
+    if entity.evidence_id is None or geometry.get("kind") != "symbol":
+        return
+    attributes: dict[str, Any] = dict(geometry.get("attributes") or {})
+    if "evidence_number" not in attributes and geometry.get("symbol_id") != EVIDENCE_MARKER:
+        return
+    evidence = find_case_evidence(db, plan.case_file_id, entity.evidence_id)
+    if evidence is None or attributes.get("evidence_number") == evidence.number:
+        return
+    entity.geometry = {**geometry, "attributes": {**attributes, "evidence_number": evidence.number}}
 
 
 def ensure_editable(db: Session, revision: Revision, user: User) -> Plan:
@@ -326,6 +349,8 @@ def create_entities(
         )
         for item in items
     ]
+    for entity in entities:
+        _sync_evidence_number(db, plan, entity)
     db.add_all(entities)
     db.flush()
     for entity in entities:
@@ -405,6 +430,7 @@ def update_entity(
         entity.layer = patch.layer
     if patch.sets_evidence:
         entity.evidence_id = patch.evidence_id
+    _sync_evidence_number(db, plan, entity)
     if patch.operation not in CONSTRAINT_OPERATIONS:
         _drop_moved_constraint(entity, old_geometry)
     _apply_declarations(db, plan, entity, old_geometry, patch.operation)

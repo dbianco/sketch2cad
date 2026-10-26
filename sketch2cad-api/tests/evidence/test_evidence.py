@@ -469,3 +469,34 @@ def test_relabel_links_changes_and_clears_the_evidence(
     updates = events_of(factory, EventKind.ENTITY_UPDATED)
     assert [(e.before or {})["evidence_id"] for e in updates] == [None, own["id"]]
     assert [(e.after or {})["evidence_id"] for e in updates] == [own["id"], None]
+
+
+def test_marker_number_follows_the_evidence_on_create_and_relabel(
+    client: TestClient, factory: sessionmaker[Session], case_id: str, owner: User
+) -> None:
+    """A marker's ``evidence_number`` attribute shows the register's number, never a stale one."""
+    revision_id = make_plan(client, factory, case_id, owner)
+    create_one(client, case_id, "Vehículo A")
+    second = create_one(client, case_id, "Casquillo")
+    placed = post_entity(client, revision_id, entity_body(MARKER, evidence_id=second["id"]))
+    assert placed.status_code == 201, placed.text
+    assert placed.json()["entities"][0]["geometry"]["attributes"] == {"evidence_number": 2}
+
+    response = post_entity(client, revision_id, entity_body(MARKER))
+    marker = response.json()["entities"][0]
+    assert marker["geometry"]["attributes"] == {"evidence_number": 1}
+    third = create_one(client, case_id, "Mancha")
+    url = f"{ENTITIES_URL}/{marker['id']}"
+    linked = client.patch(url, json={"operation": "relabel", "evidence_id": third["id"]})
+    assert linked.status_code == 200, linked.text
+    assert linked.json()["geometry"]["attributes"] == {"evidence_number": 3}
+    assert linked.json()["geometry"]["anchor_m"] == MARKER["anchor_m"]
+    stale = {**MARKER, "attributes": {"evidence_number": 9, "label": "x"}}
+    edited = client.patch(url, json={"operation": "relabel", "geometry": stale})
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["geometry"]["attributes"] == {"evidence_number": 3, "label": "x"}
+
+    after = (events_of(factory, EventKind.ENTITY_UPDATED)[0].after or {})["geometry"]
+    assert after["attributes"] == {"evidence_number": 3}
+    point = post_entity(client, revision_id, entity_body(POINT, evidence_id=third["id"]))
+    assert point.json()["entities"][0]["geometry"] == POINT

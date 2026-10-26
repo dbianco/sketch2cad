@@ -359,7 +359,8 @@ function Panel<V>(props: ViewProps<V> & { apply(): Promise<void>; clear(): void 
         <Fields
           values={state.values}
           setValues={(values) =>
-            tool.setState({ values: { ...tool.getState().values, ...values } })
+            // A new value makes the message of the previous attempt stale.
+            tool.setState({ values: { ...tool.getState().values, ...values }, notice: null })
           }
           preview={preview}
           busy={state.busy}
