@@ -1,7 +1,7 @@
 ---
 id: 001-108
 title: "Add the suggestion layer, batch panel and confidence highlight"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-107, 001-069]
