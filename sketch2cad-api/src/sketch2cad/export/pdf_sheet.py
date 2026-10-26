@@ -37,6 +37,7 @@ METRIC_STATUS_TEXT = {
     "non_metric": "No métrico",
 }
 SHORT_SHA_LENGTH = 12
+DRAFT_HASH_ROW = ("Hash", "no aplica (borrador)")
 
 
 def mm_to_pt(value_mm: float) -> float:
@@ -151,11 +152,15 @@ def title_block_rows(
     *,
     revision_number: int,
     status: str,
-    sha256: str,
+    sha256: str | None,
     scale: int,
     fits: bool = True,
 ) -> list[tuple[str, str]]:
-    """``(label, value)`` rows of the title block, in Spanish, top to bottom."""
+    """``(label, value)`` rows of the title block, in Spanish, top to bottom.
+
+    ``sha256`` ``None`` (a draft, which carries no hashes) prints :data:`DRAFT_HASH_ROW`
+    instead of the abbreviated snapshot hash.
+    """
     incident_date = case_meta.incident_date
     scale_text = f"1:{scale}" if fits else f"1:{scale} (no cabe en la hoja)"
     return [
@@ -167,7 +172,7 @@ def title_block_rows(
         ("Revisor", case_meta.reviewer or NO_VALUE),
         ("Revisión", str(revision_number)),
         ("Estado métrico", METRIC_STATUS_TEXT.get(status, status)),
-        ("Snapshot SHA-256", sha256[:SHORT_SHA_LENGTH]),
+        ("Snapshot SHA-256", sha256[:SHORT_SHA_LENGTH]) if sha256 else DRAFT_HASH_ROW,
         ("Escala", scale_text),
     ]
 

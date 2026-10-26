@@ -2,9 +2,10 @@
 
 The annex is exactly one page after the sheet, of the same paper size. Its header says
 which image it is (``Anexo: croquis original`` or ``... rectificado``), the full SHA-256 of
-the image bytes and the image size in pixels; the image is scaled to fit the rest of the
-frame, keeping its aspect ratio. Evidence rows that did not fit on the sheet continue in a
-column on the right (:mod:`sketch2cad.export.pdf_evidence`).
+the image bytes (left out of drafts, which carry no hashes) and the image size in pixels;
+the image is scaled to fit the rest of the frame, keeping its aspect ratio. Evidence rows
+that did not fit on the sheet continue in a column on the right
+(:mod:`sketch2cad.export.pdf_evidence`).
 
 Embedding is deterministic: Pillow decodes the bytes (EXIF orientation is ignored, the
 pixels are shown as stored), composites any transparency on white, converts to RGB and
@@ -41,6 +42,7 @@ HEADER_MM = 18.0
 PADDING_MM = 3.0
 CAPTION_MM = 4.0
 TEXT_MM = 2.8
+DRAFT_HASH_TEXT = "Hash no incluido en borradores"
 ANNEX_TITLES = {"original": "Anexo: croquis original", "rectified": "Anexo: croquis rectificado"}
 
 AnnexLabel = Literal["original", "rectified"]
@@ -87,9 +89,12 @@ def prepare_image(annex: AnnexImage) -> PreparedImage:
     return PreparedImage(flat, width, height)
 
 
-def header_lines(annex: AnnexImage, prepared: PreparedImage) -> list[str]:
+def header_lines(
+    annex: AnnexImage, prepared: PreparedImage, *, with_hash: bool = True
+) -> list[str]:
+    """Hash and size lines under the title; drafts print :data:`DRAFT_HASH_TEXT` instead."""
     return [
-        f"SHA-256: {annex.sha256.lower()}",
+        f"SHA-256: {annex.sha256.lower()}" if with_hash else DRAFT_HASH_TEXT,
         f"Dimensiones: {prepared.width_px} × {prepared.height_px} px",
     ]
 
@@ -107,8 +112,14 @@ def draw_annex_page(
     layout: SheetLayout,
     annex: AnnexImage,
     overflow_rows: Sequence[Mapping[str, Any]] = (),
+    *,
+    with_hash: bool = True,
 ) -> None:
-    """The annex on the current (new) page; the caller ends the page."""
+    """The annex on the current (new) page; the caller ends the page.
+
+    ``with_hash`` False (drafts) leaves the image SHA-256 out of the header; the bytes are
+    still checked against it.
+    """
     prepared = prepare_image(annex)
     frame = layout.frame
     canvas.setStrokeColorRGB(0, 0, 0)
@@ -121,7 +132,7 @@ def draw_annex_page(
         mm_to_pt(x), mm_to_pt(frame.top - PADDING_MM - CAPTION_MM), ANNEX_TITLES[annex.label]
     )
     canvas.setFont(LABEL_FONT, mm_to_pt(TEXT_MM))
-    for index, line in enumerate(header_lines(annex, prepared)):
+    for index, line in enumerate(header_lines(annex, prepared, with_hash=with_hash)):
         baseline = frame.top - PADDING_MM - CAPTION_MM - (index + 1) * (TEXT_MM + 1.5)
         canvas.drawString(mm_to_pt(x), mm_to_pt(baseline), line)
     body_top = frame.top - HEADER_MM

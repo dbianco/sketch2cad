@@ -10,7 +10,16 @@ whose every save-time value is fixed; the frame, the plan (clipped to the drawin
 the title block are drawn; :func:`draw_notes` fills :attr:`SheetLayout.notes` with the
 north arrow, the graphic scale bar, the legend of used symbols (:mod:`.pdf_legend`) and the
 evidence table (:mod:`.pdf_evidence`); with an :class:`~.pdf_annex.AnnexImage` a second and
-last page holds the image annex (:mod:`.pdf_annex`). Task 089 adds the watermark.
+last page holds the image annex (:mod:`.pdf_annex`).
+
+Draft and final (spec 13.2, REQ-13, REQ-14): a draft carries no hashes ("sin tabla de
+hashes"): the title block prints ``Hash: no aplica (borrador)`` instead of the abbreviated
+``snapshot_sha256``, the annex header says ``Hash no incluido en borradores`` instead of the
+image SHA-256 and the document subject leaves the snapshot hash out; every page gets the
+diagonal ``BORRADOR / DRAFT`` mark (:mod:`.pdf_watermark`). A final export has no mark,
+prints both hashes and, while ``legal.disclaimer_enabled`` is true
+(:class:`~.disclaimer.ExportLegal`), the legal disclaimer in a framed band at the bottom of
+the notes area, right above the title block (:mod:`.disclaimer`).
 
 Each snapshot entity type maps to a drawing function in :data:`ENTITY_DRAWERS` (the PDF
 twin of the DXF ``ENTITY_WRITERS``). Lines keep their real length: a 1 m line at 1:100 is
@@ -47,6 +56,7 @@ from sketch2cad.entities.dimensions import (
     dimension_discrepancy,
     measured_length,
 )
+from sketch2cad.export.disclaimer import ExportLegal, disclaimer_band_height, draw_disclaimer
 from sketch2cad.export.dxf_dimensions import MIN_LENGTH_M, dimension_text
 from sketch2cad.export.dxf_repro import to_utc
 from sketch2cad.export.dxf_symbols import (
@@ -68,6 +78,7 @@ from sketch2cad.export.pdf_legend import (
 from sketch2cad.export.pdf_sheet import (
     SHEETS,
     CaseMeta,
+    Rect,
     SheetLayout,
     WorldToSheet,
     draw_frame,
@@ -77,6 +88,7 @@ from sketch2cad.export.pdf_sheet import (
     title_block_rows,
     world_to_sheet,
 )
+from sketch2cad.export.pdf_watermark import draw_watermark
 from sketch2cad.export.scale import (
     STANDARD_SCALES,
     Bounds,
@@ -113,6 +125,8 @@ DIM_TEXT_MM = 2.5
 DIM_TICK_MM = 2.5
 DIM_EXTENSION_BEYOND_MM = 1.25
 DIM_TEXT_GAP_MM = 0.625
+DISCLAIMER_GAP_MM = 2.5
+"""Space around the disclaimer band, the padding of the notes area (``pdf_legend``)."""
 
 Point = tuple[float, float]
 
@@ -492,6 +506,16 @@ def draw_plan(
     canvas.restoreState()
 
 
+def _draw_disclaimer_band(canvas: Canvas, notes: Rect, text: str) -> Rect:
+    """The disclaimer at the bottom of ``notes``; returns the part of ``notes`` above it."""
+    width = notes.width - 2 * DISCLAIMER_GAP_MM
+    height = disclaimer_band_height(text, width)
+    band = Rect(notes.x + DISCLAIMER_GAP_MM, notes.y + DISCLAIMER_GAP_MM, width, height)
+    draw_disclaimer(canvas, band, text)
+    used = height + DISCLAIMER_GAP_MM
+    return Rect(notes.x, notes.y + used, notes.width, notes.height - used)
+
+
 def draw_notes(
     canvas: Canvas,
     snapshot: Mapping[str, Any],
@@ -499,10 +523,18 @@ def draw_notes(
     page: PagePlan,
     *,
     overflow_on_annex: bool,
+    disclaimer: str | None = None,
 ) -> list[Mapping[str, Any]]:
-    """North arrow, scale bar, legend and evidence table; returns the rows that did not fit."""
+    """North arrow, scale bar, legend and evidence table; returns the rows that did not fit.
+
+    A ``disclaimer`` takes a band at the bottom of the notes area, above the title block;
+    the evidence table ends above it.
+    """
     symbols = used_symbols(snapshot, catalog)
-    notes = notes_layout(page.layout.notes, len(symbols))
+    area = page.layout.notes
+    if disclaimer:
+        area = _draw_disclaimer_band(canvas, area, disclaimer)
+    notes = notes_layout(area, len(symbols))
     try:
         draw_north_arrow(canvas, notes.north, catalog, snapshot.get("local_frame"), draw_symbol)
     except UnknownSymbolError as error:
@@ -526,6 +558,7 @@ def export_pdf(
     scale: int | None = None,
     dimension_tolerances: DimensionTolerances | None = None,
     annex: AnnexImage | None = None,
+    legal: ExportLegal | None = None,
 ) -> bytes:
     """PDF bytes of ``snapshot`` on one landscape sheet at a standard scale.
 
@@ -533,7 +566,9 @@ def export_pdf(
     image annex page (none without it); evidence rows that do not fit on the sheet
     continue there. ``frozen_at`` is
     ``revisions.frozen_at`` (timezone-aware) or ``None`` for a draft of a working revision.
-    ``draft`` does not change the layout yet (the watermark is task 089). Raises
+    ``draft`` adds the watermark and leaves the hashes out; a final export prints the legal
+    disclaimer unless ``legal`` disables it (default :class:`ExportLegal`, enabled; see the
+    module docstring). Raises
     :class:`PdfExportError` for another catalog version, an unknown layer, type or symbol,
     a degenerate dimension, invalid options or an annex image that cannot be decoded or
     does not match its SHA-256, and :class:`ValueError` for a naive
@@ -553,6 +588,8 @@ def export_pdf(
         )
     sha256 = snapshot_sha256(snapshot)
     revision = int(snapshot["revision_number"])
+    disclaimer = None if draft else (legal or ExportLegal()).disclaimer
+    subject_hash = "" if draft else f"; snapshot_sha256={sha256}"
     context = PdfContext(
         catalog,
         page.transform,
@@ -565,8 +602,7 @@ def export_pdf(
         buffer,
         page.layout,
         title=f"Plano {case_meta.case_code} - revisión {revision}",
-        subject=f"plan_id={snapshot['plan_id']}; revision_number={revision}; "
-        f"snapshot_sha256={sha256}",
+        subject=f"plan_id={snapshot['plan_id']}; revision_number={revision}{subject_hash}",
         creator=f"Sketch2CAD {generator_version}",
         frozen_at=frozen_at,
         id_seed=f"{snapshot['plan_id']}:{sha256}:{draft}",
@@ -577,26 +613,33 @@ def export_pdf(
         case_meta,
         revision_number=revision,
         status=str(snapshot["metric_status"]),
-        sha256=sha256,
+        sha256=None if draft else sha256,
         scale=page.proposal.scale,
         fits=page.proposal.fits,
     )
     draw_title_block(canvas, page.layout, rows)
-    overflow = draw_notes(canvas, snapshot, catalog, page, overflow_on_annex=annex is not None)
+    overflow = draw_notes(
+        canvas, snapshot, catalog, page, overflow_on_annex=annex is not None, disclaimer=disclaimer
+    )
+    if draft:
+        draw_watermark(canvas, page.layout.sheet)
     canvas.showPage()
     if annex is not None:
         try:
-            draw_annex_page(canvas, page.layout, annex, overflow)
+            draw_annex_page(canvas, page.layout, annex, overflow, with_hash=not draft)
         except AnnexImageError as error:
             raise PdfExportError(str(error)) from error
+        if draft:
+            draw_watermark(canvas, page.layout.sheet)
         canvas.showPage()
     canvas.save()
     logger.info(
-        "Built PDF of plan %s revision %s (%s 1:%d, draft=%s)",
+        "Built PDF of plan %s revision %s (%s 1:%d, draft=%s, disclaimer=%s)",
         snapshot["plan_id"],
         revision,
         page.layout.sheet.name,
         page.proposal.scale,
         draft,
+        disclaimer is not None,
     )
     return buffer.getvalue()

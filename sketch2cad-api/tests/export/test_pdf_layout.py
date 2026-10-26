@@ -224,11 +224,11 @@ def test_metadata_and_dates_come_from_the_revision() -> None:
     assert draft.get_metadata_dict()["CreationDate"] == "D:20000101000000+00'00'"
 
 
-def test_draft_flag_does_not_change_the_layout() -> None:
+def test_draft_flag_does_not_move_the_drawing() -> None:
     snap = snapshot(mixed_entities())
     final, draft = export(snap), export(snap, draft=True)
     assert access_paths(final) == access_paths(draft)
-    assert page_text(final) == page_text(draft)
+    assert page_text(final) != page_text(draft)  # watermark, hashes and disclaimer differ
 
 
 def test_evidence_point_prints_its_marker_number() -> None:
