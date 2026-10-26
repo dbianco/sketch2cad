@@ -27,9 +27,12 @@ RUN uv sync --frozen --no-dev --no-editable
 # Runtime stage: the virtual environment plus migrations, without uv.
 FROM python:3.12.13-slim
 
+# XDG_CACHE_HOME: ezdxf caches font data under $XDG_CACHE_HOME/ezdxf; the default
+# (/app/.cache) is not writable by `app`. The cache does not affect the DXF bytes.
 ENV PATH=/app/.venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    XDG_CACHE_HOME=/tmp/.cache
 
 RUN useradd --uid 10001 --user-group --no-create-home --home-dir /app --shell /usr/sbin/nologin app
 

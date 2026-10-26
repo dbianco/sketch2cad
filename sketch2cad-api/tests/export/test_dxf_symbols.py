@@ -9,7 +9,7 @@ from collections import Counter
 from typing import Any
 
 import pytest
-from dxf_snapshots import default_entities, entity, snapshot
+from dxf_snapshots import FROZEN_AT, default_entities, entity, snapshot
 from ezdxf.document import Drawing
 from ezdxf.filemanagement import read as read_drawing
 
@@ -66,7 +66,9 @@ def evidence_point(number: int, attributes: dict[str, Any] | None = None) -> dic
 
 
 def export_read(snap: dict[str, Any], *, draft: bool = False) -> Drawing:
-    data = export_dxf(snap, default_catalog(), draft=draft, generator_version=VERSION)
+    data = export_dxf(
+        snap, default_catalog(), draft=draft, generator_version=VERSION, frozen_at=FROZEN_AT
+    )
     return read_drawing(io.StringIO(data.decode("utf-8")))
 
 

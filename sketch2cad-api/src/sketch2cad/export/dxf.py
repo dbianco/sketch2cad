@@ -11,7 +11,9 @@ Structure:
 - :func:`build_document` adds the catalog layers, the entities in snapshot order (handles
   follow creation order), the metadata carrier and the draft watermark;
 - :func:`finalize_document` runs ``doc.audit()`` and is the single place where save-time
-  metadata is set (reproducibility settings of ``docs/spikes/dxf-reproducibility.md``);
+  metadata is set: the reproducibility settings of ``docs/spikes/dxf-reproducibility.md``
+  (:mod:`sketch2cad.export.dxf_repro`) derive dates from ``frozen_at`` and GUIDs from the
+  ``plan_id`` and the ``snapshot_sha256``, so the same revision always gives the same bytes;
 - :func:`write_bytes` writes to a text stream and encodes it (UTF-8, ``\\n`` line endings).
 
 Each snapshot entity type maps to a writer in :data:`ENTITY_WRITERS`: texts are written by
@@ -30,6 +32,7 @@ import io
 import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from ezdxf import bbox, units
@@ -46,6 +49,7 @@ from sketch2cad.export.dxf_dimensions import (
     write_dimension,
 )
 from sketch2cad.export.dxf_layers import add_catalog_layers, catalog_layer_names
+from sketch2cad.export.dxf_repro import pin_document, repro_settings
 from sketch2cad.export.dxf_symbols import (
     UnknownSymbolError,
     write_evidence_marker,
@@ -175,9 +179,14 @@ def build_document(
     *,
     draft: bool,
     generator_version: str,
+    frozen_at: datetime | None,
     dimension_tolerances: DimensionTolerances | None = None,
 ) -> Drawing:
     """The ezdxf document of ``snapshot``, audited and ready to write.
+
+    ``frozen_at`` is the timezone-aware freeze time of the revision (``revisions.frozen_at``,
+    it is not part of the snapshot); it dates the file. Pass ``None`` for a revision that is
+    not frozen: the file is dated :data:`~sketch2cad.export.dxf_repro.DRAFT_EPOCH`.
 
     ``dimension_tolerances`` defaults to the spec tolerance (0.02 m); callers pass the
     configured one (``DimensionTolerances.from_settings``) so the alert style of discrepant
@@ -185,7 +194,7 @@ def build_document(
 
     Raises :class:`DxfExportError` when the snapshot names another catalog version, uses a
     layer or entity type the export does not know, has a dimension whose points coincide,
-    or the audit reports errors or fixes.
+    or the audit reports errors or fixes, and :class:`ValueError` for a naive ``frozen_at``.
     """
     if snapshot["catalog_version"] != catalog.version:
         raise DxfExportError(
@@ -211,7 +220,7 @@ def build_document(
     carrier.set_xdata(APP_ID, metadata_xdata(snapshot, sha256, generator_version))
     if draft:
         _add_watermark(msp, written, context)
-    finalize_document(doc)
+    finalize_document(doc, plan_id=str(snapshot["plan_id"]), sha256=sha256, frozen_at=frozen_at)
     logger.info(
         "Built DXF of plan %s revision %s (%d entities, draft=%s)",
         snapshot["plan_id"],
@@ -222,20 +231,29 @@ def build_document(
     return doc
 
 
-def finalize_document(doc: Drawing) -> None:
-    """Raise :class:`DxfExportError` if ``doc.audit()`` reports errors or fixes.
+def finalize_document(
+    doc: Drawing, *, plan_id: str, sha256: str, frozen_at: datetime | None
+) -> None:
+    """Audit ``doc`` and pin its save-time metadata to the revision (D-3).
 
-    Last step before writing, so the save-time reproducibility settings (D-3) go here.
+    Raises :class:`DxfExportError` if ``doc.audit()`` reports errors or fixes. The settings
+    are computed first, so a naive ``frozen_at`` fails before the document is touched.
     """
+    settings = repro_settings(plan_id, sha256, frozen_at)
     auditor = doc.audit()
     if auditor.has_errors or auditor.has_fixes:
         raise DxfExportError(
             f"DXF audit reported {len(auditor.errors)} errors and {len(auditor.fixes)} fixes"
         )
+    pin_document(doc, settings)
 
 
 def write_bytes(doc: Drawing) -> bytes:
-    """DXF bytes of ``doc``: written to a text stream, then encoded (``\\n`` everywhere)."""
+    """DXF bytes of ``doc``: written to a text stream, then encoded (``\\n`` everywhere).
+
+    Store them as they are (binary mode): a text-mode file would turn ``\\n`` into
+    ``\\r\\n`` on Windows and change the hash.
+    """
     stream = io.StringIO()
     doc.write(stream)
     return doc.encode(stream.getvalue())
@@ -247,14 +265,20 @@ def export_dxf(
     *,
     draft: bool,
     generator_version: str,
+    frozen_at: datetime | None,
     dimension_tolerances: DimensionTolerances | None = None,
 ) -> bytes:
-    """DXF R2013 bytes of the frozen ``snapshot`` (see :func:`build_document`)."""
+    """DXF R2013 bytes of ``snapshot`` (see :func:`build_document`).
+
+    Byte-identical for the same snapshot, flags and ``frozen_at`` in any process, time zone
+    or hash seed (with the pinned ezdxf 1.4.5 and Python 3.12).
+    """
     doc = build_document(
         snapshot,
         catalog,
         draft=draft,
         generator_version=generator_version,
+        frozen_at=frozen_at,
         dimension_tolerances=dimension_tolerances,
     )
     return write_bytes(doc)

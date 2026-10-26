@@ -1094,7 +1094,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.14" },
     { name = "argon2-cffi", specifier = ">=23.1" },
-    { name = "ezdxf", specifier = ">=1.4.5" },
+    { name = "ezdxf", specifier = "==1.4.5" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "numpy", specifier = ">=2.5.4" },
     { name = "opencv-python-headless", specifier = ">=5.0.0.93" },

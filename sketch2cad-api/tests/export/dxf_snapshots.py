@@ -1,7 +1,10 @@
 """Hand-built revision snapshots in the shape of ``revisions.snapshot.build_snapshot``."""
 
+from datetime import UTC, datetime
 from typing import Any
 
+# ``revisions.frozen_at`` of the revision the snapshots stand for (not part of the snapshot).
+FROZEN_AT = datetime(2026, 10, 21, 9, 30, 15, 123456, tzinfo=UTC)
 PLAN_ID = "7a0c4b1e-0d2f-4c3a-9e8b-1f2a3b4c5d6e"
 USER_ID = "0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9"
 
@@ -87,3 +90,32 @@ def default_entities() -> list[dict[str, Any]]:
             },
         ),
     ]
+
+
+def mixed_entities() -> list[dict[str, Any]]:
+    """:func:`default_entities` plus a symbol block and an aligned dimension (``*D`` block)."""
+    door = entity(
+        9,
+        "symbol",
+        "L_SYMBOLS",
+        {
+            "anchor_m": [1.0, 2.0],
+            "rotation_deg": 90.0,
+            "scale": 1.0,
+            "symbol_id": "door",
+            "attributes": {},
+        },
+    )
+    dimension = entity(
+        10,
+        "dimension",
+        "L_DIMENSIONS",
+        {
+            "p1_m": [0.0, 0.0],
+            "p2_m": [4.25, 0.0],
+            "offset_m": 0.5,
+            "declared_value_m": 4.24,
+            "measured_value_m": 4.25,
+        },
+    )
+    return [*default_entities(), door, dimension]

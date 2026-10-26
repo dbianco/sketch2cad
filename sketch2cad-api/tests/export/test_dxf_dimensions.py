@@ -10,7 +10,7 @@ from collections import Counter
 from typing import Any
 
 import pytest
-from dxf_snapshots import default_entities, entity, snapshot
+from dxf_snapshots import FROZEN_AT, default_entities, entity, snapshot
 from ezdxf.document import Drawing
 from ezdxf.filemanagement import read as read_drawing
 
@@ -60,6 +60,7 @@ def export(
         default_catalog(),
         draft=draft,
         generator_version=VERSION,
+        frozen_at=FROZEN_AT,
         dimension_tolerances=tolerances,
     )
 

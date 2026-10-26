@@ -5,12 +5,11 @@
 # pyright: reportUnknownArgumentType=false
 
 import io
-import re
 from collections import Counter
 from typing import Any
 
 import pytest
-from dxf_snapshots import default_entities, entity, snapshot
+from dxf_snapshots import FROZEN_AT, default_entities, entity, snapshot
 from ezdxf import units
 from ezdxf.document import Drawing
 from ezdxf.filemanagement import read as read_drawing
@@ -24,9 +23,6 @@ from sketch2cad.revisions.snapshot import snapshot_sha256
 TOLERANCE_M = 1e-6
 VERSION = "0.1.0"
 EXPORTED_TYPES = {"line": "LINE", "polyline": "LWPOLYLINE", "point": "POINT"}
-# Values ezdxf takes from the clock or uuid4 on every write (D-3); 086 pins them.
-CLOCK_HEADER_VARS = ("$TDCREATE", "$TDUPDATE", "$FINGERPRINTGUID", "$VERSIONGUID")
-EZDXF_MARKER = re.compile(r"^\d+\.\d+\.\d+ @ ")
 
 
 @pytest.fixture
@@ -35,7 +31,9 @@ def fixture_snapshot() -> dict[str, Any]:
 
 
 def export(snap: dict[str, Any], *, draft: bool = False) -> bytes:
-    return export_dxf(snap, default_catalog(), draft=draft, generator_version=VERSION)
+    return export_dxf(
+        snap, default_catalog(), draft=draft, generator_version=VERSION, frozen_at=FROZEN_AT
+    )
 
 
 def read(data: bytes) -> Drawing:
@@ -55,23 +53,6 @@ def tagged(doc: Drawing) -> dict[str, Any]:
         if graphic.has_xdata(APP_ID) and "entity_id" in xdata(graphic):
             found[xdata(graphic)["entity_id"]] = graphic
     return found
-
-
-def masked(data: bytes) -> list[str]:
-    """DXF lines with the clock and uuid4 values replaced by a placeholder."""
-    lines = data.decode("utf-8").split("\n")
-    for index, line in enumerate(lines):
-        if line in CLOCK_HEADER_VARS:
-            lines[index + 2] = "<masked>"
-        elif EZDXF_MARKER.match(line):
-            lines[index] = "<masked>"
-    return lines
-
-
-def section(data: bytes, name: str) -> str:
-    text = data.decode("utf-8")
-    start = text.index(f"\n  2\n{name}\n")
-    return text[start : text.index("\n  0\nENDSEC\n", start)]
 
 
 def test_entities_per_layer_and_coordinates_round_trip(fixture_snapshot: dict[str, Any]) -> None:
@@ -153,14 +134,9 @@ def test_draft_watermark_only_in_draft(fixture_snapshot: dict[str, Any]) -> None
     assert (watermark.dxf.insert.x, watermark.dxf.insert.y) == pytest.approx((-1.5, -2.0))
 
 
-def test_export_is_deterministic_apart_from_clock_values(
-    fixture_snapshot: dict[str, Any],
-) -> None:
-    first = export(fixture_snapshot, draft=True)
-    second = export(fixture_snapshot, draft=True)
-    for name in ("TABLES", "BLOCKS", "ENTITIES"):
-        assert section(first, name) == section(second, name)
-    assert masked(first) == masked(second)
+def test_export_is_byte_identical(fixture_snapshot: dict[str, Any]) -> None:
+    for draft in (False, True):
+        assert export(fixture_snapshot, draft=draft) == export(fixture_snapshot, draft=draft)
 
 
 def test_unknown_layer_is_rejected() -> None:
