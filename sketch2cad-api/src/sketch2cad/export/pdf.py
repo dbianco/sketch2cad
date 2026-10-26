@@ -7,8 +7,10 @@ reads only the snapshot dict, its catalog, the case data of the title block
 Steps: :func:`plan_page` measures the plan (:func:`plan_bounds`) and picks the sheet and the
 standard scale (:mod:`sketch2cad.export.scale`); :func:`new_canvas` opens a ReportLab canvas
 whose every save-time value is fixed; the frame, the plan (clipped to the drawing area) and
-the title block are drawn; task 088 adds scale bar, north arrow, legend and evidence table
-in :attr:`SheetLayout.notes`, task 089 the watermark.
+the title block are drawn; :func:`draw_notes` fills :attr:`SheetLayout.notes` with the
+north arrow, the graphic scale bar, the legend of used symbols (:mod:`.pdf_legend`) and the
+evidence table (:mod:`.pdf_evidence`); with an :class:`~.pdf_annex.AnnexImage` a second and
+last page holds the image annex (:mod:`.pdf_annex`). Task 089 adds the watermark.
 
 Each snapshot entity type maps to a drawing function in :data:`ENTITY_DRAWERS` (the PDF
 twin of the DXF ``ENTITY_WRITERS``). Lines keep their real length: a 1 m line at 1:100 is
@@ -53,6 +55,15 @@ from sketch2cad.export.dxf_symbols import (
     attribute_text,
     evidence_marker_attributes,
     find_symbol,
+)
+from sketch2cad.export.pdf_annex import AnnexImage, AnnexImageError, draw_annex_page
+from sketch2cad.export.pdf_evidence import draw_evidence_table
+from sketch2cad.export.pdf_legend import (
+    draw_legend,
+    draw_north_arrow,
+    draw_scale_bar,
+    notes_layout,
+    used_symbols,
 )
 from sketch2cad.export.pdf_sheet import (
     SHEETS,
@@ -481,6 +492,28 @@ def draw_plan(
     canvas.restoreState()
 
 
+def draw_notes(
+    canvas: Canvas,
+    snapshot: Mapping[str, Any],
+    catalog: CatalogDefinition,
+    page: PagePlan,
+    *,
+    overflow_on_annex: bool,
+) -> list[Mapping[str, Any]]:
+    """North arrow, scale bar, legend and evidence table; returns the rows that did not fit."""
+    symbols = used_symbols(snapshot, catalog)
+    notes = notes_layout(page.layout.notes, len(symbols))
+    try:
+        draw_north_arrow(canvas, notes.north, catalog, snapshot.get("local_frame"), draw_symbol)
+    except UnknownSymbolError as error:
+        raise PdfExportError(f"north arrow: {error}") from error
+    draw_scale_bar(canvas, notes.scale_bar, page.proposal.scale)
+    draw_legend(canvas, notes.legend, symbols, draw_symbol)
+    rows: list[Mapping[str, Any]] = list(snapshot.get("evidence_table") or ())
+    shown = draw_evidence_table(canvas, notes.evidence, rows, overflow_on_annex=overflow_on_annex)
+    return rows[shown:]
+
+
 def export_pdf(
     snapshot: dict[str, Any],
     catalog: CatalogDefinition,
@@ -492,14 +525,18 @@ def export_pdf(
     sheet: SheetChoice = "auto",
     scale: int | None = None,
     dimension_tolerances: DimensionTolerances | None = None,
+    annex: AnnexImage | None = None,
 ) -> bytes:
     """PDF bytes of ``snapshot`` on one landscape sheet at a standard scale.
 
-    ``sheet`` and ``scale`` default to the proposal (:func:`plan_page`). ``frozen_at`` is
+    ``sheet`` and ``scale`` default to the proposal (:func:`plan_page`). ``annex`` adds the
+    image annex page (none without it); evidence rows that do not fit on the sheet
+    continue there. ``frozen_at`` is
     ``revisions.frozen_at`` (timezone-aware) or ``None`` for a draft of a working revision.
     ``draft`` does not change the layout yet (the watermark is task 089). Raises
     :class:`PdfExportError` for another catalog version, an unknown layer, type or symbol,
-    a degenerate dimension or invalid options, and :class:`ValueError` for a naive
+    a degenerate dimension, invalid options or an annex image that cannot be decoded or
+    does not match its SHA-256, and :class:`ValueError` for a naive
     ``frozen_at``.
     """
     if snapshot["catalog_version"] != catalog.version:
@@ -545,7 +582,14 @@ def export_pdf(
         fits=page.proposal.fits,
     )
     draw_title_block(canvas, page.layout, rows)
+    overflow = draw_notes(canvas, snapshot, catalog, page, overflow_on_annex=annex is not None)
     canvas.showPage()
+    if annex is not None:
+        try:
+            draw_annex_page(canvas, page.layout, annex, overflow)
+        except AnnexImageError as error:
+            raise PdfExportError(str(error)) from error
+        canvas.showPage()
     canvas.save()
     logger.info(
         "Built PDF of plan %s revision %s (%s 1:%d, draft=%s)",

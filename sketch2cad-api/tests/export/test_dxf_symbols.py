@@ -5,6 +5,7 @@
 # pyright: reportUnknownArgumentType=false
 
 import io
+import uuid
 from collections import Counter
 from typing import Any
 
@@ -14,8 +15,10 @@ from ezdxf.document import Drawing
 from ezdxf.filemanagement import read as read_drawing
 
 from sketch2cad.catalog import default_catalog
+from sketch2cad.db.models import Entity, Evidence, MetricStatus, Plan, Revision, SourceMode
 from sketch2cad.export import DxfExportError, export_dxf
 from sketch2cad.export.dxf import APP_ID
+from sketch2cad.revisions.snapshot import build_snapshot
 
 VERSION = "0.1.0"
 EVIDENCE_ID = "5e6f7081-92a3-44b5-86c7-d8e9f0a1b2c3"
@@ -188,6 +191,30 @@ def test_evidence_table_number_wins_over_entity_attributes() -> None:
     (insert,) = inserts(doc, "S2C_evidence_marker")
     assert insert.get_attrib_text("EVIDENCE_NUMBER") == "12"
     assert insert.get_attrib_text("LABEL") == "Casquillo"
+
+
+def test_frozen_evidence_table_numbers_the_marker() -> None:
+    found = Evidence(id=uuid.UUID(EVIDENCE_ID), number=4, label="Huella")
+    point = Entity(
+        id=uuid.UUID(int=1),
+        type="point",
+        layer="L_EVIDENCE",
+        geometry={"kind": "point", "coords_m": [[2.5, 1.5]]},
+        attributes={},
+        evidence_id=found.id,
+        source={"method": "manual"},
+        review_status="accepted",
+        metric_origin="scaled_drawing",
+    )
+    plan = Plan(
+        id=uuid.UUID(int=7),
+        source_mode=SourceMode.SCALED_DRAWING,
+        metric_status=MetricStatus.METRIC,
+    )
+    snap = build_snapshot(plan, Revision(number=1), None, "default-1", [point], [found])
+    (insert,) = inserts(export_read(snap), "S2C_evidence_marker")
+    assert insert.get_attrib_text("EVIDENCE_NUMBER") == "4"
+    assert insert.get_attrib_text("LABEL") == "Huella"
 
 
 def test_plain_point_has_no_marker() -> None:
