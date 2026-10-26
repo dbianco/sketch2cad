@@ -149,12 +149,16 @@ Geometry = Annotated[
 
 
 class EntityIn(_Strict):
-    """A new entity drawn by hand; provenance, review and metric fields are set by the server."""
+    """A new entity drawn by hand; provenance, review and metric fields are set by the server.
+
+    ``evidence_id`` places evidence of the plan's case file; only points and symbols may.
+    """
 
     type: EntityType
     layer: LayerName
     geometry: Geometry
     attributes: Attributes = Field(default_factory=dict[str, AttributeValue])
+    evidence_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def _kind_matches_type(self) -> "EntityIn":
@@ -181,7 +185,9 @@ class EntityPatch(_Strict):
     """An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.
 
     ``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs
-    ``layer``; ``relabel`` needs ``geometry`` or ``attributes``. Moving a point or symbol
+    ``layer``; ``relabel`` needs ``geometry``, ``attributes`` or ``evidence_id`` (evidence
+    of the plan's case file, or ``null`` to drop the reference; only ``relabel`` takes
+    it, and only for points and symbols). Moving a point or symbol
     that has a ``constraint`` needs ``confirm_constraint_removal = true`` (409
     ``constraint_removal_required`` otherwise); it removes the constraint and sets
     ``metric_origin`` to ``none`` (spec section 11.3).
@@ -200,6 +206,7 @@ class EntityPatch(_Strict):
     operation: EntityOperation
     geometry: Geometry | None = None
     attributes: Attributes | None = None
+    evidence_id: uuid.UUID | None = None
     layer: LayerName | None = None
     anchor_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
     free_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
@@ -224,11 +231,19 @@ class EntityPatch(_Strict):
             raise ValueError(f"{self.operation.value} needs geometry")
         if self.operation is EntityOperation.RECLASSIFY and self.layer is None:
             raise ValueError("reclassify needs layer")
+        sets_evidence = self.sets_evidence
+        if sets_evidence and self.operation is not EntityOperation.RELABEL:
+            raise ValueError("evidence_id is for relabel only")
         if self.operation is EntityOperation.RELABEL and (
-            self.geometry is None and self.attributes is None
+            self.geometry is None and self.attributes is None and not sets_evidence
         ):
-            raise ValueError("relabel needs geometry or attributes")
+            raise ValueError("relabel needs geometry, attributes or evidence_id")
         return self
+
+    @property
+    def sets_evidence(self) -> bool:
+        """Whether the body sends ``evidence_id``, including an explicit ``null``."""
+        return "evidence_id" in self.model_fields_set
 
     def _check_computed_fields(self) -> None:
         for operation, (required, optional) in OPERATION_FIELDS.items():

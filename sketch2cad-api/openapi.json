@@ -1005,7 +1005,7 @@
       },
       "EntityIn": {
         "additionalProperties": false,
-        "description": "A new entity drawn by hand; provenance, review and metric fields are set by the server.",
+        "description": "A new entity drawn by hand; provenance, review and metric fields are set by the server.\n\n``evidence_id`` places evidence of the plan's case file; only points and symbols may.",
         "properties": {
           "attributes": {
             "patternProperties": {
@@ -1031,6 +1031,18 @@
             },
             "title": "Attributes",
             "type": "object"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
           },
           "geometry": {
             "discriminator": {
@@ -1313,7 +1325,7 @@
       },
       "EntityPatch": {
         "additionalProperties": false,
-        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry`` or ``attributes``. Moving a point or symbol\nthat has a ``constraint`` needs ``confirm_constraint_removal = true`` (409\n``constraint_removal_required`` otherwise); it removes the constraint and sets\n``metric_origin`` to ``none`` (spec section 11.3).\n\nThe other operations take only their own fields and the server computes the geometry:\n\n- ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and\n  the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).\n- ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances\n  ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is\n  the candidate closest to the current position; ``alt`` is the other one).\n- ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,\n  ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.",
+        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry``, ``attributes`` or ``evidence_id`` (evidence\nof the plan's case file, or ``null`` to drop the reference; only ``relabel`` takes\nit, and only for points and symbols). Moving a point or symbol\nthat has a ``constraint`` needs ``confirm_constraint_removal = true`` (409\n``constraint_removal_required`` otherwise); it removes the constraint and sets\n``metric_origin`` to ``none`` (spec section 11.3).\n\nThe other operations take only their own fields and the server computes the geometry:\n\n- ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and\n  the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).\n- ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances\n  ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is\n  the candidate closest to the current position; ``alt`` is the other one).\n- ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,\n  ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.",
         "properties": {
           "anchor_vertex": {
             "anyOf": [
@@ -1429,6 +1441,18 @@
               }
             ],
             "title": "D M"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Id"
           },
           "free_vertex": {
             "anyOf": [
@@ -2103,6 +2127,164 @@
           "next_cursor"
         ],
         "title": "EventPage",
+        "type": "object"
+      },
+      "EvidenceCreate": {
+        "additionalProperties": false,
+        "description": "New evidence; ``attributes`` values are JSON primitives, like entity attributes.",
+        "properties": {
+          "attributes": {
+            "patternProperties": {
+              "^[a-z][a-z0-9_]*$": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "EvidenceCreate",
+        "type": "object"
+      },
+      "EvidenceListOut": {
+        "description": "Evidence of a case file ordered by number.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EvidenceListOut",
+        "type": "object"
+      },
+      "EvidenceOut": {
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "case_file_id": {
+            "format": "uuid",
+            "title": "Case File Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "case_file_id",
+          "number",
+          "label",
+          "attributes",
+          "created_by",
+          "created_at"
+        ],
+        "title": "EvidenceOut",
+        "type": "object"
+      },
+      "EvidencePatch": {
+        "additionalProperties": false,
+        "description": "An edit of ``label`` and/or ``attributes`` (replaced whole); ``number`` is immutable.",
+        "properties": {
+          "attributes": {
+            "anyOf": [
+              {
+                "patternProperties": {
+                  "^[a-z][a-z0-9_]*$": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributes"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "title": "EvidencePatch",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -3841,6 +4023,176 @@
         ]
       }
     },
+    "/api/v1/case-files/{case_id}/evidence": {
+      "get": {
+        "description": "Evidence register of the case file, ordered by number. Requires ``read``.",
+        "operationId": "get_case_evidence_api_v1_case_files__case_id__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the case file (access.denied)."
+          },
+          "404": {
+            "description": "The case file does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Case Evidence",
+        "tags": [
+          "evidence"
+        ]
+      },
+      "post": {
+        "description": "Register evidence with the next number of the case file and ``evidence.created``.\n\nRequires ``edit``.",
+        "operationId": "post_case_evidence_api_v1_case_files__case_id__evidence_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the case file (access.denied)."
+          },
+          "404": {
+            "description": "The case file does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Case Evidence",
+        "tags": [
+          "evidence"
+        ]
+      }
+    },
     "/api/v1/case-files/{case_id}/members": {
       "post": {
         "description": "Add a member with explicit permissions; only an ``admin`` or the creator may do it.\n\nAnyone else gets 403, logged as ``access.denied``; an unknown\n``user_id`` gives 422 and an existing member 409.",
@@ -4313,7 +4665,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
+            "description": "Invalid body, a layer or symbol not in the active catalog, an ``evidence_id`` that is not evidence of the plan's case file (or set on an entity that is not a point or symbol), or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
           }
         },
         "summary": "Remove Entity",
@@ -4414,12 +4766,119 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
+            "description": "Invalid body, a layer or symbol not in the active catalog, an ``evidence_id`` that is not evidence of the plan's case file (or set on an entity that is not a point or symbol), or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
           }
         },
         "summary": "Patch Entity",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/api/v1/evidence/{evidence_id}": {
+      "patch": {
+        "description": "Change the label and/or attributes with ``evidence.updated``; the number stays.\n\nRequires ``edit`` on the evidence's case file.",
+        "operationId": "patch_evidence_api_v1_evidence__evidence_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "title": "Evidence Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidencePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks the permission on the case file (access.denied)."
+          },
+          "404": {
+            "description": "The evidence does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Evidence",
+        "tags": [
+          "evidence"
         ]
       }
     },
@@ -5385,7 +5844,7 @@
             "description": "The revision is frozen, the plan is not in EDITING or IN_REVIEW (``code`` ``V-10`` when validated), or the user does not hold the plan's edit lease (``code`` ``V-12`` with ``holder``, or ``lease_required``)."
           },
           "422": {
-            "description": "Invalid body, a layer or symbol not in the active catalog, or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
+            "description": "Invalid body, a layer or symbol not in the active catalog, an ``evidence_id`` that is not evidence of the plan's case file (or set on an entity that is not a point or symbol), or a ``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: ``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not cross, ``V-07`` when a reference is not metric or depends on the entity. Nothing changes."
           }
         },
         "summary": "Create Revision Entities",

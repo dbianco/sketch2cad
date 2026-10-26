@@ -61,7 +61,9 @@ EDIT_RESPONSES: dict[int | str, dict[str, Any]] = {
         "lease (``code`` ``V-12`` with ``holder``, or ``lease_required``).",
     },
     422: {
-        "description": "Invalid body, a layer or symbol not in the active catalog, or a "
+        "description": "Invalid body, a layer or symbol not in the active catalog, an "
+        "``evidence_id`` that is not evidence of the plan's case file (or set on an entity "
+        "that is not a point or symbol), or a "
         "``fix_length``, ``triangulate`` or ``baseline_offset`` that cannot be applied: "
         "``code`` ``V-04`` for a distance <= 0, ``V-06`` when the two distances do not "
         "cross, ``V-07`` when a reference is not metric or depends on the entity. "

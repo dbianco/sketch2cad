@@ -15,8 +15,10 @@ from two metric references of the same revision, store its ``constraint`` and se
 ``metric_origin = none`` (spec section 11.3). After any edit or deletion that changes an
 entity, the entities that depend on it through ``constraint.refs`` are recomputed
 (:mod:`sketch2cad.entities.recompute`), each with an ``entity.recomputed`` event in the
-same transaction. Entities are edited only in a ``draft`` revision of a plan in
-``EDITING`` or ``IN_REVIEW``, by the user holding the plan's edit lease (CU-04).
+same transaction. An entity may place evidence of its plan's case file (``evidence_id``,
+points and symbols only; :func:`_check_evidence`). Entities are edited only in a
+``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by the user holding the
+plan's edit lease (CU-04).
 """
 
 import logging
@@ -68,6 +70,7 @@ from sketch2cad.entities.schemas import (
     Geometry,
     SymbolGeometry,
 )
+from sketch2cad.evidence.service import find_case_evidence
 from sketch2cad.geometry.constraints import would_create_cycle
 from sketch2cad.geometry.homography import Point
 from sketch2cad.geometry.metric_status import METRIC_ORIGINS, default_metric_origin
@@ -88,6 +91,8 @@ CONSTRAINT_REMOVAL_MESSAGE = (
 SERVER_ATTRIBUTES = (DECLARED_SEGMENTS, CONSTRAINT_ERROR)
 # L_SHEET holds the title block and frame, drawn only on export (spec section 12.1).
 EXPORT_ONLY_LAYERS = frozenset({"L_SHEET"})
+# Entity types that may place evidence (spec section 2.1).
+EVIDENCE_TYPES = frozenset({"point", "symbol"})
 
 
 class EntityConflictError(Exception):
@@ -165,6 +170,21 @@ def _check_refs(refs: CatalogRefs, layer: str, geometry: Geometry | None) -> Non
         raise EntityInputError(f"Layer {layer} is not a drawing layer of the active catalog.")
     if isinstance(geometry, SymbolGeometry) and geometry.symbol_id not in refs.symbol_ids:
         raise EntityInputError(f"Symbol {geometry.symbol_id} is not in the active catalog.")
+
+
+def _check_evidence(
+    db: Session, plan: Plan, entity_type: str, evidence_id: uuid.UUID | None
+) -> None:
+    """``evidence_id`` must be evidence of the plan's case file, placed by a point or symbol.
+
+    Unknown evidence and evidence of another case file get the same message.
+    """
+    if evidence_id is None:
+        return
+    if entity_type not in EVIDENCE_TYPES:
+        raise EntityInputError("Only points and symbols may reference evidence.")
+    if find_case_evidence(db, plan.case_file_id, evidence_id) is None:
+        raise EntityInputError(f"Evidence {evidence_id} is not in this case file.")
 
 
 def ensure_editable(db: Session, revision: Revision, user: User) -> Plan:
@@ -275,7 +295,8 @@ def create_entities(
 
     Raises before writing anything: :class:`EntityConflictError` when the revision is not
     editable, :class:`EntityInputError` naming the first item whose layer or symbol is not
-    in the active catalog. The caller commits.
+    in the active catalog or whose ``evidence_id`` is not evidence of the plan's case file.
+    The caller commits.
     """
     plan = ensure_editable(db, revision, user)
     refs = active_catalog_refs(db)
@@ -283,6 +304,7 @@ def create_entities(
         try:
             _check_refs(refs, item.layer, item.geometry)
             _check_attributes(item.attributes)
+            _check_evidence(db, plan, item.type.value, item.evidence_id)
         except EntityInputError as exc:
             raise EntityInputError(f"entities[{index}]: {exc}") from None
     calibration = active_calibration(db, plan)
@@ -295,6 +317,7 @@ def create_entities(
             layer=item.layer,
             geometry=item.geometry.model_dump(mode="json"),
             attributes=dict(item.attributes),
+            evidence_id=item.evidence_id,
             source={"method": "manual", "job_id": None, "parent_entity_id": None},
             review_status=ReviewStatus.ACCEPTED.value,
             metric_origin=initial_metric_origin(plan, calibration, item.type.value).value,
@@ -353,6 +376,8 @@ def update_entity(
         raise EntityInputError(f"geometry.kind must stay {entity.type}.")
     _check_refs(active_catalog_refs(db), patch.layer or entity.layer, patch.geometry)
     _check_attributes(patch.attributes)
+    if patch.sets_evidence:
+        _check_evidence(db, plan, entity.type, patch.evidence_id)
     _check_constraint_removal(entity, patch)
     before = entity_state(entity)
     old_geometry, old_attributes = entity.geometry, entity.attributes
@@ -378,6 +403,8 @@ def update_entity(
         entity.attributes = _keep_declarations(patch.attributes, old_attributes)
     if patch.layer is not None:
         entity.layer = patch.layer
+    if patch.sets_evidence:
+        entity.evidence_id = patch.evidence_id
     if patch.operation not in CONSTRAINT_OPERATIONS:
         _drop_moved_constraint(entity, old_geometry)
     _apply_declarations(db, plan, entity, old_geometry, patch.operation)
