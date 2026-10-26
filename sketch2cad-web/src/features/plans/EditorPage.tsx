@@ -30,6 +30,7 @@ import type { Point2 } from "../../editor/store/types";
 import { useAuth } from "../auth/authStore";
 import { EvidenceTable } from "../evidence/EvidenceTable";
 import { EVIDENCE_MESSAGES } from "../evidence/messages";
+import { planExportPath } from "../exports/messages";
 import { previewUrl } from "../sources/SourceViewer";
 import { enterReadOnly, LeaseBanner } from "./LeaseBanner";
 import { EDITABLE_STATUSES, PLAN_MESSAGES as M } from "./messages";
@@ -199,6 +200,7 @@ export function EditorPage({
       <header style={{ display: "flex", gap: 16, alignItems: "baseline", padding: "8px 12px" }}>
         <h1 style={{ margin: 0, fontSize: 20 }}>{loaded.title}</h1>
         <Link to={planReviewPath(caseId, loaded.id)}>{M.openReview}</Link>
+        <Link to={planExportPath(caseId, loaded.id)}>{M.openExport}</Link>
         <p role="status" aria-live="polite" style={{ margin: 0 }}>
           {readOnly && sync === "synced" ? null : SYNC_LABELS[sync]}
         </p>

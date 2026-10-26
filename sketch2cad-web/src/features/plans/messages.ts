@@ -40,6 +40,7 @@ export const PLAN_MESSAGES = {
   forbidden: "No tienes permiso para esta acción.",
   openEditor: "Abrir el editor",
   openReview: "Ir a la revisión",
+  openExport: "Exportar",
   notEditable: "El plano está en solo lectura en su estado actual.",
   leaseLost: "Ya no tienes el permiso de edición de este plano. Recarga la página para volver a editar.",
   syncPending: "Cambios pendientes de sincronizar",

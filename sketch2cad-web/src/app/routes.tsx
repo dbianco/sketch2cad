@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { CaseListPage } from "../features/cases/CaseListPage";
 import { PlanCalibrationPage, SourceCalibrationPage } from "../features/calibration/CalibrationPage";
+import { ExportPage } from "../features/exports/ExportPage";
 import { EditorPage } from "../features/plans/EditorPage";
 import { ReviewPage } from "../features/plans/ReviewPage";
 import { LoginPage } from "../features/auth/LoginPage";
@@ -15,12 +16,14 @@ export const SOURCE_CALIBRATION_PATH = "/cases/:caseId/sources/:sourceId/calibra
 export const PLAN_CALIBRATION_PATH = "/cases/:caseId/plans/:planId/calibration";
 export const PLAN_EDITOR_PATH = "/cases/:caseId/plans/:planId/editor";
 export const PLAN_REVIEW_PATH = "/cases/:caseId/plans/:planId/review";
+export const PLAN_EXPORT_PATH = "/cases/:caseId/plans/:planId/export";
 
 const PROTECTED_ROUTES = [
   { path: SOURCE_CALIBRATION_PATH, page: <SourceCalibrationPage /> },
   { path: PLAN_CALIBRATION_PATH, page: <PlanCalibrationPage /> },
   { path: PLAN_EDITOR_PATH, page: <EditorPage /> },
   { path: PLAN_REVIEW_PATH, page: <ReviewPage /> },
+  { path: PLAN_EXPORT_PATH, page: <ExportPage /> },
 ];
 
 function NotFoundPage() {
