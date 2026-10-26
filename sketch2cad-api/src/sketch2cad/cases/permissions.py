@@ -66,7 +66,7 @@ def can_manage_members(user: User, case_file: CaseFile) -> bool:
 def record_access_denied(
     session_factory: sessionmaker[Session],
     *,
-    case_file_id: uuid.UUID,
+    case_file_id: uuid.UUID | None,
     actor_id: uuid.UUID,
     actor_role: str,
     method: str,
@@ -76,6 +76,9 @@ def record_access_denied(
     client_ip: str | None,
 ) -> bool:
     """Append and commit an ``access.denied`` event in a session of its own.
+
+    ``case_file_id=None`` records a denial outside any case file (an admin-only route) in
+    the global chain.
 
     The denied request's transaction is rolled back, so the event cannot ride on it. The
     caller must not hold a lock on the case file row (roll its own session back first),

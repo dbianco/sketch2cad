@@ -23,10 +23,12 @@ from sqlalchemy.orm import Session
 from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.calibration.rectify import enqueue_rectify
 from sketch2cad.config import Settings
+from sketch2cad.config_params import case_incident_type, code_default, get_params
 from sketch2cad.db.models import (
     Calibration,
     CalibrationMethod,
     Entity,
+    IncidentType,
     Plan,
     PlanStatus,
     Revision,
@@ -65,14 +67,16 @@ ROLE_CONTROL = "control"
 ROLE_CHECK = "check"
 BASIS_CONTROL = "control_points"
 BASIS_CHECK = "check_points"
+MAX_REPROJECTION_ERROR = "calibration.max_reprojection_error_mm"
+MAX_SCALE_DISCREPANCY = "calibration.max_scale_discrepancy_pct"
 
 
 @dataclass(frozen=True)
 class CalibrationTolerances:
-    """Tolerances of spec section 11.4; defaults match :class:`~sketch2cad.config.Settings`."""
+    """Tolerances of spec section 11.4; defaults are the registry code defaults."""
 
-    max_reprojection_error_mm: float = 1.0
-    max_scale_discrepancy_pct: float = 1.0
+    max_reprojection_error_mm: float = code_default(MAX_REPROJECTION_ERROR)
+    max_scale_discrepancy_pct: float = code_default(MAX_SCALE_DISCREPANCY)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "CalibrationTolerances":
@@ -81,6 +85,23 @@ class CalibrationTolerances:
             max_reprojection_error_mm=settings.CALIBRATION_MAX_REPROJECTION_ERROR_MM,
             max_scale_discrepancy_pct=settings.CALIBRATION_MAX_SCALE_DISCREPANCY_PCT,
         )
+
+    @classmethod
+    def resolve(
+        cls, session: Session | None, incident_type: IncidentType | None
+    ) -> "CalibrationTolerances":
+        """Resolve both tolerances for ``incident_type`` (overrides, then the default)."""
+        values = get_params(
+            (MAX_REPROJECTION_ERROR, MAX_SCALE_DISCREPANCY),
+            incident_type=incident_type,
+            session=session,
+        )
+        return cls(float(values[MAX_REPROJECTION_ERROR]), float(values[MAX_SCALE_DISCREPANCY]))
+
+    @classmethod
+    def for_plan(cls, session: Session, plan: Plan) -> "CalibrationTolerances":
+        """Tolerances for the incident type of the plan's case file."""
+        return cls.resolve(session, case_incident_type(session, plan.case_file_id))
 
 
 class CalibrationInputError(ValueError):

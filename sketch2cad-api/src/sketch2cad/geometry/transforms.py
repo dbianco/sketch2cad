@@ -64,19 +64,19 @@ def scan_segment_scale(
 def scale_matrix(mm_per_px: float) -> Matrix3:
     """3×3 image→paper matrix of a uniform scan scale (no translation, Y stays down)."""
     k = _positive(mm_per_px, "mm_per_px")
-    return np.diag([k, k, 1.0])
+    return np.diag([k, k, 1])
 
 
 def paper_to_world_matrix(paper_scale: float) -> Matrix3:
     """3×3 paper mm → world m matrix for a 1:``paper_scale`` drawing, inverting Y."""
     k = _positive(paper_scale, "paper_scale") / 1000.0
-    return np.diag([k, -k, 1.0])
+    return np.diag([k, -k, 1])
 
 
 def world_to_paper_matrix(paper_scale: float) -> Matrix3:
     """Inverse of :func:`paper_to_world_matrix`."""
     k = 1000.0 / _positive(paper_scale, "paper_scale")
-    return np.diag([k, -k, 1.0])
+    return np.diag([k, -k, 1])
 
 
 def _map(matrix: Matrix3, points: Point | Sequence[Point] | PointArray) -> Point | PointArray:

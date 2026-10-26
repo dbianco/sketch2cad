@@ -12,33 +12,35 @@ tool no origin): ``L_DIMENSIONS`` is not a metric layer. :func:`discrepant_dimen
 lists the flagged dimensions of a revision for the H3 metric status extension (task 076).
 
 :class:`DimensionTolerances` defaults to the spec value, so worker code can use it without
-the API-only settings; :meth:`DimensionTolerances.from_environment` reads only
-``DIMENSION_DISCREPANCY_TOLERANCE_M`` with the API settings constraint.
+the API-only settings; :meth:`DimensionTolerances.resolve` applies the per-incident-type
+and global overrides of :mod:`sketch2cad.config_params` over the environment default.
 """
 
 import math
+import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import create_model
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.orm import Session
 
 from sketch2cad.config import Settings
-from sketch2cad.db.models import Entity
+from sketch2cad.config_params import case_incident_type, code_default, get_param
+from sketch2cad.db.models import Entity, IncidentType
 from sketch2cad.geometry.metrics import TANGENCY_TOLERANCE_M
 
 DIMENSION_TYPE = "dimension"
 TOLERANCE_SETTING = "DIMENSION_DISCREPANCY_TOLERANCE_M"
+TOLERANCE_PARAM = "dimension.discrepancy_tolerance_m"
 ROUNDING_MARGIN_M = TANGENCY_TOLERANCE_M
 """Float noise absorbed at the tolerance boundary (the repo's 1e-9 m geometric epsilon)."""
 
 
 @dataclass(frozen=True)
 class DimensionTolerances:
-    """Tolerance of spec section 11.4; the default matches :class:`~sketch2cad.config.Settings`."""
+    """Tolerance of spec section 11.4; the default is the registry code default."""
 
-    discrepancy_tolerance_m: float = 0.02
+    discrepancy_tolerance_m: float = code_default(TOLERANCE_PARAM)
 
     def __post_init__(self) -> None:
         if not self.discrepancy_tolerance_m > 0:
@@ -55,24 +57,20 @@ class DimensionTolerances:
 
         Raises ``pydantic.ValidationError`` when the variable breaks the settings constraint.
         """
-        values: dict[str, Any] = _DimensionEnvironment().model_dump()
-        return cls(discrepancy_tolerance_m=values[TOLERANCE_SETTING])
+        return cls.resolve(None, None)
 
+    @classmethod
+    def resolve(
+        cls, session: Session | None, incident_type: IncidentType | None
+    ) -> "DimensionTolerances":
+        """Resolve ``dimension.discrepancy_tolerance_m`` (overrides, then the default)."""
+        value = get_param(TOLERANCE_PARAM, incident_type=incident_type, session=session)
+        return cls(discrepancy_tolerance_m=float(value))
 
-class _EnvironmentSettings(BaseSettings):
-    model_config = SettingsConfigDict(case_sensitive=True, extra="ignore")
-
-
-# Same type, default and constraint as the API settings field.
-_TOLERANCE_FIELDS: dict[str, Any] = {
-    TOLERANCE_SETTING: (
-        Settings.model_fields[TOLERANCE_SETTING].annotation,
-        Settings.model_fields[TOLERANCE_SETTING],
-    )
-}
-_DimensionEnvironment = create_model(
-    "_DimensionEnvironment", __base__=_EnvironmentSettings, **_TOLERANCE_FIELDS
-)
+    @classmethod
+    def for_case(cls, session: Session, case_file_id: uuid.UUID) -> "DimensionTolerances":
+        """Tolerance for the incident type of the case file ``case_file_id``."""
+        return cls.resolve(session, case_incident_type(session, case_file_id))
 
 
 def measured_length(p1: Iterable[float], p2: Iterable[float]) -> float:

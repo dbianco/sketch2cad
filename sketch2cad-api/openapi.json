@@ -788,6 +788,15 @@
         "title": "CatalogOut",
         "type": "object"
       },
+      "ConfigScope": {
+        "description": "Who an override applies to.",
+        "enum": [
+          "global",
+          "incident_type"
+        ],
+        "title": "ConfigScope",
+        "type": "string"
+      },
       "DimensionGeometry": {
         "additionalProperties": false,
         "description": "``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.\n\nA client-sent ``measured_value_m`` is ignored and replaced by the ``p1_m``-``p2_m``\ndistance; ``declared_value_m`` is kept as sent (``sketch2cad.entities.dimensions``).",
@@ -2886,6 +2895,199 @@
         "title": "MetricStatusOut",
         "type": "object"
       },
+      "OverrideIn": {
+        "description": "New override value; ``incident_type`` only (and required) for scope ``incident_type``.",
+        "properties": {
+          "incident_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ConfigScope"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "scope"
+        ],
+        "title": "OverrideIn",
+        "type": "object"
+      },
+      "OverrideOut": {
+        "description": "A stored override; ``incident_type`` is null for scope ``global``.",
+        "properties": {
+          "incident_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ConfigScope"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by": {
+            "format": "uuid",
+            "title": "Updated By",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "scope",
+          "incident_type",
+          "value",
+          "updated_by",
+          "updated_at"
+        ],
+        "title": "OverrideOut",
+        "type": "object"
+      },
+      "ParamListOut": {
+        "properties": {
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/ParamOut"
+            },
+            "title": "Params",
+            "type": "array"
+          }
+        },
+        "required": [
+          "params"
+        ],
+        "title": "ParamListOut",
+        "type": "object"
+      },
+      "ParamOut": {
+        "description": "A parameter: ``default`` is the environment/code default; ``scopes`` the allowed\noverride scopes (empty: environment only); ``constraints`` its numeric bounds\n(``gt``, ``ge``, ``lt``, ``le``).",
+        "properties": {
+          "constraints": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Constraints",
+            "type": "object"
+          },
+          "default": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Default"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "env_var": {
+            "title": "Env Var",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/OverrideOut"
+            },
+            "title": "Overrides",
+            "type": "array"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigScope"
+            },
+            "title": "Scopes",
+            "type": "array"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "bool",
+              "int",
+              "float",
+              "str"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "description",
+          "section",
+          "env_var",
+          "default",
+          "constraints",
+          "scopes",
+          "overrides"
+        ],
+        "title": "ParamOut",
+        "type": "object"
+      },
       "PlanCreate": {
         "properties": {
           "primary_source_id": {
@@ -4901,6 +5103,274 @@
         "summary": "Get Active Catalog",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/api/v1/config/params": {
+      "get": {
+        "description": "Every configuration parameter with its default and overrides; any signed-in user.\n\nResolution order: override of the case's incident type, global override, default.",
+        "operationId": "get_config_params_api_v1_config_params_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParamListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Config Params",
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/params/{name}": {
+      "delete": {
+        "description": "Remove an override (admin); appends one ``config.changed`` event.",
+        "operationId": "delete_config_param_api_v1_config_params__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ConfigScope"
+            }
+          },
+          {
+            "in": "query",
+            "name": "incident_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/IncidentType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Incident Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParamOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "403": {
+            "description": "Missing CSRF token, or the user is not an admin (access.denied)."
+          },
+          "404": {
+            "description": "There is no such override."
+          },
+          "422": {
+            "description": "Unknown parameter, a scope the parameter does not allow, an ``incident_type`` missing for scope ``incident_type`` (or given for ``global``), or a value of the wrong type or outside the parameter bounds."
+          }
+        },
+        "summary": "Delete Config Param",
+        "tags": [
+          "config"
+        ]
+      },
+      "put": {
+        "description": "Create or replace an override (admin); appends one ``config.changed`` event.",
+        "operationId": "put_config_param_api_v1_config_params__name__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverrideIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParamOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is required."
+          },
+          "403": {
+            "description": "Missing CSRF token, or the user is not an admin (access.denied)."
+          },
+          "422": {
+            "description": "Unknown parameter, a scope the parameter does not allow, an ``incident_type`` missing for scope ``incident_type`` (or given for ``global``), or a value of the wrong type or outside the parameter bounds."
+          }
+        },
+        "summary": "Put Config Param",
+        "tags": [
+          "config"
         ]
       }
     },

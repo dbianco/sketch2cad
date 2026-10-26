@@ -8,8 +8,8 @@ true) turns it off. Drafts do not print it: their ``BORRADOR / DRAFT`` watermark
 does not carry it either (the spec asks for it only in the PDF and the audit report).
 
 :class:`ExportLegal` keeps the exporters pure: callers build it once with
-:meth:`ExportLegal.from_settings` (API) or :meth:`ExportLegal.from_environment` (worker) and
-pass it down. :func:`draw_disclaimer` draws the sentence in a framed band of a ReportLab
+:meth:`ExportLegal.resolve` (global override, else the environment default) and pass it
+down. :func:`draw_disclaimer` draws the sentence in a framed band of a ReportLab
 canvas, wrapped to its width; :func:`disclaimer_band_height` says how tall that band is.
 """
 
@@ -18,18 +18,18 @@ canvas, wrapped to its width; :func:`disclaimer_band_height` says how tall that 
 # pyright: reportUnknownArgumentType=false
 
 from dataclasses import dataclass
-from typing import Any
 
-from pydantic import create_model
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from reportlab.lib.utils import simpleSplit
 from reportlab.pdfgen.canvas import Canvas
+from sqlalchemy.orm import Session
 
 from sketch2cad.config import Settings
+from sketch2cad.config_params import code_default, get_param
 from sketch2cad.export.pdf_sheet import VALUE_FONT, Rect, mm_to_pt
 
 DISCLAIMER_TEXT = "Borrador técnico, no apto como prueba hasta contar con revisión jurídica"
 DISCLAIMER_SETTING = "LEGAL_DISCLAIMER_ENABLED"
+DISCLAIMER_PARAM = "legal.disclaimer_enabled"
 DISCLAIMER_FONT = VALUE_FONT
 DISCLAIMER_TEXT_MM = 2.2
 DISCLAIMER_LEADING_MM = 3.0
@@ -44,9 +44,9 @@ def disclaimer_text(enabled: bool) -> str | None:
 
 @dataclass(frozen=True)
 class ExportLegal:
-    """Legal options of the exports; the default matches :class:`~sketch2cad.config.Settings`."""
+    """Legal options of the exports; the default is the registry code default."""
 
-    disclaimer_enabled: bool = True
+    disclaimer_enabled: bool = code_default(DISCLAIMER_PARAM)
 
     @property
     def disclaimer(self) -> str | None:
@@ -64,24 +64,12 @@ class ExportLegal:
 
         Raises ``pydantic.ValidationError`` when the variable is not a boolean.
         """
-        values: dict[str, Any] = _LegalEnvironment().model_dump()
-        return cls(disclaimer_enabled=values[DISCLAIMER_SETTING])
+        return cls.resolve(None)
 
-
-class _EnvironmentSettings(BaseSettings):
-    model_config = SettingsConfigDict(case_sensitive=True, extra="ignore")
-
-
-# Same type and default as the API settings field.
-_LEGAL_FIELDS: dict[str, Any] = {
-    DISCLAIMER_SETTING: (
-        Settings.model_fields[DISCLAIMER_SETTING].annotation,
-        Settings.model_fields[DISCLAIMER_SETTING],
-    )
-}
-_LegalEnvironment = create_model(
-    "_LegalEnvironment", __base__=_EnvironmentSettings, **_LEGAL_FIELDS
-)
+    @classmethod
+    def resolve(cls, session: Session | None) -> "ExportLegal":
+        """Resolve ``legal.disclaimer_enabled`` (global override, then the default)."""
+        return cls(disclaimer_enabled=bool(get_param(DISCLAIMER_PARAM, session=session)))
 
 
 def disclaimer_lines(text: str, width_mm: float) -> list[str]:

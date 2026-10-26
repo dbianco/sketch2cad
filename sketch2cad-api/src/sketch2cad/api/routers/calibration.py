@@ -15,7 +15,6 @@ from pydantic import BaseModel, Field, FiniteFloat, PositiveInt
 from sqlalchemy.orm import Session
 
 from sketch2cad.api.deps import (
-    get_app_settings,
     get_current_user,
     require_csrf,
     require_plan_permission,
@@ -33,7 +32,6 @@ from sketch2cad.calibration import (
     accept,
     propose,
 )
-from sketch2cad.config import Settings
 from sketch2cad.db.models import CalibrationMethod, Plan, User
 from sketch2cad.db.session import get_session
 
@@ -201,14 +199,13 @@ def propose_calibration(
     body: CalibrationIn,
     plan: Annotated[Plan, Depends(require_plan_permission("edit"))],
     db: Annotated[Session, Depends(get_session)],
-    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> CalibrationProposalOut:
     """Compute the matrix, the reprojection error and ``meets_tolerance``; store nothing.
 
     Requires ``edit``. 409 when the plan is past ``EDITING`` or has entities (V-08).
     """
     try:
-        proposal = propose(db, plan, _input(body), CalibrationTolerances.from_settings(settings))
+        proposal = propose(db, plan, _input(body), CalibrationTolerances.for_plan(db, plan))
     except (CalibrationConflictError, CalibrationInputError) as exc:
         raise _rejected(db, plan, exc) from None
     return CalibrationProposalOut.model_validate(proposal.to_json())
@@ -225,7 +222,6 @@ def accept_calibration(
     plan: Annotated[Plan, Depends(require_plan_permission("edit"))],
     db: Annotated[Session, Depends(get_session)],
     user: Annotated[User, Depends(get_current_user)],
-    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> PlanOut:
     """Store the calibration as the plan's active one and move the plan to ``EDITING``.
 
@@ -233,7 +229,7 @@ def accept_calibration(
     rejected for ``none`` and above the reprojection tolerance (V-05). Method ``none``
     leaves the plan ``non_metric``. Requires ``edit`` and the plan's edit lease.
     """
-    tolerances = CalibrationTolerances.from_settings(settings)
+    tolerances = CalibrationTolerances.for_plan(db, plan)
     client_ip = request.client.host if request.client else None
     try:
         accept(db, plan, user, _input(body), body.as_metric, tolerances, client_ip)

@@ -7,15 +7,18 @@ shown to the technician in the quality semaphore, so they are written in Spanish
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from enum import StrEnum
 from typing import Any, cast
 
 import cv2
 import numpy as np
 import numpy.typing as npt
+from sqlalchemy.orm import Session
 
 from sketch2cad.config import Settings
+from sketch2cad.config_params import code_default, get_params
+from sketch2cad.db.models import IncidentType
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +48,13 @@ class CheckName(StrEnum):
 
 @dataclass(frozen=True)
 class QcThresholds:
-    """QC thresholds (spec §10 ``qc.*``); defaults match :class:`~sketch2cad.config.Settings`."""
+    """QC thresholds (spec §10 ``qc.*``); defaults are the registry code defaults."""
 
-    min_short_side_amber: int = 1500
-    min_short_side_red: int = 900
-    min_laplacian_var_amber: float = 100.0
-    min_laplacian_var_red: float = 40.0
-    min_contrast_amber: float = 60.0
+    min_short_side_amber: int = code_default("qc.min_short_side_amber")
+    min_short_side_red: int = code_default("qc.min_short_side_red")
+    min_laplacian_var_amber: float = code_default("qc.min_laplacian_var_amber")
+    min_laplacian_var_red: float = code_default("qc.min_laplacian_var_red")
+    min_contrast_amber: float = code_default("qc.min_contrast_amber")
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "QcThresholds":
@@ -62,6 +65,23 @@ class QcThresholds:
             min_laplacian_var_amber=settings.QC_MIN_LAPLACIAN_VAR_AMBER,
             min_laplacian_var_red=settings.QC_MIN_LAPLACIAN_VAR_RED,
             min_contrast_amber=settings.QC_MIN_CONTRAST_AMBER,
+        )
+
+    @classmethod
+    def resolve(cls, session: Session | None, incident_type: IncidentType | None) -> "QcThresholds":
+        """Resolve every ``qc.*`` threshold (overrides, then the environment default).
+
+        Without ``session`` only the ``QC_*`` environment variables apply; raises
+        ``pydantic.ValidationError`` when one breaks the settings constraints.
+        """
+        names = [f"qc.{f.name}" for f in fields(cls)]
+        v = get_params(names, incident_type=incident_type, session=session)
+        return cls(
+            min_short_side_amber=int(v["qc.min_short_side_amber"]),
+            min_short_side_red=int(v["qc.min_short_side_red"]),
+            min_laplacian_var_amber=float(v["qc.min_laplacian_var_amber"]),
+            min_laplacian_var_red=float(v["qc.min_laplacian_var_red"]),
+            min_contrast_amber=float(v["qc.min_contrast_amber"]),
         )
 
 

@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from sketch2cad.auth.lockout import utc_now
+from sketch2cad.config_params import case_incident_type
 from sketch2cad.db.models import JobMeta, JobStatus, MediaType, Source
 from sketch2cad.qc import QcThresholds, evaluate
 from sketch2cad.sources.raster import RasterError, rasterize_source
@@ -123,12 +124,16 @@ def _source_pixels(db: Session, storage: Storage, source: Source) -> npt.NDArray
 
 
 def _evaluate_job(
-    db: Session, storage: Storage, job: JobMeta, thresholds: QcThresholds
+    db: Session, storage: Storage, job: JobMeta, given: QcThresholds | None
 ) -> dict[str, Any]:
-    """Run the checks of the job's source and store ``source.qc``; return its status."""
+    """Run the checks of the job's source and store ``source.qc``; return its status.
+
+    Without ``given`` thresholds they resolve for the incident type of the source's case.
+    """
     source = db.get(Source, job.source_id) if job.source_id is not None else None
     if source is None:
         raise QcJobError(MISSING_SOURCE, "job has no existing source")
+    thresholds = given or QcThresholds.resolve(db, case_incident_type(db, source.case_file_id))
     try:
         with db.begin_nested():
             pixels = _source_pixels(db, storage, source)
@@ -175,20 +180,20 @@ def run_qc_job(
     simply analyzed again (rasterizing and evaluating the same bytes give the same
     result). An unexpected error marks the job ``failed`` with :data:`INTERNAL_ERROR`
     and is re-raised so the queue records it too. Raises :class:`JobNotFoundError` when
-    the job does not exist.
+    the job does not exist. ``thresholds`` default to the configuration of the incident
+    type of the source's case file (:meth:`QcThresholds.resolve`).
     """
     if not _start(factory, job_id):
         with factory() as db:
             job = db.get(JobMeta, job_id)
             return job.status if job is not None else JobStatus.FAILED.value
-    t = thresholds or QcThresholds()
     try:
         with factory() as db, db.begin():
             job = _locked_job(db, job_id)
             if job.status in TERMINAL_STATUSES:  # a concurrent run finished it
                 return job.status
             try:
-                qc = _evaluate_job(db, storage, job, t)
+                qc = _evaluate_job(db, storage, job, thresholds)
             except QcJobError as exc:
                 _finish(job, JobStatus.FAILED, exc.error)
                 logger.warning("QC job %s failed: %s", job.id, exc)

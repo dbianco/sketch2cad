@@ -19,7 +19,9 @@ idempotent: a finished job is left untouched and identical bytes reuse their art
 
 Only ``DATABASE_URL``, ``STORAGE_ROOT``, ``SIGNING_KEY_PATH`` and the optional export
 variables (``DIMENSION_DISCREPANCY_TOLERANCE_M``, ``LEGAL_DISCLAIMER_ENABLED``,
-``GIT_COMMIT``) are read; the API-only settings are not required.
+``GIT_COMMIT``) are read; the API-only settings are not required. The tolerance and the
+disclaimer flag resolve with the configuration overrides (incident type of the case file,
+then global) over those variables.
 """
 
 import hashlib
@@ -272,7 +274,7 @@ def _draft(db: Session, storage: Storage, ctx: _Context) -> Artifact:
     snapshot = revision.snapshot or revision_snapshot(db, ctx.plan, revision)
     original = _original(db, storage, ctx.source)
     sheet, scale = _sheet(ctx.job.params)
-    tolerances = DimensionTolerances.from_environment()
+    tolerances = DimensionTolerances.resolve(db, ctx.case_file.incident_type)
     version = export_service.generator_version()
     catalog = _catalog(db, str(snapshot["catalog_version"]))
     try:
@@ -295,7 +297,7 @@ def _draft(db: Session, storage: Storage, ctx: _Context) -> Artifact:
             scale=scale,
             dimension_tolerances=tolerances,
             annex=_annex(original),
-            legal=ExportLegal.from_environment(),
+            legal=ExportLegal.resolve(db),
         )
     except _EXPORT_ERRORS as exc:
         raise ExportJobError(EXPORT_FAILED, f"draft export failed: {type(exc).__name__}") from exc
@@ -371,8 +373,8 @@ def _final(db: Session, storage: Storage, ctx: _Context) -> Artifact:
         software=export_service.software_info(),
         signing_key=key,
         timezone_display=export_service.TIMEZONE_DISPLAY,
-        legal=ExportLegal.from_environment(),
-        dimension_tolerances=DimensionTolerances.from_environment(),
+        legal=ExportLegal.resolve(db),
+        dimension_tolerances=DimensionTolerances.resolve(db, ctx.case_file.incident_type),
         sheet=sheet,
         scale=scale,
     )

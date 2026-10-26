@@ -146,10 +146,11 @@ def rectify_image(
         raise RectifyError("rectified canvas is empty")
     if width * height > (Image.MAX_IMAGE_PIXELS or float("inf")):
         raise RectifyError(f"rectified canvas of {width}x{height} px is too large")
-    to_canvas = np.diag([float(px_per_mm), float(px_per_mm), 1.0]) @ np.asarray(
+    # Homogeneous scale (w stays 1); white is the dtype maximum, or 1 for float images.
+    to_canvas = np.diag([float(px_per_mm), float(px_per_mm), 1]) @ np.asarray(
         image_to_paper, dtype=np.float64
     )
-    white = float(np.iinfo(pixels.dtype).max) if pixels.dtype.kind in "ui" else 1.0
+    white = float(np.iinfo(pixels.dtype).max if pixels.dtype.kind in "ui" else 1)
     return cv2.warpPerspective(
         pixels,
         to_canvas,
