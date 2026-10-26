@@ -24,6 +24,9 @@
 #                     /app/keys/signing-key.pem, on the `signing-keys` volume)
 #   KEEP_UP=1         leave the stack running after the checks
 #   MAX_UP_SECONDS    limit for elapsed_seconds (default 90)
+#   WORKER_WITH_OCR   build the worker with torch and the TrOCR model (default false here:
+#                     the smoke test does not run OCR, and the model adds ~1.3 GB and
+#                     minutes of download; compose itself defaults to true)
 #
 # Usage (from sketch2cad-api/): bash scripts/compose_smoke.sh
 set -euo pipefail
@@ -36,6 +39,7 @@ MAX_UP_SECONDS="${MAX_UP_SECONDS:-90}"
 export WEB_PORT="${WEB_PORT:-18080}"
 export APP_ENV="${APP_ENV:-dev}"
 export SIGNING_KEY_PATH="${SIGNING_KEY_PATH:-/app/keys/signing-key.pem}"
+export WORKER_WITH_OCR="${WORKER_WITH_OCR:-false}"
 POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 SESSION_SECRET="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD SESSION_SECRET

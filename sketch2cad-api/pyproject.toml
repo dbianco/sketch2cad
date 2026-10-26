@@ -27,6 +27,15 @@ dependencies = [
     "shapely>=2.2.0",
 ]
 
+[project.optional-dependencies]
+# OCR of user crops (task 001-105): installed only in the worker image (Dockerfile.worker)
+# and for the slow OCR tests (`uv sync --extra ocr`); the API and the default test
+# environment never import torch or transformers.
+ocr = [
+    "torch>=2.14.1",
+    "transformers>=5.21.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
@@ -38,6 +47,16 @@ dev = [
     "hypothesis>=6.170.9",
 ]
 
+[tool.uv.sources]
+# CPU-only torch wheels on Linux (the default PyPI wheels pull the CUDA stack); macOS and
+# Windows wheels from PyPI are CPU builds already.
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -48,7 +67,10 @@ packages = ["src/sketch2cad"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
-markers = ["perf: real-timing performance measurements"]
+markers = [
+    "perf: real-timing performance measurements",
+    "slow: needs the `ocr` extra and the TrOCR model; skipped when they are missing",
+]
 
 [tool.ruff]
 line-length = 100

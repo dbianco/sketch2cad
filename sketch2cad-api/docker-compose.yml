@@ -64,8 +64,14 @@ services:
     restart: unless-stopped
 
   worker:
-    image: sketch2cad-api:local
-    pull_policy: never
+    # Own image (Dockerfile.worker): the API image plus torch and the TrOCR model baked in.
+    # WORKER_WITH_OCR=false skips both (no OCR; used by the smoke and E2E stacks in CI).
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        WITH_OCR: ${WORKER_WITH_OCR:-true}
+    image: sketch2cad-worker:local
     command:
       - sh
       - -c

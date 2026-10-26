@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 import sketch2cad.worker.app as worker_app
 from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.db.models import Artifact, ArtifactKind, JobMeta, JobStatus, Plan, PlanStatus, User
+from sketch2cad.ocr.trocr import OCR_MODEL_VERSION
 from sketch2cad.package.manifest import SoftwareInfo
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,10 @@ def software_info() -> SoftwareInfo:
     except PackageNotFoundError:  # pragma: no cover - the package is always installed
         package_version = "0.0.0"
     return SoftwareInfo(
-        package_version, os.environ.get(GIT_COMMIT_ENV) or "unknown", PIPELINE_VERSION, None
+        package_version,
+        os.environ.get(GIT_COMMIT_ENV) or "unknown",
+        PIPELINE_VERSION,
+        OCR_MODEL_VERSION,
     )
 
 

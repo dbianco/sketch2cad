@@ -21,7 +21,10 @@ correction (CA-05): any change flips it to ``corrected`` and promotes its ``metr
 by :func:`reviewed_origin`; deleting one rejects it (``review_status`` ``rejected``). The
 bulk accept and reject live in :mod:`sketch2cad.entities.bulk_review`. An entity may
 place evidence of its plan's case file (``evidence_id``, points and symbols only;
-:func:`_check_evidence`); a marker symbol's
+:func:`_check_evidence`). A dimension created with ``ocr_job_id`` takes ``source.method =
+ocr`` and, besides ``entity.created``, one ``entity.reviewed`` event (``before`` the OCR
+value as ``suggested``, ``after`` ``accepted`` when the declared value equals it, else
+``corrected``): the acceptance rate of OCR readings (:func:`_ocr_job`). A marker symbol's
 ``evidence_number`` attribute follows that evidence (:func:`_sync_evidence_number`).
 Entities are edited only in a
 ``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by the user holding the
@@ -44,6 +47,8 @@ from sketch2cad.db.models import (
     Calibration,
     Catalog,
     Entity,
+    JobMeta,
+    JobStatus,
     MetricOrigin,
     Plan,
     PlanStatus,
@@ -74,6 +79,7 @@ from sketch2cad.entities.ops_triangulate import triangulate_position
 from sketch2cad.entities.recompute import CONSTRAINT_ERROR, constraint_graph, recompute_dependents
 from sketch2cad.entities.schemas import (
     Attributes,
+    DimensionGeometry,
     EntityIn,
     EntityOperation,
     EntityPatch,
@@ -90,6 +96,7 @@ from sketch2cad.geometry.metric_status import (
     default_metric_origin,
     reviewed_metric_origin,
 )
+from sketch2cad.ocr.trocr import OCR_JOB_KIND
 from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
 from sketch2cad.plans.service import active_calibration, recompute_metric_status
 
@@ -205,6 +212,39 @@ def _check_evidence(
         raise EntityInputError("Only points and symbols may reference evidence.")
     if find_case_evidence(db, plan.case_file_id, evidence_id) is None:
         raise EntityInputError(f"Evidence {evidence_id} is not in this case file.")
+
+
+def _ocr_job(db: Session, plan: Plan, item: EntityIn) -> JobMeta | None:
+    """The succeeded ``ocr_crop`` job of ``plan`` named by ``item.ocr_job_id``, if any."""
+    if item.ocr_job_id is None:
+        return None
+    geometry = item.geometry
+    if not isinstance(geometry, DimensionGeometry) or geometry.declared_value_m is None:
+        raise EntityInputError("ocr_job_id applies only to dimensions with declared_value_m.")
+    job = db.get(JobMeta, item.ocr_job_id)
+    if (
+        job is None
+        or job.kind != OCR_JOB_KIND
+        or job.plan_id != plan.id
+        or job.status != JobStatus.SUCCEEDED.value
+    ):
+        raise EntityInputError(f"ocr_job_id {item.ocr_job_id} is not a read OCR crop of this plan.")
+    return job
+
+
+def _ocr_review(entity: Entity, job: JobMeta) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Set the OCR provenance of a new dimension; ``before``/``after`` of its review."""
+    result: dict[str, Any] = job.params.get("result") or {}
+    ocr_value = result.get("value_m")
+    declared: float = entity.geometry["declared_value_m"]  # set: checked by _ocr_job
+    same = ocr_value is not None and abs(float(ocr_value) - declared) <= 1e-9
+    entity.source = {"method": "ocr", "job_id": str(job.id), "parent_entity_id": None}
+    entity.confidence = result.get("confidence")
+    entity.model_version = job.model_version
+    entity.review_status = (ReviewStatus.ACCEPTED if same else ReviewStatus.CORRECTED).value
+    before = {"review_status": ReviewStatus.SUGGESTED.value, "value_m": ocr_value}
+    after = {"review_status": entity.review_status, "declared_value_m": declared}
+    return before, {**after, "source": entity.source, "confidence": entity.confidence}
 
 
 def _sync_evidence_number(db: Session, plan: Plan, entity: Entity) -> None:
@@ -363,6 +403,9 @@ def create_entities(
 ) -> list[Entity]:
     """Insert hand-drawn entities with ``source.method = manual`` and one event each.
 
+    Dimensions with ``ocr_job_id`` get the OCR provenance and their review event instead
+    (:func:`_ocr_review`).
+
     Raises before writing anything: :class:`EntityConflictError` when the revision is not
     editable, :class:`EntityInputError` naming the first item whose layer or symbol is not
     in the active catalog or whose ``evidence_id`` is not evidence of the plan's case file.
@@ -370,11 +413,13 @@ def create_entities(
     """
     plan = ensure_editable(db, revision, user)
     refs = active_catalog_refs(db)
+    ocr_jobs: list[JobMeta | None] = []
     for index, item in enumerate(items):
         try:
             _check_refs(refs, item.layer, item.geometry)
             _check_attributes(item.attributes)
             _check_evidence(db, plan, item.type.value, item.evidence_id)
+            ocr_jobs.append(_ocr_job(db, plan, item))
         except EntityInputError as exc:
             raise EntityInputError(f"entities[{index}]: {exc}") from None
     calibration = active_calibration(db, plan)
@@ -396,14 +441,21 @@ def create_entities(
         )
         for item in items
     ]
+    reviews = [
+        None if job is None else _ocr_review(entity, job)
+        for entity, job in zip(entities, ocr_jobs, strict=True)
+    ]
     for entity in entities:
         _sync_evidence_number(db, plan, entity)
     db.add_all(entities)
     db.flush()
-    for entity in entities:
+    for entity, review in zip(entities, reviews, strict=True):
         _record(
             db, plan, entity, user, EventKind.ENTITY_CREATED, client_ip, after=entity_state(entity)
         )
+        if review is not None:
+            _record(db, plan, entity, user, EventKind.ENTITY_REVIEWED, client_ip, *review)
+            logger.info("OCR reading %s of entity %s", entity.review_status, entity.id)
     recompute_metric_status(db, plan)
     logger.info("User %s created %d entities in revision %s", user.id, len(entities), revision.id)
     return entities

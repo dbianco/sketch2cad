@@ -1267,7 +1267,7 @@
       },
       "EntityIn": {
         "additionalProperties": false,
-        "description": "A new entity drawn by hand; provenance, review and metric fields are set by the server.\n\n``evidence_id`` places evidence of the plan's case file; only points and symbols may.",
+        "description": "A new entity drawn by hand; provenance, review and metric fields are set by the server.\n\n``evidence_id`` places evidence of the plan's case file; only points and symbols may.\n``ocr_job_id`` records that a dimension's ``declared_value_m`` was read by a succeeded\n``ocr_crop`` job of the plan, accepted or corrected by the user (REQ-18).",
         "properties": {
           "attributes": {
             "patternProperties": {
@@ -1344,6 +1344,18 @@
             "pattern": "^L_[A-Z]+$",
             "title": "Layer",
             "type": "string"
+          },
+          "ocr_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Job Id"
           },
           "type": {
             "$ref": "#/components/schemas/EntityType"
@@ -2672,6 +2684,16 @@
             "title": "Kind",
             "type": "string"
           },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrResultOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "result_ref": {
             "anyOf": [
               {
@@ -2970,6 +2992,127 @@
         "title": "MetricStatusOut",
         "type": "object"
       },
+      "OcrCropJobIn": {
+        "additionalProperties": false,
+        "description": "OCR of a crop of the plan's primary source (REQ-18).",
+        "properties": {
+          "kind": {
+            "const": "ocr_crop",
+            "title": "Kind",
+            "type": "string"
+          },
+          "params": {
+            "$ref": "#/components/schemas/OcrCropParams"
+          }
+        },
+        "required": [
+          "kind",
+          "params"
+        ],
+        "title": "OcrCropJobIn",
+        "type": "object"
+      },
+      "OcrCropParams": {
+        "additionalProperties": false,
+        "description": "``box_px = [x0, y0, x1, y1]``: pixels of the original image of ``source_id`` (its\n300 dpi raster for a PDF), ``x0 < x1``, ``y0 < y1``, sides from 8 to 2000 px.",
+        "properties": {
+          "box_px": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Box Px",
+            "type": "array"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "box_px"
+        ],
+        "title": "OcrCropParams",
+        "type": "object"
+      },
+      "OcrResultOut": {
+        "description": "Reading of an ``ocr_crop`` job (spec section 10).\n\n``value_m`` is null when the text is not a usable distance (``reason``: ``empty``,\n``non_numeric``, ``non_positive`` or ``ambiguous``). ``preselect`` is true when there\nis a value and ``confidence >= min_confidence`` (``ocr.min_confidence``).",
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "min_confidence": {
+            "title": "Min Confidence",
+            "type": "number"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "preselect": {
+            "title": "Preselect",
+            "type": "boolean"
+          },
+          "raw_text": {
+            "title": "Raw Text",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "unit_detected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Detected"
+          },
+          "value_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value M"
+          }
+        },
+        "required": [
+          "text",
+          "raw_text",
+          "value_m",
+          "unit_detected",
+          "reason",
+          "confidence",
+          "preselect",
+          "min_confidence",
+          "model_version"
+        ],
+        "title": "OcrResultOut",
+        "type": "object"
+      },
       "OverrideIn": {
         "description": "New override value; ``incident_type`` only (and required) for scope ``incident_type``.",
         "properties": {
@@ -3189,7 +3332,7 @@
       },
       "PlanJobIn": {
         "additionalProperties": false,
-        "description": "A job on a plan; only ``suggest_lines`` for now. Its parameters come from the\nconfiguration (``suggest_lines.*``), so ``params`` must be empty.",
+        "description": "``suggest_lines`` on a plan. Its parameters come from the configuration\n(``suggest_lines.*``), so ``params`` must be empty.",
         "properties": {
           "kind": {
             "const": "suggest_lines",
@@ -6306,7 +6449,7 @@
     },
     "/api/v1/plans/{plan_id}/jobs": {
       "post": {
-        "description": "Relaunch ``suggest_lines`` (202); poll ``GET /jobs/{id}``. Requires ``edit``.\n\nAllowed while no entity of the plan is accepted, corrected or manual, with the plan's\nedit lease. Soft-deletes the pending suggestions (one ``entity.deleted`` event with\ntheir ids), supersedes earlier jobs and queues a new one; it inserts its suggestions\nwith ``suggestions.added``. 404 when ``ai_assist.enabled`` is false.",
+        "description": "Queue a job on the plan (202); poll ``GET /jobs/{id}``. Requires ``edit``.\n\n``suggest_lines`` (relaunch): allowed while no entity of the plan is accepted,\ncorrected or manual, with the plan's edit lease. Soft-deletes the pending suggestions\n(one ``entity.deleted`` event with their ids), supersedes earlier jobs and queues a new\none; it inserts its suggestions with ``suggestions.added``.\n\n``ocr_crop``: reads the number inside ``box_px`` of the plan's primary source; needs\nneither the lease nor a calibration and writes nothing but the job. The succeeded job\ncarries ``result`` (:class:`OcrResultOut`). 404 when ``ai_assist.enabled`` is false.",
         "operationId": "post_plan_job_api_v1_plans__plan_id__jobs_post",
         "parameters": [
           {
@@ -6371,7 +6514,22 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PlanJobIn"
+                "discriminator": {
+                  "mapping": {
+                    "ocr_crop": "#/components/schemas/OcrCropJobIn",
+                    "suggest_lines": "#/components/schemas/PlanJobIn"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PlanJobIn"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OcrCropJobIn"
+                  }
+                ],
+                "title": "Body"
               }
             }
           },
@@ -6398,7 +6556,7 @@
             "description": "The plan is not editable or the user does not hold its edit lease (``V-10``, ``V-12`` with ``holder``, ``lease_required``); it has no calibration (``calibration_required``); an entity is accepted or manual (``suggestions_locked``); or its rectified image is not ready (``rectified_image_pending``)."
           },
           "422": {
-            "description": "Invalid body: unknown kind or non-empty params."
+            "description": "Invalid body: unknown kind, non-empty ``suggest_lines`` params; for ``ocr_crop`` a source that is not the plan's primary source (``ocr_source_invalid``) or a box outside the image or of an invalid size (``ocr_box_invalid``)."
           }
         },
         "summary": "Post Plan Job",
@@ -6941,7 +7099,7 @@
         ]
       },
       "post": {
-        "description": "Create one or more hand-drawn entities, in request order, with ``entity.created`` each.\n\nThe server sets ``source`` (``manual``), ``review_status`` (``accepted``) and\n``metric_origin``. Requires ``edit``; 409 unless the revision is an editable draft.",
+        "description": "Create one or more hand-drawn entities, in request order, with ``entity.created`` each.\n\nThe server sets ``source`` (``manual``), ``review_status`` (``accepted``) and\n``metric_origin``. A dimension with ``ocr_job_id`` (a succeeded ``ocr_crop`` job of the\nplan) gets ``source.method = ocr``, ``accepted`` when ``declared_value_m`` equals the\nOCR value else ``corrected``, and also ``entity.reviewed``. Requires ``edit``; 409\nunless the revision is an editable draft.",
         "operationId": "create_revision_entities_api_v1_revisions__revision_id__entities_post",
         "parameters": [
           {

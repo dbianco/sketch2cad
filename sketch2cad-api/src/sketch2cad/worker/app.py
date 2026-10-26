@@ -15,10 +15,13 @@ application settings are not required.
 Importing this module has no side effects: the module-level ``app`` is built on first
 access. The API defers jobs through ``app``; the worker process loads ``worker_app``, the
 same app after checking the signing key at ``SIGNING_KEY_PATH`` (missing, or mode wider
-than 0600: exit status 1 naming the path, jotdown H4-11). Registered tasks: ``rasterize``
-(:mod:`sketch2cad.worker.tasks_raster`), ``qc`` (:mod:`sketch2cad.worker.tasks_qc`) and
-``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`), ``suggest_lines``
-(:mod:`sketch2cad.worker.tasks_suggest`) and ``export`` (:mod:`sketch2cad.worker.tasks_export`).
+than 0600: exit status 1 naming the path, jotdown H4-11); it also starts loading the OCR
+model in the background (a warning when the ``ocr`` extra or the model is missing).
+Registered tasks: ``rasterize`` (:mod:`sketch2cad.worker.tasks_raster`), ``qc``
+(:mod:`sketch2cad.worker.tasks_qc`) and ``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`),
+``suggest_lines``
+(:mod:`sketch2cad.worker.tasks_suggest`), ``export`` (:mod:`sketch2cad.worker.tasks_export`)
+and ``ocr_crop`` (:mod:`sketch2cad.worker.tasks_ocr`).
 """
 
 import argparse
@@ -38,6 +41,7 @@ from sketch2cad.logging import configure_logging
 from sketch2cad.package.signing import require_signing_key
 from sketch2cad.worker import (
     tasks_export,
+    tasks_ocr,
     tasks_qc,
     tasks_raster,
     tasks_rectify,
@@ -102,6 +106,7 @@ def create_worker_app(conninfo: str | None = None) -> procrastinate.App:
     tasks_rectify.register(app)
     tasks_suggest.register(app)
     tasks_export.register(app)
+    tasks_ocr.register(app)
     return app
 
 
@@ -136,7 +141,9 @@ def __getattr__(name: str) -> procrastinate.App:
         # The worker process signs packages: refuse to start without a safe signing key.
         # SystemExit names the path; no traceback.
         require_signing_key()
-        return _module_app()
+        worker = _module_app()
+        tasks_ocr.preload_model_in_background()
+        return worker
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

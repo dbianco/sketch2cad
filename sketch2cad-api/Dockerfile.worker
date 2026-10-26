@@ -1,0 +1,87 @@
+# syntax=docker/dockerfile:1
+
+# Image of the `worker` compose service: the API image (Dockerfile) plus the `ocr` extra
+# (CPU-only torch, transformers) and the TrOCR model baked in at build time (spec section
+# 17: downloaded at build, never at run time). The worker runs with HF_HUB_OFFLINE=1.
+#
+# WITH_OCR=false builds the same worker without torch and without the model (about the
+# size of the API image); its `ocr_crop` jobs fail with "OCR no disponible". The compose
+# smoke test and the E2E stack use it to keep CI builds short (WORKER_WITH_OCR=false).
+#
+# TROCR_REVISION must equal sketch2cad.ocr.trocr.TROCR_REVISION (checked by
+# tests/ocr/test_ocr_job.py).
+ARG WITH_OCR=true
+
+# Locked runtime dependencies into /app/.venv (with the `ocr` extra when WITH_OCR=true).
+FROM python:3.12.13-slim AS deps
+
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /usr/local/bin/uv
+
+ARG WITH_OCR
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON=/usr/local/bin/python3.12 \
+    UV_PROJECT_ENVIRONMENT=/app/.venv
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock README.md ./
+RUN if [ "$WITH_OCR" = "true" ]; then set -- --extra ocr; fi; \
+    uv sync --frozen --no-dev --no-install-project "$@"
+
+# The model files at a pinned commit; this layer changes only with the lockfile or the
+# revision, not with the sources. Only safetensors weights (no duplicate pytorch_model.bin).
+FROM deps AS model
+
+ARG WITH_OCR
+ARG TROCR_REVISION=eaacaf452b06415df8f10bb6fad3a4c11e609406
+ENV HF_HOME=/tmp/hf \
+    HF_HUB_DISABLE_TELEMETRY=1
+
+RUN mkdir -p /opt/models/trocr-base-handwritten \
+    && if [ "$WITH_OCR" = "true" ]; then \
+         /app/.venv/bin/python -I -c "from huggingface_hub import snapshot_download; snapshot_download('microsoft/trocr-base-handwritten', revision='${TROCR_REVISION}', local_dir='/opt/models/trocr-base-handwritten', allow_patterns=['*.json', '*.txt', 'model.safetensors'])" \
+         && rm -rf /opt/models/trocr-base-handwritten/.cache /tmp/hf; \
+       fi
+
+FROM deps AS build
+
+ARG WITH_OCR
+COPY src ./src
+RUN if [ "$WITH_OCR" = "true" ]; then set -- --extra ocr; fi; \
+    uv sync --frozen --no-dev --no-editable "$@"
+
+# Runtime stage: the virtual environment, the model and migrations, without uv.
+FROM python:3.12.13-slim
+
+# XDG_CACHE_HOME and HF_HOME point at writable /tmp; the model directory is read-only
+# (owned by root) and the hub is never contacted (HF_HUB_OFFLINE, TRANSFORMERS_OFFLINE).
+ENV PATH=/app/.venv/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    XDG_CACHE_HOME=/tmp/.cache \
+    HF_HOME=/tmp/hf \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    TROCR_MODEL_DIR=/opt/models/trocr-base-handwritten
+
+RUN useradd --uid 10001 --user-group --no-create-home --home-dir /app --shell /usr/sbin/nologin app
+
+# Mount points of the `objects` and `signing-keys` volumes, as in Dockerfile.
+RUN mkdir -p /app/storage && chown app:app /app/storage
+RUN mkdir -p /app/keys && chown app:app /app/keys && chmod 700 /app/keys
+
+WORKDIR /app
+
+COPY --from=model /opt/models /opt/models
+COPY --from=build /app/.venv ./.venv
+COPY src ./src
+COPY migrations ./migrations
+COPY alembic.ini ./
+
+USER app
+
+# compose runs `apply-schema` first; refuses to start without the signing key.
+CMD ["procrastinate", "--app=sketch2cad.worker.app.worker_app", "worker"]

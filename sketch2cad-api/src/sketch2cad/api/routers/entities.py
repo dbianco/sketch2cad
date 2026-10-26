@@ -189,7 +189,10 @@ def create_revision_entities(
     """Create one or more hand-drawn entities, in request order, with ``entity.created`` each.
 
     The server sets ``source`` (``manual``), ``review_status`` (``accepted``) and
-    ``metric_origin``. Requires ``edit``; 409 unless the revision is an editable draft.
+    ``metric_origin``. A dimension with ``ocr_job_id`` (a succeeded ``ocr_crop`` job of the
+    plan) gets ``source.method = ocr``, ``accepted`` when ``declared_value_m`` equals the
+    OCR value else ``corrected``, and also ``entity.reviewed``. Requires ``edit``; 409
+    unless the revision is an editable draft.
     """
     try:
         entities = create_entities(db, revision, user, body.entities, _client_ip(request))

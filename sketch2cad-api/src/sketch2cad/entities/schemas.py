@@ -152,6 +152,8 @@ class EntityIn(_Strict):
     """A new entity drawn by hand; provenance, review and metric fields are set by the server.
 
     ``evidence_id`` places evidence of the plan's case file; only points and symbols may.
+    ``ocr_job_id`` records that a dimension's ``declared_value_m`` was read by a succeeded
+    ``ocr_crop`` job of the plan, accepted or corrected by the user (REQ-18).
     """
 
     type: EntityType
@@ -159,6 +161,7 @@ class EntityIn(_Strict):
     geometry: Geometry
     attributes: Attributes = Field(default_factory=dict[str, AttributeValue])
     evidence_id: uuid.UUID | None = None
+    ocr_job_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def _kind_matches_type(self) -> "EntityIn":

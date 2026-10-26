@@ -32,6 +32,9 @@ env:
   # Same uv as api-ci.yml: e2e/export_verify.spec.ts runs the package verifier through
   # scripts/verify_downloaded_zip.sh (`uv run --frozen --project ../sketch2cad-api`).
   UV_VERSION: "0.12.5"
+  # The E2E specs do not run OCR: build the worker without torch and the TrOCR model
+  # (Dockerfile.worker WITH_OCR=false; saves ~1.3 GB and minutes per run).
+  WORKER_WITH_OCR: "false"
 
 jobs:
   e2e:

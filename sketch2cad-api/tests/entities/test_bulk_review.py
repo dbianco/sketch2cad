@@ -553,6 +553,7 @@ REVIEW_STATUS_WRITES = {
     ("entities/service.py", "_correct_suggestion"),
     ("entities/service.py", "delete_entity"),
     ("entities/bulk_review.py", "bulk_review"),
+    ("entities/service.py", "_ocr_review"),  # its caller create_entities writes the event
     ("revisions/service.py", "_copy"),
     ("worker/tasks_suggest.py", "_insert"),
 }
@@ -598,6 +599,7 @@ def test_no_code_path_approves_a_suggestion_without_an_event() -> None:
     assert "_correct_suggestion(" in update and "EventKind.ENTITY_UPDATED" in update
     created = function_source("entities/service.py", "create_entities")
     assert "'method': 'manual'" in created
+    assert "_ocr_review(" in created and "EventKind.ENTITY_REVIEWED" in created
     assert "ReviewStatus.SUGGESTED" in function_source("worker/tasks_suggest.py", "_insert")
 
 
