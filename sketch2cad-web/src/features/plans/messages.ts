@@ -100,3 +100,44 @@ export function planErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError && error.status === 403) return PLAN_MESSAGES.forbidden;
   return fallback;
 }
+
+type EntityType = components["schemas"]["EntityType"];
+
+/** Spanish names of the entity types (metric status panel). */
+export const ENTITY_TYPE_LABELS: Readonly<Record<EntityType, string>> = {
+  line: "Línea",
+  polyline: "Polilínea",
+  point: "Punto",
+  text: "Texto",
+  dimension: "Cota",
+  symbol: "Símbolo",
+};
+
+/** Spanish UI strings of the metric status badge and its panel (US-11, REQ-07). */
+export const METRIC_PANEL_MESSAGES = {
+  badgePrefix: "Estado métrico",
+  loading: "Calculando…",
+  loadFailed: "No se pudo obtener el estado métrico.",
+  panelTitle: "Estado métrico del plano",
+  metric: "Todas las entidades estructurales y los indicios tienen origen métrico.",
+  nonMetric: "No métrico: sin calibración.",
+  blocking: "Entidades que impiden el estado métrico",
+  noBlocking: "Ninguna entidad impide el estado métrico.",
+  discrepant: "Cotas con discrepancia (informativo)",
+  discrepantItem: "El valor declarado no coincide con el medido",
+  unknownEntity: "Entidad no cargada",
+} as const;
+
+/** Why a blocking entity is not metric, by the reason code of `GET /plans/{id}/metric-status`. */
+export const METRIC_REASON_LABELS: Readonly<Record<string, string>> = {
+  trace_only: "Solo trazo: falta una cota o una calibración métrica",
+  none: "Sin origen métrico: colocada a mano sin cota",
+};
+
+/** Explanation of `attributes.constraint_error` of an entity whose constraint failed. */
+export const CONSTRAINT_ERROR_LABELS: Readonly<Record<string, string>> = {
+  "V-06": "Las distancias ya no se cruzan: revisa las medidas de la triangulación.",
+  reference_missing: "Falta una de las referencias de la restricción.",
+  degenerate_baseline: "Los dos puntos de la línea base coinciden.",
+  invalid_constraint: "La restricción guardada no es válida.",
+};
