@@ -23,6 +23,8 @@ dependencies = [
     "numpy>=2.5.4",
     "reportlab==5.1.0",
     "cryptography>=46",
+    "scikit-image>=0.26.0",
+    "shapely>=2.2.0",
 ]
 
 [dependency-groups]
