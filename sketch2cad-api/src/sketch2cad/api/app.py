@@ -11,6 +11,7 @@ from sketch2cad.api.routers import (
     entities,
     events,
     evidence,
+    exports,
     health,
     jobs,
     plans,
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(calibration.router)
     app.include_router(entities.router)
     app.include_router(evidence.router)
+    app.include_router(exports.router)
     return app
 
 

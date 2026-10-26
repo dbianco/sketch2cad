@@ -7,9 +7,10 @@ follows it. Any pair outside the table is illegal (409), including ``from == to`
 Rules without roles are system transitions performed by another action and never on
 request: ``CREATED -> CALIBRATION_PENDING`` (plan creation), ``CALIBRATION_PENDING ->
 EDITING`` (calibration accept, :func:`sketch2cad.calibration.service.accept_calibration`),
-``VALIDATED -> EXPORTED`` (final export) and the automatic ``REJECTED -> EDITING`` and
-``REOPENED -> EDITING`` that complete a rejection and a reopening. So a plan never rests in
-``REJECTED`` or ``REOPENED``: each step writes its own ``plan.transition`` event.
+``VALIDATED -> EXPORTED`` (final export, :func:`mark_exported`) and the automatic
+``REJECTED -> EDITING`` and ``REOPENED -> EDITING`` that complete a rejection and a
+reopening. So a plan never rests in ``REJECTED`` or ``REOPENED``: each step writes its own
+``plan.transition`` event.
 
 Role sets follow spec section 3: a ``reviewer`` may do everything a ``technician`` may;
 ``admin`` edits no plan. On top of the role, every transition requires the ``edit``
@@ -242,4 +243,23 @@ def transition(
         follow = TRANSITIONS[(to, rule.then)]
         _apply(db, plan, user, follow.effect, client_ip)
         _step(db, plan, user, rule.then, None, client_ip)
+    return plan
+
+
+def mark_exported(db: Session, plan: Plan, user: User, client_ip: str | None = None) -> Plan:
+    """System transition ``VALIDATED -> EXPORTED`` performed by a completed final export.
+
+    ``user`` is who requested the export; the step writes ``plan.transition`` like any
+    other. Locks the plan row and raises :class:`TransitionConflictError` (``code``
+    :data:`ILLEGAL_CODE`) when the plan is not ``VALIDATED``. Runs in the caller's
+    transaction, which must also hold the export's artifacts.
+    """
+    db.refresh(plan, with_for_update=True)
+    current = plan.status
+    rule = TRANSITIONS.get((current, PlanStatus.EXPORTED))
+    if rule is None or rule.requestable:
+        message = f"A plan in status {current.value} cannot move to {PlanStatus.EXPORTED.value}."
+        raise TransitionConflictError(message, ILLEGAL_CODE)
+    _apply(db, plan, user, rule.effect, client_ip)
+    _step(db, plan, user, PlanStatus.EXPORTED, None, client_ip)
     return plan
