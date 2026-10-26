@@ -1,7 +1,7 @@
 ---
 id: 001-106
 title: "Add the ai_assist.enabled switch"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-105, 001-103]
