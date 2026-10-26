@@ -1,7 +1,7 @@
 ---
 id: 001-086
 title: "Apply the reproducibility settings chosen in D-3"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-085]
