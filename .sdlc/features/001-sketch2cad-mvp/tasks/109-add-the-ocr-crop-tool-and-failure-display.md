@@ -1,7 +1,7 @@
 ---
 id: 001-109
 title: "Add the OCR crop tool and failure display"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-107, 001-060]
