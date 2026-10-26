@@ -181,6 +181,24 @@ LengthValue = Number | StrictStr
 """Metres as a JSON number or as text with decimal comma or point (V-04)."""
 
 
+class VertexRef(_Strict):
+    """A vertex of a ``line`` or ``polyline`` used as a metric reference (a wall corner).
+
+    PoC assumption (2026-10-26, D-15, to revisit with real sketches): ``triangulate`` and
+    ``baseline_offset`` may take a vertex of a wall whose lengths are declared (or that is
+    on a metric scaled drawing) as a reference, not only a point or symbol entity.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    entity_id: uuid.UUID
+    vertex: Annotated[StrictInt, Field(ge=0)]
+
+
+Reference = uuid.UUID | VertexRef
+"""A constraint reference: a point or symbol entity id, or a vertex of a line or polyline."""
+
+
 class EntityPatch(_Strict):
     """An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.
 
@@ -196,10 +214,12 @@ class EntityPatch(_Strict):
 
     - ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and
       the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).
-    - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances
+    - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b`` (each a
+      point or symbol id, or a :class:`VertexRef` ``{entity_id, vertex}``), distances
       ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is
       the candidate closest to the current position; ``alt`` is the other one).
-    - ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,
+    - ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``
+      (references as in ``triangulate``; two vertices of the same entity are allowed),
       ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.
     """
 
@@ -211,13 +231,13 @@ class EntityPatch(_Strict):
     anchor_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
     free_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
     value_m: LengthValue | None = None
-    ref_a: uuid.UUID | None = None
-    ref_b: uuid.UUID | None = None
+    ref_a: Reference | None = None
+    ref_b: Reference | None = None
     d_a_m: LengthValue | None = None
     d_b_m: LengthValue | None = None
     solution: Literal["nearest", "alt"] | None = None
-    base_a: uuid.UUID | None = None
-    base_b: uuid.UUID | None = None
+    base_a: Reference | None = None
+    base_b: Reference | None = None
     s_m: LengthValue | None = None
     d_m: LengthValue | None = None
     side: Literal["left", "right"] | None = None

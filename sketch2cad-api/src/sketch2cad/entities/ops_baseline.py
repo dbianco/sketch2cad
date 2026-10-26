@@ -6,7 +6,6 @@ perpendicular offset and ``n̂`` the left (counter-clockwise, Y up) or right nor
 function: the caller resolves and checks the references (V-07).
 """
 
-import uuid
 from dataclasses import dataclass
 from typing import Literal
 
@@ -16,6 +15,7 @@ from sketch2cad.entities.constraints import (
     ConstraintOperationError,
     signed_value,
 )
+from sketch2cad.entities.schemas import Reference
 from sketch2cad.geometry.homography import Point
 from sketch2cad.geometry.metrics import DegenerateGeometryError, baseline_offset_point
 
@@ -29,13 +29,13 @@ class BaselinePlaced:
 
 
 def baseline_offset_position(
-    base_a: tuple[uuid.UUID, Point],
-    base_b: tuple[uuid.UUID, Point],
+    base_a: tuple[Reference, Point],
+    base_b: tuple[Reference, Point],
     s_m: float | str,
     d_m: float | str,
     side: Literal["left", "right"],
 ) -> BaselinePlaced:
-    """Position of P from the baseline ``base_a`` → ``base_b`` (``(entity id, position)``).
+    """Position of P from the baseline ``base_a`` → ``base_b`` (``(reference, position)``).
 
     Raises :class:`ConstraintOperationError` for a value that is not a finite number
     (``d_m`` must also be >= 0) or when the base points coincide (no direction).

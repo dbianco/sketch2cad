@@ -7,7 +7,6 @@ not cross (disjoint, one inside the other, concentric) are rejected with V-06 an
 changes. Pure function: the caller resolves and checks the references (V-07).
 """
 
-import uuid
 from dataclasses import dataclass
 from typing import Final, Literal
 
@@ -17,6 +16,7 @@ from sketch2cad.entities.constraints import (
     TriangulationParams,
     distance_value,
 )
+from sketch2cad.entities.schemas import Reference
 from sketch2cad.geometry.homography import Point
 from sketch2cad.geometry.metrics import triangulate
 
@@ -38,15 +38,15 @@ class Triangulated:
 
 def triangulate_position(
     position: Point,
-    ref_a: tuple[uuid.UUID, Point],
-    ref_b: tuple[uuid.UUID, Point],
+    ref_a: tuple[Reference, Point],
+    ref_b: tuple[Reference, Point],
     d_a_m: float | str,
     d_b_m: float | str,
     solution: Literal["nearest", "alt"] = "nearest",
 ) -> Triangulated:
     """Candidates for P (currently at ``position``) and the one picked by ``solution``.
 
-    ``ref_a`` and ``ref_b`` are ``(entity id, position)``. Raises
+    ``ref_a`` and ``ref_b`` are ``(reference, position)``. Raises
     :class:`ConstraintOperationError` with ``code`` ``V-04`` for a distance that is not a
     number greater than zero and ``V-06`` when the circles do not cross.
     """

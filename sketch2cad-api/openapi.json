@@ -1325,7 +1325,7 @@
       },
       "EntityPatch": {
         "additionalProperties": false,
-        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry``, ``attributes`` or ``evidence_id`` (evidence\nof the plan's case file, or ``null`` to drop the reference; only ``relabel`` takes\nit, and only for points and symbols). Moving a point or symbol\nthat has a ``constraint`` needs ``confirm_constraint_removal = true`` (409\n``constraint_removal_required`` otherwise); it removes the constraint and sets\n``metric_origin`` to ``none`` (spec section 11.3).\n\nThe other operations take only their own fields and the server computes the geometry:\n\n- ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and\n  the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).\n- ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b``, distances\n  ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is\n  the candidate closest to the current position; ``alt`` is the other one).\n- ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``,\n  ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.",
+        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry``, ``attributes`` or ``evidence_id`` (evidence\nof the plan's case file, or ``null`` to drop the reference; only ``relabel`` takes\nit, and only for points and symbols). Moving a point or symbol\nthat has a ``constraint`` needs ``confirm_constraint_removal = true`` (409\n``constraint_removal_required`` otherwise); it removes the constraint and sets\n``metric_origin`` to ``none`` (spec section 11.3).\n\nThe other operations take only their own fields and the server computes the geometry:\n\n- ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and\n  the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).\n- ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b`` (each a\n  point or symbol id, or a :class:`VertexRef` ``{entity_id, vertex}``), distances\n  ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is\n  the candidate closest to the current position; ``alt`` is the other one).\n- ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``\n  (references as in ``triangulate``; two vertices of the same entity are allowed),\n  ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.",
         "properties": {
           "anchor_vertex": {
             "anyOf": [
@@ -1378,6 +1378,9 @@
                 "type": "string"
               },
               {
+                "$ref": "#/components/schemas/VertexRef"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -1388,6 +1391,9 @@
               {
                 "format": "uuid",
                 "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/VertexRef"
               },
               {
                 "type": "null"
@@ -1541,6 +1547,9 @@
                 "type": "string"
               },
               {
+                "$ref": "#/components/schemas/VertexRef"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -1551,6 +1560,9 @@
               {
                 "format": "uuid",
                 "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/VertexRef"
               },
               {
                 "type": "null"
@@ -3485,6 +3497,28 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VertexRef": {
+        "additionalProperties": false,
+        "description": "A vertex of a ``line`` or ``polyline`` used as a metric reference (a wall corner).\n\nPoC assumption (2026-10-26, D-15, to revisit with real sketches): ``triangulate`` and\n``baseline_offset`` may take a vertex of a wall whose lengths are declared (or that is\non a metric scaled drawing) as a reference, not only a point or symbol entity.",
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "vertex": {
+            "minimum": 0.0,
+            "title": "Vertex",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_id",
+          "vertex"
+        ],
+        "title": "VertexRef",
         "type": "object"
       }
     }

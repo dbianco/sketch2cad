@@ -9,7 +9,8 @@ transaction (spec section 11.3, REQ-07). ``fix_length`` and the declared segment
 it records live in :mod:`sketch2cad.entities.ops_fix_length`; any later geometry edit
 drops the declarations it breaks and updates ``metric_origin`` accordingly.
 ``triangulate`` and ``baseline_offset`` (:func:`_apply_constraint`) place a point or symbol
-from two metric references of the same revision, store its ``constraint`` and set
+from two metric references of the same revision (points, symbols or vertices of lines and
+polylines), store its ``constraint`` and set
 ``metric_origin``; moving such an entity by hand needs ``confirm_constraint_removal``
 (409 ``constraint_removal_required`` otherwise), then drops the constraint and sets
 ``metric_origin = none`` (spec section 11.3). After any edit or deletion that changes an
@@ -50,8 +51,11 @@ from sketch2cad.db.models import (
 from sketch2cad.entities.constraints import (
     V07_MESSAGE,
     ConstraintOperationError,
+    VertexOutOfRangeError,
     constraint_to_json,
     point_position,
+    reference_entity_id,
+    reference_position,
     with_position,
 )
 from sketch2cad.entities.ops_baseline import baseline_offset_position
@@ -70,7 +74,9 @@ from sketch2cad.entities.schemas import (
     EntityOperation,
     EntityPatch,
     Geometry,
+    Reference,
     SymbolGeometry,
+    VertexRef,
 )
 from sketch2cad.evidence.service import find_case_evidence
 from sketch2cad.geometry.constraints import would_create_cycle
@@ -547,30 +553,43 @@ def _recompute_dependents(
 
 
 def _reference_positions(
-    db: Session, entity: Entity, ref_ids: tuple[uuid.UUID, uuid.UUID]
-) -> list[tuple[uuid.UUID, Point]]:
-    """``(id, position)`` of each reference after checking it may constrain ``entity``.
+    db: Session, entity: Entity, ref_values: tuple[Reference, Reference]
+) -> list[tuple[Reference, Point]]:
+    """``(reference, position)`` of each reference after checking it may constrain ``entity``.
 
-    A reference must be a live entity of the same revision, must not be ``entity`` nor
-    depend on it through ``constraint.refs`` (no cycles) and must be a point or symbol
-    whose ``metric_origin`` is metric; the last two give ``code`` ``V-07``.
+    A reference is a point or symbol id, or a vertex ``{entity_id, vertex}`` of a line or
+    polyline (a wall corner; PoC assumption D-15, to revisit with real sketches). Its entity
+    must be live, of the same revision, must not be ``entity`` nor depend on it through
+    ``constraint.refs`` (no cycles; a vertex reference counts as its entity) and must have
+    a metric ``metric_origin`` (for a wall: declared lengths or a metric scaled drawing);
+    the last two give ``code`` ``V-07``.
     """
     refs: list[Entity] = []
-    for ref_id in ref_ids:
+    for ref_value in ref_values:
+        ref_id = reference_entity_id(ref_value)
         ref = db.get(Entity, ref_id)
         if ref is None or ref.revision_id != entity.revision_id or ref.deleted_at is not None:
             raise EntityInputError(f"Reference {ref_id} is not a live entity of this revision.")
         refs.append(ref)
+    ref_ids = [ref.id for ref in refs]
     if would_create_cycle(constraint_graph(db, entity.revision_id), entity.id, ref_ids):
         raise EntityInputError(V07_MESSAGE, code="V-07")
-    positions: list[tuple[uuid.UUID, Point]] = []
-    for ref in refs:
-        position = point_position(ref.geometry)
+    positions: list[tuple[Reference, Point]] = []
+    for ref_value, ref in zip(ref_values, refs, strict=True):
+        try:
+            position = reference_position(ref_value, ref.geometry)
+        except VertexOutOfRangeError as exc:
+            raise EntityInputError(f"Reference {ref.id} has no vertex {exc.args[0]}.") from None
         if position is None:
-            raise EntityInputError(f"Reference {ref.id} must be a point or a symbol.")
+            kinds = (
+                "a line or a polyline"
+                if isinstance(ref_value, VertexRef)
+                else "a point or a symbol"
+            )
+            raise EntityInputError(f"Reference {ref.id} must be {kinds}.")
         if ref.metric_origin not in METRIC_ORIGINS:
             raise EntityInputError(V07_MESSAGE, code="V-07")
-        positions.append((ref.id, position))
+        positions.append((ref_value, position))
     return positions
 
 
