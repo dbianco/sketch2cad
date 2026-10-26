@@ -1,7 +1,9 @@
 """Annex page of the technical PDF: the original (or rectified) image and its hash (spec 13.2).
 
 The annex is exactly one page after the sheet, of the same paper size. Its header says
-which image it is (``Anexo: croquis original`` or ``... rectificado``), the full SHA-256 of
+which image it is (``Anexo: croquis original``, ``... rectificado`` or, for a PDF original,
+which Pillow cannot decode, ``Anexo: página del original (PDF) rasterizada``: label
+``original_page``, the rasterized page with the hash of the PNG), the full SHA-256 of
 the image bytes (left out of drafts, which carry no hashes) and the image size in pixels;
 the image is scaled to fit the rest of the frame, keeping its aspect ratio. Evidence rows
 that did not fit on the sheet continue in a column on the right
@@ -43,9 +45,13 @@ PADDING_MM = 3.0
 CAPTION_MM = 4.0
 TEXT_MM = 2.8
 DRAFT_HASH_TEXT = "Hash no incluido en borradores"
-ANNEX_TITLES = {"original": "Anexo: croquis original", "rectified": "Anexo: croquis rectificado"}
+ANNEX_TITLES = {
+    "original": "Anexo: croquis original",
+    "rectified": "Anexo: croquis rectificado",
+    "original_page": "Anexo: página del original (PDF) rasterizada",
+}
 
-AnnexLabel = Literal["original", "rectified"]
+AnnexLabel = Literal["original", "rectified", "original_page"]
 
 
 class AnnexImageError(ValueError):
