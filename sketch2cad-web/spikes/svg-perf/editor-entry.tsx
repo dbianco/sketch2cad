@@ -51,6 +51,7 @@ function entityOut(index: number, layer: string, geometry: Geometry): EntityOut 
     constraint: null,
     created_by: null,
     deleted_at: null,
+    discrepancy: null,
     evidence_id: null,
     image_region: null,
     metric_origin: "none",

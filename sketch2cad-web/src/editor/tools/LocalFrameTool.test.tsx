@@ -42,6 +42,7 @@ function entityOut(coords: Point2[], id = ENTITY_ID): EntityOut {
     constraint: null,
     created_by: null,
     deleted_at: null,
+    discrepancy: null,
     evidence_id: null,
     image_region: null,
     metric_origin: "none",

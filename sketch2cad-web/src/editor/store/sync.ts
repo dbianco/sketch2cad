@@ -7,6 +7,7 @@
 // can re-take the lease or tell the user; other errors are reported as `failed`. Nothing retries.
 import { ApiError, type ApiClient } from "../../api/client";
 import { toApiRequest, type EditorStore } from "./entities";
+import type { components } from "../../api/schema";
 import type { QueuedOperation } from "./types";
 import type { StoreApi } from "zustand/vanilla";
 
@@ -40,7 +41,12 @@ async function send(
       return created.entities[0]?.id;
     }
     case "patch":
-      await api.patch(request.path, request.options);
+      // The generated type lists server-defaulted fields (confirm_constraint_removal) as required;
+      // the API treats an omitted field as its default, so the body is sent as built.
+      await api.patch(request.path, {
+        ...request.options,
+        body: request.options.body as components["schemas"]["EntityPatch"],
+      });
       return undefined;
     case "delete":
       await api.delete(request.path, request.options);
