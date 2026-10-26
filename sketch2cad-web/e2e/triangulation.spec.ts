@@ -3,22 +3,19 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type APIResponse, type Locator, type Page } from "@playwright/test";
 
-// Metric reconstruction against the compose stack (H3-10, US-08, REQ-06, REQ-07, REQ-08): the
-// fix-length tool (D) declares the length of two walls of a schematic sketch, the triangulation
-// tool (G) locates an evidence marker from two reference points, the evidence table shows it and
-// the metric status badge follows. The seed (case, plan, calibration, walls, references, marker)
-// goes through the API; every metric step goes through the real UI, and its effect is checked
-// with GET /revisions/{id}/entities, GET /plans/{id}/metric-status and the plan's event log
-// (exactly one new event per action). Geometry and hand-calculated values: fixtures/schematic_plan.json.
+// Metric reconstruction against the compose stack (H3-10, US-08, US-09, REQ-06, REQ-07, REQ-08):
+// the fix-length tool (D) declares the length of two walls of a schematic sketch, the
+// triangulation tool (G) locates an evidence marker from two wall corners, the evidence table
+// shows it, the metric status badge follows, and the baseline-offset tool (B) moves it again from
+// the same two corners. The seed (case, plan, calibration, walls, marker) goes through the API;
+// every metric step goes through the real UI, and its effect is checked with
+// GET /revisions/{id}/entities, GET /plans/{id}/metric-status and the plan's event log (exactly one
+// new event per action). Geometry and hand-calculated values: fixtures/schematic_plan.json.
 //
-// PRODUCT GAP: in a schematic_sketch nothing can make the FIRST reference point metric. A point
-// or symbol drawn by hand gets metric_origin "none" (geometry/metric_status.py
-// default_metric_origin); triangulate and baseline_offset need two point/symbol references
-// whose metric_origin is metric (entities/service.py _reference_positions -> 422 V-07), and
-// fix_length only applies to lines and polylines. "derived" is never assigned. So the schematic
-// test shows the V-07 rejection, and the successful triangulation runs in a scaled drawing whose
-// calibration was accepted as metric (hand-drawn references are "scaled_drawing" there). The
-// schematic triangulation that should reach "Métrico" is the test.fixme at the end.
+// Wall corners are references by PoC decision D-15 (docs/poc-assumptions.md): a vertex of a line
+// is metric only once the line's length is declared, so the same triangulation before fix-length
+// is rejected with V-07. A second test triangulates from reference points in a scaled drawing
+// whose calibration was accepted as metric (hand-drawn points are "scaled_drawing" there).
 
 const IMAGE = path.join(import.meta.dirname, "fixtures", "synthetic_sketch.png");
 const PLAN = JSON.parse(
@@ -43,6 +40,12 @@ interface SchematicPlan {
   walls: { drawn: Point2[]; anchor_vertex: number; length: string; length_m: number; fixed: Point2[] }[];
   reference_layer: string;
   references: { A: Point2; B: Point2 };
+  corners: {
+    wall: number;
+    A: { vertex: number; chip: string };
+    B: { vertex: number; chip: string };
+    undeclared_B: { at: Point2; chip: string };
+  };
   marker: { at: Point2; drawn_x: string; drawn_y: string; evidence_number: number };
   evidence: string[];
   triangulation: {
@@ -52,8 +55,17 @@ interface SchematicPlan {
     expected_x: string;
     expected_y: string;
   };
+  baseline: {
+    s: string;
+    d: string;
+    expected: Point2;
+    expected_x: string;
+    expected_y: string;
+  };
   rejection: { d_a: string; d_b: string };
 }
+
+type Ref = string | { entity_id: string; vertex: number };
 
 interface EntityOut {
   id: string;
@@ -62,7 +74,7 @@ interface EntityOut {
   geometry: { kind: string; coords_m?: Point2[]; anchor_m?: Point2; attributes?: Record<string, unknown> };
   attributes: Record<string, unknown>;
   evidence_id: string | null;
-  constraint: { kind: string; refs: string[]; params: Record<string, unknown> } | null;
+  constraint: { kind: string; refs: Ref[]; params: Record<string, unknown> } | null;
   metric_origin: string;
   deleted_at: string | null;
 }
@@ -84,8 +96,8 @@ interface Seeded {
   planId: string;
   revisionId: string;
   walls: string[];
-  refA: string;
-  refB: string;
+  /** Reference points A and B (scaled drawing only). */
+  points: string[];
   marker: string;
 }
 
@@ -129,8 +141,8 @@ function point(at: Point2) {
 
 /**
  * Case, image (QC done), plan, lease, accepted calibration and the seed: the walls (schematic
- * only), the references A and B and the evidence marker; `evidenceLabel` creates evidence and
- * links the marker to it.
+ * sketch) or the reference points A and B (scaled drawing), and the evidence marker;
+ * `evidenceLabel` creates evidence and links the marker to it.
  */
 async function seed(page: Page, kind: PlanKind, evidenceLabel?: string): Promise<Seeded> {
   const token = Date.now().toString(36);
@@ -201,7 +213,9 @@ async function seed(page: Page, kind: PlanKind, evidenceLabel?: string): Promise
     },
     ...(evidenceId === undefined ? {} : { evidence_id: evidenceId }),
   };
-  const items = [...walls, point(PLAN.references.A), point(PLAN.references.B), marker];
+  const points =
+    kind === "scaled" ? [point(PLAN.references.A), point(PLAN.references.B)] : [];
+  const items = [...walls, ...points, marker];
   const created = await json<{ entities: EntityOut[] }>(
     await page.request.post(`/api/v1/revisions/${plan.current_revision_id}/entities`, {
       headers,
@@ -210,15 +224,13 @@ async function seed(page: Page, kind: PlanKind, evidenceLabel?: string): Promise
     201,
   );
   const ids = created.entities.map((entity) => entity.id);
-  const [refA = "", refB = "", markerId = ""] = ids.slice(walls.length);
   return {
     caseId: caseFile.id,
     planId: plan.id,
     revisionId: plan.current_revision_id,
     walls: ids.slice(0, walls.length),
-    refA,
-    refB,
-    marker: markerId,
+    points: ids.slice(walls.length, walls.length + points.length),
+    marker: ids.at(-1) ?? "",
   };
 }
 
@@ -377,16 +389,54 @@ async function fixLength(page: Page, wall: SchematicPlan["walls"][number]): Prom
   await expect(page.getByText(`Longitud fijada en ${wall.length} m`)).toBeVisible();
 }
 
-/** Triangulation tool: pick the marker, A and B; returns the side panel. */
-async function pickTriangulation(page: Page): Promise<Locator> {
-  await page.keyboard.press("g");
-  const panel = page.getByRole("complementary", { name: "Triangulación" });
+const TRIANGULATION = { key: "g", title: "Triangulación", slots: ["Referencia A", "Referencia B"] };
+const BASELINE = { key: "b", title: "Base + offset", slots: ["Punto base A", "Punto base B"] };
+
+/** A position to click and the chip text the pick must show. */
+interface Pick {
+  at: Point2;
+  chip: string;
+}
+
+const MARKER_PICK: Pick = {
+  at: PLAN.marker.at,
+  chip: `Símbolo en x ${PLAN.marker.drawn_x} m · y ${PLAN.marker.drawn_y} m`,
+};
+const POINT_PICKS: [Pick, Pick] = [
+  { at: PLAN.references.A, chip: "Punto en x 4,00 m · y -16,00 m" },
+  { at: PLAN.references.B, chip: "Punto en x 10,00 m · y -16,00 m" },
+];
+const CORNER_PICKS: [Pick, Pick] = [
+  { at: PLAN.references.A, chip: PLAN.corners.A.chip },
+  { at: PLAN.references.B, chip: PLAN.corners.B.chip },
+];
+
+/**
+ * References are clicked 3 px to the right of their position (within the 8 px vertex radius):
+ * at the corner shared by the two walls the pointer is then on wall 1's stroke and not on wall
+ * 2's, so the corner picked is wall 1's.
+ */
+const REFERENCE_NUDGE_PX = 3;
+
+/** Triangulation (G) or baseline-offset (B) tool: pick the point to fix and A and B. */
+async function pickConstraint(
+  page: Page,
+  tool: typeof TRIANGULATION,
+  target: Pick,
+  refs: [Pick, Pick],
+): Promise<Locator> {
+  await page.keyboard.press(tool.key);
+  const panel = page.getByRole("complementary", { name: tool.title });
   await expect(panel).toBeVisible();
-  for (const at of [PLAN.marker.at, PLAN.references.A, PLAN.references.B]) await clickAt(page, at);
-  await expect(panel.getByTestId("constraint-chip")).toHaveText([
-    new RegExp(`^Punto a fijar: Símbolo en x ${PLAN.marker.drawn_x} m · y ${PLAN.marker.drawn_y} m`),
-    /^Referencia A: Punto en x 4,00 m · y -16,00 m/,
-    /^Referencia B: Punto en x 10,00 m · y -16,00 m/,
+  await clickAt(page, target.at);
+  for (const ref of refs) {
+    const { x, y } = await toClient(page, ref.at);
+    await page.mouse.click(x + REFERENCE_NUDGE_PX, y);
+  }
+  await expect(panel.getByTestId("constraint-chip")).toContainText([
+    `Punto a fijar: ${target.chip}`,
+    `${tool.slots[0] ?? ""}: ${refs[0].chip}`,
+    `${tool.slots[1] ?? ""}: ${refs[1].chip}`,
   ]);
   return panel;
 }
@@ -421,13 +471,17 @@ function evidenceCells(table: Locator, number: number): Locator {
 
 test.use({ viewport: { width: 1600, height: 1000 } });
 
-test("schematic sketch: fix two wall lengths, place evidence, reject V-06 and V-07", async ({
+const CORNER_HINT =
+  "Las esquinas de una línea solo sirven como referencia si su longitud está fijada (herramienta Fijar longitud).";
+
+test("schematic sketch: fix two walls, triangulate the evidence from their corners, plan Métrico", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   await logIn(page);
   const seeded = await seed(page, "schematic");
   const log = new EventLog(page, seeded);
+  const wallId = seeded.walls[PLAN.corners.wall] ?? "";
   await openEditor(page, seeded);
 
   await test.step("badge Aproximado: the two hand-drawn walls block it", async () => {
@@ -440,6 +494,42 @@ test("schematic sketch: fix two wall lengths, place evidence, reject V-06 and V-
     await expectBlockers(page, [
       `Línea · L_STRUCTURE · ${NONE_REASON}`,
       `Línea · L_STRUCTURE · ${NONE_REASON}`,
+    ]);
+  });
+
+  await test.step("triangulation (G) from the undeclared wall's corners: V-06, then V-07", async () => {
+    const undeclared: [Pick, Pick] = [
+      CORNER_PICKS[0],
+      { at: PLAN.corners.undeclared_B.at, chip: PLAN.corners.undeclared_B.chip },
+    ];
+    const panel = await pickConstraint(page, TRIANGULATION, MARKER_PICK, undeclared);
+    await log.baseline();
+    await typeDistances(panel, PLAN.rejection.d_a, PLAN.rejection.d_b);
+    await expect(panel.getByRole("alert")).toHaveText(V06);
+    await expect(page.getByTestId("constraint-candidate")).toHaveCount(0);
+    await panel.getByRole("button", { name: "Aplicar", exact: true }).click();
+    await expect(panel.getByRole("alert")).toHaveText(V06);
+    await log.expectNone();
+
+    await typeDistances(panel, PLAN.triangulation.d_a, PLAN.triangulation.d_b);
+    // The V-06 message of the previous attempt goes away with the new values.
+    await expect(panel.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByTestId("constraint-candidate")).toHaveCount(2);
+    await panel.getByRole("button", { name: "Aplicar", exact: true }).click();
+    // The wall's length is not declared yet, so its corners are not metric (D-15).
+    await expect(panel.getByRole("alert")).toHaveText(V07);
+    await expect(panel.getByText(CORNER_HINT)).toBeVisible();
+    await log.expectNone();
+    const marker = await entity(page, seeded, seeded.marker);
+    expect(marker.geometry.anchor_m).toEqual(PLAN.marker.at);
+    expect(marker.constraint).toBeNull();
+    expect(marker.metric_origin).toBe("none");
+    expect((await entity(page, seeded, wallId)).metric_origin).toBe("none");
+    await panel.getByRole("button", { name: "Cancelar", exact: true }).click();
+    await expect(panel.getByTestId("constraint-chip")).toContainText([
+      "Punto a fijar: sin elegir",
+      "Referencia A: sin elegir",
+      "Referencia B: sin elegir",
     ]);
   });
 
@@ -502,34 +592,76 @@ test("schematic sketch: fix two wall lengths, place evidence, reject V-06 and V-
     await expectBlockers(page, [`Símbolo · L_EVIDENCE · ${NONE_REASON}`]);
   });
 
-  await test.step("triangulation (G): non-crossing distances show V-06 and change nothing", async () => {
-    const panel = await pickTriangulation(page);
+  await test.step("triangulation (G) from wall 1's corners: dA 3,60, dB 4,80", async () => {
+    const panel = await pickConstraint(page, TRIANGULATION, MARKER_PICK, CORNER_PICKS);
     await log.baseline();
-    await typeDistances(panel, PLAN.rejection.d_a, PLAN.rejection.d_b);
-    await expect(panel.getByRole("alert")).toHaveText(V06);
-    await expect(panel.getByTestId("constraint-candidate")).toHaveCount(0);
-    await panel.getByRole("button", { name: "Aplicar", exact: true }).click();
-    await expect(panel.getByRole("alert")).toHaveText(V06);
-    await log.expectNone();
+    await applyTriangulation(panel);
+    await expect(panel.getByText("Punto fijado por triangulación.")).toBeVisible();
+    await log.expectOneUpdate(seeded.marker, "triangulate");
     const marker = await entity(page, seeded, seeded.marker);
-    expect(marker.geometry.anchor_m).toEqual(PLAN.marker.at);
-    expect(marker.constraint).toBeNull();
+    expectAt(marker.geometry.anchor_m, PLAN.triangulation.expected, POINT_TOLERANCE_M);
+    expect(marker.metric_origin).toBe("triangulation");
+    expect(marker.constraint).toMatchObject({
+      kind: "triangulation",
+      refs: [
+        { entity_id: wallId, vertex: PLAN.corners.A.vertex },
+        { entity_id: wallId, vertex: PLAN.corners.B.vertex },
+      ],
+      params: { d_a_m: 3.6, d_b_m: 4.8 },
+    });
   });
 
-  await test.step("triangulation from hand-drawn references: V-07 (product gap), nothing changes", async () => {
-    const panel = page.getByRole("complementary", { name: "Triangulación" });
-    await typeDistances(panel, PLAN.triangulation.d_a, PLAN.triangulation.d_b);
-    // The V-06 message of the previous attempt goes away with the new values.
-    await expect(panel.getByRole("alert")).toHaveCount(0);
-    await applyTriangulation(panel);
-    await expect(panel.getByRole("alert")).toHaveText(V07);
-    await log.expectNone();
+  await test.step("evidence table: number, label, coordinates with two decimals and a comma", async () => {
+    await expect(evidenceCells(table, 2)).toHaveText([
+      PLAN.evidence[1] ?? "",
+      PLAN.triangulation.expected_x,
+      PLAN.triangulation.expected_y,
+      "Triangulación",
+      /Editar etiqueta/,
+    ]);
+  });
+
+  await test.step("metric status: Métrico", async () => {
+    await expect(badge(page, "Métrico")).toBeVisible();
+    const status = await metricStatus(page, seeded);
+    expect(status.status).toBe("metric");
+    expect(status.blocking_entities).toEqual([]);
+  });
+
+  await test.step("baseline-offset (B) from the same two corners: s 3,00, d 2,00 left", async () => {
+    const t = PLAN.triangulation;
+    const target = { at: t.expected, chip: `Símbolo en x ${t.expected_x} m · y ${t.expected_y} m` };
+    const panel = await pickConstraint(page, BASELINE, target, CORNER_PICKS);
+    await expect(page.getByTestId("constraint-baseline")).toBeAttached();
+    const b = PLAN.baseline;
+    await panel.getByRole("textbox", { name: "Distancia a lo largo de A→B, s (m)" }).fill(b.s);
+    await panel.getByRole("textbox", { name: "Distancia perpendicular, d (m)" }).fill(b.d);
+    await expect(panel.getByRole("radio", { name: "Izquierda" })).toBeChecked();
+    await expect(panel.getByText(`Posición: x ${b.expected_x} m · y ${b.expected_y} m`)).toBeVisible();
+    await log.baseline();
+    await panel.getByRole("button", { name: "Aplicar", exact: true }).click();
+    await expect(panel.getByText("Punto fijado por línea base y offset.")).toBeVisible();
+    await log.expectOneUpdate(seeded.marker, "baseline_offset");
     const marker = await entity(page, seeded, seeded.marker);
-    expect(marker.geometry.anchor_m).toEqual(PLAN.marker.at);
-    expect(marker.metric_origin).toBe("none");
-    expect((await entity(page, seeded, seeded.refA)).metric_origin).toBe("none");
-    expect((await metricStatus(page, seeded)).status).toBe("approximate");
-    await expect(badge(page, "Aproximado")).toBeVisible();
+    expectAt(marker.geometry.anchor_m, b.expected, POINT_TOLERANCE_M);
+    expect(marker.metric_origin).toBe("baseline_offset");
+    expect(marker.constraint).toMatchObject({
+      kind: "baseline_offset",
+      refs: [
+        { entity_id: wallId, vertex: PLAN.corners.A.vertex },
+        { entity_id: wallId, vertex: PLAN.corners.B.vertex },
+      ],
+      params: { s_m: 3, d_m: 2, side: "left" },
+    });
+    await expect(evidenceCells(table, 2)).toHaveText([
+      PLAN.evidence[1] ?? "",
+      b.expected_x,
+      b.expected_y,
+      "Base y offset",
+      /Editar etiqueta/,
+    ]);
+    await expect(badge(page, "Métrico")).toBeVisible();
+    expect((await metricStatus(page, seeded)).status).toBe("metric");
   });
 });
 
@@ -541,10 +673,10 @@ test("scaled drawing: triangulation places the evidence within 1 cm and the plan
   const seeded = await seed(page, "scaled", PLAN.evidence[1]);
   const log = new EventLog(page, seeded);
   await openEditor(page, seeded);
-  expect((await entity(page, seeded, seeded.refA)).metric_origin).toBe("scaled_drawing");
+  expect((await entity(page, seeded, seeded.points[0] ?? "")).metric_origin).toBe("scaled_drawing");
 
   await test.step("triangulation (G): dA 3,60 from A, dB 4,80 from B", async () => {
-    const panel = await pickTriangulation(page);
+    const panel = await pickConstraint(page, TRIANGULATION, MARKER_PICK, POINT_PICKS);
     await expect(panel.getByTestId("constraint-chip")).toHaveCount(3);
     await log.baseline();
     await applyTriangulation(panel);
@@ -555,7 +687,7 @@ test("scaled drawing: triangulation places the evidence within 1 cm and the plan
     expect(marker.metric_origin).toBe("triangulation");
     expect(marker.constraint).toMatchObject({
       kind: "triangulation",
-      refs: [seeded.refA, seeded.refB],
+      refs: seeded.points,
       params: { d_a_m: 3.6, d_b_m: 4.8 },
     });
   });
@@ -577,38 +709,4 @@ test("scaled drawing: triangulation places the evidence within 1 cm and the plan
     expect(status.status).toBe("metric");
     expect(status.blocking_entities).toEqual([]);
   });
-});
-
-// Blocked by the product gap described at the top: a schematic sketch has no way to obtain the
-// first metric reference point, so the triangulation always ends in V-07 and placed evidence
-// keeps the plan "Aproximado". Un-fixme once references can be made metric (for example points
-// snapped to the vertices of declared walls becoming "derived", spec 8.2, or wall vertices
-// accepted as references) and replace `makeReferencesMetric` with that UI flow.
-test.fixme("schematic sketch: triangulated evidence makes the plan Métrico", async ({ page }) => {
-  test.setTimeout(180_000);
-  await logIn(page);
-  const seeded = await seed(page, "schematic", PLAN.evidence[1]);
-  const log = new EventLog(page, seeded);
-  await openEditor(page, seeded);
-  for (const wall of PLAN.walls) await fixLength(page, wall);
-  const makeReferencesMetric = async (): Promise<void> => {
-    throw new Error("no product flow makes a schematic reference point metric yet");
-  };
-  await makeReferencesMetric();
-  const panel = await pickTriangulation(page);
-  await log.baseline();
-  await applyTriangulation(panel);
-  await log.expectOneUpdate(seeded.marker, "triangulate");
-  const marker = await entity(page, seeded, seeded.marker);
-  expectAt(marker.geometry.anchor_m, PLAN.triangulation.expected, POINT_TOLERANCE_M);
-  const table = await openEvidenceTable(page);
-  await expect(evidenceCells(table, 1)).toHaveText([
-    PLAN.evidence[1] ?? "",
-    PLAN.triangulation.expected_x,
-    PLAN.triangulation.expected_y,
-    "Triangulación",
-    /Editar etiqueta/,
-  ]);
-  await expect(badge(page, "Métrico")).toBeVisible();
-  expect((await metricStatus(page, seeded)).status).toBe("metric");
 });

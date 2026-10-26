@@ -1,8 +1,7 @@
 ---
 id: 001-082
 title: "Add the E2E for metric reconstruction"
-status: partial
-unmet: ["Schematic-sketch triangulation to 'Métrico' (H3-10 scenario and 1 cm check only runs in the scaled_drawing test): blocked by the product gap that a schematic sketch cannot produce a first metric reference point; test.fixme left in e2e/triangulation.spec.ts"]
+status: in_review
 milestone: "H3 — Herramientas métricas"
 repository: sketch2cad
 depends_on: [001-080, 001-081, 001-079]

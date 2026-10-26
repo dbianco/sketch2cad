@@ -156,7 +156,8 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: "Fijar longitud: Esc", description: "Cancelar el segmento elegido" },
       {
         keys: "Triangulación y Base + offset: Intro",
-        description: "Elegir el punto a fijar y después las referencias A y B",
+        description:
+          "Elegir el punto a fijar y después las referencias A y B (puntos, símbolos o esquinas de líneas)",
       },
       { keys: "Triangulación y Base + offset: Esc", description: "Quitar los puntos elegidos" },
     ],

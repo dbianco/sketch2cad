@@ -1,7 +1,8 @@
 // Baseline-offset tool (US-09, spec 11.3, V-07): pick the point to fix and the base points A and B
-// (ConstraintTool.tsx), type s along A→B (any sign: negative is behind A) and the perpendicular
-// offset d (zero or more), and choose the side, left or right looking from A to B. The resulting
-// position P = A + s·û + d·n̂ is drawn on the canvas before "Aplicar" sends `baseline_offset`.
+// (points, symbols or line vertices, even two of the same wall; ConstraintTool.tsx), type s along
+// A→B (any sign: negative is behind A) and the perpendicular offset d (zero or more), and choose
+// the side, left or right looking from A to B. The resulting position P = A + s·û + d·n̂ is drawn
+// on the canvas before "Aplicar" sends `baseline_offset`.
 import { formatMetres } from "../canvas/EditorCanvas";
 import { baselineOffsetPoint, type Side } from "../geometry/preview";
 import type { EditorTool, ToolContext } from "../ui/editorUi";

@@ -1,5 +1,5 @@
 {
-  "description": "Seed and script of e2e/triangulation.spec.ts. Coordinates are world metres (Y up). The scan_segment calibration makes 1000 px of synthetic_sketch.png (2000 x 2828 px) span 100 mm of paper at 1:100 (provisional in the schematic sketch, declared in the scaled drawing), so the source image covers x 0..20 m and y -28.28..0 m. Two walls meet at the corner C = (4, -16) and are drawn short (5,50 m and 3,50 m, as in a sketch); their declared lengths are 6,00 m and 4,00 m. A and B are reference points at C and at the far end of wall 1 once fixed. The evidence marker is drawn near P.",
+  "description": "Seed and script of e2e/triangulation.spec.ts. Coordinates are world metres (Y up). The scan_segment calibration makes 1000 px of synthetic_sketch.png (2000 x 2828 px) span 100 mm of paper at 1:100 (provisional in the schematic sketch, declared in the scaled drawing), so the source image covers x 0..20 m and y -28.28..0 m. Two walls meet at the corner C = (4, -16) and are drawn short (5,50 m and 3,50 m, as in a sketch); their declared lengths are 6,00 m and 4,00 m. A and B are at C and at the far end of wall 1 once fixed: in the schematic sketch they are the corners (vertices 0 and 1) of wall 1, which are metric references only once its length is declared (PoC decision D-15; before that, V-07); in the scaled drawing they are reference points seeded there. The evidence marker is drawn near P.",
   "case": {
     "incident_type": "traffic_collision",
     "incident_date": "2026-10-02",
@@ -45,6 +45,12 @@
   ],
   "reference_layer": "L_CONTROL",
   "references": { "A": [4, -16], "B": [10, -16] },
+  "corners": {
+    "wall": 0,
+    "A": { "vertex": 0, "chip": "Esquina 1 de Línea (x 4,00 m · y -16,00 m)" },
+    "B": { "vertex": 1, "chip": "Esquina 2 de Línea (x 10,00 m · y -16,00 m)" },
+    "undeclared_B": { "at": [9.5, -16], "chip": "Esquina 2 de Línea (x 9,50 m · y -16,00 m)" }
+  },
   "marker": { "at": [6.5, -13.5], "drawn_x": "6,50", "drawn_y": "-13,50", "evidence_number": 1 },
   "evidence": ["Vehículo A", "Casquillo"],
   "triangulation": {
@@ -54,6 +60,14 @@
     "expected": [6.16, -13.12],
     "expected_x": "6,16",
     "expected_y": "-13,12"
+  },
+  "baseline": {
+    "s": "3,00",
+    "d": "2,00",
+    "hand_calculation": "Baseline from corner A = (4, -16) to corner B = (10, -16) of wall 1: u = (1, 0), and the left of A→B is n = (0, 1). P = A + 3 u + 2 n = (7, -14).",
+    "expected": [7, -14],
+    "expected_x": "7,00",
+    "expected_y": "-14,00"
   },
   "rejection": { "d_a": "1,00", "d_b": "1,00" }
 }

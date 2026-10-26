@@ -1,9 +1,9 @@
 // Triangulation tool (US-08, spec 11.3, V-04, V-06, V-07): pick the point to fix and the
-// references A and B (ConstraintTool.tsx), type dA and dB (decimal comma or point). Both circle
-// intersections are drawn on the canvas with the one nearest to the point's current position
-// preselected; the user may take the other one (radio or a click on its marker). The server's
-// `solution` is relative to that same position: the nearest is sent as "nearest", the other one as
-// "alt".
+// references A and B (points, symbols or line vertices, ConstraintTool.tsx), type dA and dB
+// (decimal comma or point). Both circle intersections are drawn on the canvas with the one
+// nearest to the point's current position preselected; the user may take the other one (radio or
+// a click on its marker). The server's `solution` is relative to that same position: the nearest
+// is sent as "nearest", the other one as "alt".
 import { formatMetres } from "../canvas/EditorCanvas";
 import { triangulate, type Solution } from "../geometry/preview";
 import type { EditorTool, ToolContext } from "../ui/editorUi";
