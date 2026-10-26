@@ -303,9 +303,8 @@ def enqueue_suggest_lines(
     db.add(job)
     db.flush()
     connection = db.connection().connection.driver_connection
-    worker_app.app.configure_task(SUGGEST_TASK_NAME, connection=connection).defer(
-        job_meta_id=str(job.id)
-    )
+    # Also called inside the worker (after_rectify), where `worker_app.app` is open.
+    worker_app.defer_on_connection(SUGGEST_TASK_NAME, connection, job_meta_id=str(job.id))
     logger.info("Queued suggest job %s for calibration %s", job.id, calibration.id)
     return job
 

@@ -1,0 +1,39 @@
+{
+  "generator": "e2e/fixtures/make_dimensioned_sketch.py",
+  "size_px": [
+    2000,
+    2828
+  ],
+  "dimension": {
+    "text": "3,50",
+    "value_m": 3.5,
+    "box_px": [
+      923,
+      768,
+      1076,
+      870
+    ]
+  },
+  "top_wall_px": [
+    [
+      400,
+      900
+    ],
+    [
+      1600,
+      900
+    ]
+  ],
+  "blank_box_px": [
+    300,
+    2250,
+    520,
+    2350
+  ],
+  "qc": {
+    "short_side": 2000.0,
+    "laplacian_variance": 182.92,
+    "contrast": 188.0,
+    "paper_crop": 0.0
+  }
+}

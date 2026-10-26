@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type APIResponse, type Page } from "@playwright/test";
+import { rejectChainedSuggestions } from "./support";
 
 // Every editor tool against the compose stack (jotdown H2-11, CU-04): line, polyline, point,
 // text, symbol, vertex move, layer reclassify, delete, undo and redo, drawn with the real pointer
@@ -175,6 +176,8 @@ async function seed(page: Page): Promise<Seeded> {
     200,
   );
   expect(calibrated.status).toBe("EDITING");
+  // Not about AI assistance: drop the suggestions chained after the calibration.
+  await rejectChainedSuggestions(page, plan.current_revision_id);
   const created = await json<{ entities: EntityOut[] }>(
     await page.request.post(`/api/v1/revisions/${plan.current_revision_id}/entities`, {
       headers,

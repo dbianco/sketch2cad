@@ -29,6 +29,7 @@ import os
 import sys
 from collections.abc import Sequence
 from functools import lru_cache
+from typing import Any
 
 import procrastinate
 import psycopg
@@ -131,6 +132,25 @@ def apply_schema(conninfo: str) -> bool:
 @lru_cache
 def _module_app() -> procrastinate.App:
     return create_worker_app()
+
+
+@lru_cache
+def _external_connection_app() -> procrastinate.App:
+    # Never opened, so no pool is created: it only runs queries on the caller's connection.
+    return procrastinate.App(connector=procrastinate.SyncPsycopgConnector())
+
+
+def defer_on_connection(task_name: str, connection: Any, **task_kwargs: Any) -> None:
+    """Defer ``task_name`` in the caller's transaction on the sync psycopg ``connection``
+    (a ``psycopg.Connection``, for example SQLAlchemy's ``driver_connection``).
+
+    Usable both in the API and inside a running worker task (``suggest_lines`` chained
+    after ``rectify``). While the worker runs, ``app`` is open with an async pool, and an
+    open ``PsycopgConnector`` sends external connections to its async code, which fails
+    with ``TypeError`` on a sync connection; this separate, never-opened app has a
+    ``SyncPsycopgConnector`` that runs the defer query on ``connection`` itself.
+    """
+    _external_connection_app().configure_task(task_name, connection=connection).defer(**task_kwargs)
 
 
 def __getattr__(name: str) -> procrastinate.App:

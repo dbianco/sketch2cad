@@ -6,6 +6,7 @@ import sys
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import psycopg
 import pytest
@@ -13,6 +14,7 @@ from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 from sqlalchemy.engine import make_url
 
+import sketch2cad.worker.app as worker_app_module
 from sketch2cad.worker.app import (
     WorkerConfigError,
     apply_schema,
@@ -172,3 +174,51 @@ def test_health_fails_when_database_url_is_missing() -> None:
     result = run_command([sys.executable, "-m", "sketch2cad.worker.health"], "")
     assert result.returncode == 1
     assert "DATABASE_URL is not set" in result.stderr
+
+
+class _RecordingCursor:
+    """Sync psycopg cursor stand-in: records the query and returns one job id."""
+
+    def __init__(self) -> None:
+        self.executed: list[tuple[str, Any]] = []
+
+    def __enter__(self) -> "_RecordingCursor":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def execute(self, query: Any, arguments: Any) -> None:
+        self.executed.append((str(query), arguments))
+
+    def fetchall(self) -> list[dict[str, int]]:
+        return [{"id": 7}]
+
+
+class _RecordingConnection:
+    def __init__(self) -> None:
+        self.cursor_ = _RecordingCursor()
+
+    def cursor(self, **_kwargs: Any) -> _RecordingCursor:
+        return self.cursor_
+
+
+def test_defer_on_connection_works_while_the_worker_app_is_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Regression: inside a running worker task (suggest_lines chained after rectify) the
+    # module-level app is open with an async pool, and deferring through it on the
+    # caller's sync connection failed with TypeError.
+    opened = create_worker_app("dbname=unused")
+    monkeypatch.setattr(opened.connector, "_async_pool", object())  # what open_async sets
+    monkeypatch.setattr(worker_app_module, "_module_app", lambda: opened)
+    with pytest.raises(TypeError):
+        worker_app_module.app.configure_task(
+            "suggest_lines", connection=_RecordingConnection()
+        ).defer(job_meta_id="j1")
+
+    connection = _RecordingConnection()
+    worker_app_module.defer_on_connection("suggest_lines", connection, job_meta_id="j2")
+    [(query, arguments)] = connection.cursor_.executed
+    assert "procrastinate_defer_jobs" in query
+    assert "suggest_lines" in str(arguments) and "j2" in str(arguments)

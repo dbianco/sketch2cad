@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIResponse, type Page } from "@playwright/test";
+import { rejectChainedSuggestions } from "./support";
 
 // Keyboard-only drawing (jotdown H2-14) and the axe audit (spec 5, WCAG 2.1 AA) of the editor,
 // calibration and review pages, against the compose stack. Each test seeds its own case, source
@@ -118,7 +119,7 @@ async function seedPlan(page: Page, token: string): Promise<Seeded> {
  * Accept a deterministic calibration so that the plan reaches EDITING. The fixture PNG has no
  * DPI, so the method is `scan_segment`: two points 1000 px apart that span 100 mm of paper.
  */
-async function calibrate(page: Page, planId: string): Promise<void> {
+async function calibrate(page: Page, { planId, revisionId }: Seeded): Promise<void> {
   const headers = await csrfHeaders(page);
   await json(await page.request.post(`/api/v1/plans/${planId}/lease`, { headers }), 200);
   const plan = await json<{ status: string }>(
@@ -134,6 +135,8 @@ async function calibrate(page: Page, planId: string): Promise<void> {
     200,
   );
   expect(plan.status).toBe("EDITING");
+  // Not about AI assistance: drop the suggestions chained after the calibration.
+  await rejectChainedSuggestions(page, revisionId);
 }
 
 function token(): string {
@@ -164,7 +167,7 @@ async function auditPage(page: Page, name: string): Promise<void> {
 test("a line is created on the editor with the keyboard only", async ({ page }) => {
   await logIn(page);
   const seeded = await seedPlan(page, token());
-  await calibrate(page, seeded.planId);
+  await calibrate(page, seeded);
 
   await page.goto(`/cases/${seeded.caseId}/plans/${seeded.planId}/editor`);
   const canvas = page.getByTestId("editor-canvas");
@@ -213,7 +216,7 @@ test("the calibration, editor and review pages have no critical or serious axe v
   await expect(page.getByTestId("source-viewer").getByRole("img")).toBeVisible();
   await auditPage(page, "calibration");
 
-  await calibrate(page, seeded.planId);
+  await calibrate(page, seeded);
   await page.goto(`${base}/editor`);
   await expect(page.getByTestId("editor-canvas")).toBeVisible();
   await expect(page.getByTestId("source-image")).toBeAttached();
