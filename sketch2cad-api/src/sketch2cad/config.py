@@ -78,8 +78,8 @@ class Settings(BaseSettings):
     """Paper mm below which a path is discarded (``suggest_lines.min_length_mm``)."""
     SUGGEST_LINES_MERGE_ANGLE_DEG: float = Field(default=5.0, gt=0, lt=90)
     """Angle below which collinear paths are merged (``suggest_lines.merge_angle_deg``)."""
-    OCR_MIN_PRESELECT_CONFIDENCE: float = Field(default=0.6, ge=0, le=1)
-    """OCR confidence needed to preselect a value (``ocr.min_preselect_confidence``)."""
+    OCR_MIN_CONFIDENCE: float = Field(default=0.6, ge=0, le=1)
+    """OCR confidence needed to preselect a value (``ocr.min_confidence``)."""
     AI_ASSIST_ENABLED: bool = True
     """Whether the AI jobs ``suggest_lines`` and ``ocr_crop`` run (``ai_assist.enabled``)."""
 

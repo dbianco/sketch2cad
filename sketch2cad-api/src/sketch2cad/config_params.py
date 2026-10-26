@@ -125,7 +125,7 @@ _REGISTRY: tuple[tuple[str, str, frozenset[ConfigScope]], ...] = (
     ("suggest_lines.simplify_tolerance_mm", "10", BOTH_SCOPES),
     ("suggest_lines.min_length_mm", "10", BOTH_SCOPES),
     ("suggest_lines.merge_angle_deg", "10", BOTH_SCOPES),
-    ("ocr.min_preselect_confidence", "10", BOTH_SCOPES),
+    ("ocr.min_confidence", "10", BOTH_SCOPES),
     ("ai_assist.enabled", "19", ENVIRONMENT_ONLY),
     ("legal.disclaimer_enabled", "13.2", GLOBAL_ONLY),
 )

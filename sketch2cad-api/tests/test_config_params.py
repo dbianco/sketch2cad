@@ -73,7 +73,7 @@ SPEC_DEFAULTS: dict[str, Any] = {
     "suggest_lines.simplify_tolerance_mm": 0.8,
     "suggest_lines.min_length_mm": 5.0,
     "suggest_lines.merge_angle_deg": 5.0,
-    "ocr.min_preselect_confidence": 0.6,
+    "ocr.min_confidence": 0.6,
     "ai_assist.enabled": True,
     "legal.disclaimer_enabled": True,
 }
