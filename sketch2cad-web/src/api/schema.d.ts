@@ -5,6 +5,30 @@
  */
 
 export interface paths {
+    "/api/v1/artifacts/{artifact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Artifact
+         * @description Without ``confirm``: metadata, SHA-256 and (final) the package manifest; no event.
+         *
+         *     With ``confirm=true``: streams the bytes (``Content-Disposition: attachment``,
+         *     ``X-Content-SHA256``) after writing one ``artifact.downloaded`` event. Requires
+         *     ``read``; downloading a final artifact also requires ``deliver``.
+         */
+        get: operations["get_artifact_api_v1_artifacts__artifact_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -354,6 +378,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/plans/{plan_id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Artifacts
+         * @description Artifacts of the plan, newest first (drafts, finals and the rectified image).
+         *
+         *     Requires ``read``.
+         */
+        get: operations["list_artifacts_api_v1_plans__plan_id__artifacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plans/{plan_id}/calibration": {
         parameters: {
             query?: never;
@@ -394,6 +440,32 @@ export interface paths {
          *     leaves the plan ``non_metric``. Requires ``edit`` and the plan's edit lease.
          */
         post: operations["accept_calibration_api_v1_plans__plan_id__calibration_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{plan_id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Export
+         * @description Queue a draft or final export and return its job (202); poll ``GET /jobs/{id}``.
+         *
+         *     ``draft`` needs ``edit`` and a plan in ``EDITING`` or later, and never changes the plan
+         *     status. ``final`` needs ``deliver`` and a ``VALIDATED`` plan (409 ``V-11`` otherwise,
+         *     ``EXPORTED`` included: reopen and validate again to export anew); when the job
+         *     completes the plan is ``EXPORTED``. A request equal to a queued or running one returns
+         *     that job.
+         */
+        post: operations["post_export_api_v1_plans__plan_id__exports_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -626,6 +698,87 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ArtifactDetailOut
+         * @description ``manifest`` is the signed manifest of the final package the artifact belongs to.
+         */
+        ArtifactDetailOut: {
+            /** Byte Size */
+            byte_size: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Filename */
+            filename: string;
+            /** Generator Version */
+            generator_version: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Draft */
+            is_draft: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "dxf" | "pdf_plan" | "pdf_audit" | "manifest" | "zip" | "rectified_image";
+            /** Manifest */
+            manifest: {
+                [key: string]: unknown;
+            } | null;
+            /** Media Type */
+            media_type: string;
+            /**
+             * Plan Id
+             * Format: uuid
+             */
+            plan_id: string;
+            /** Revision Id */
+            revision_id: string | null;
+            /** Sha256 */
+            sha256: string;
+        };
+        /** ArtifactOut */
+        ArtifactOut: {
+            /** Byte Size */
+            byte_size: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Filename */
+            filename: string;
+            /** Generator Version */
+            generator_version: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Draft */
+            is_draft: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "dxf" | "pdf_plan" | "pdf_audit" | "manifest" | "zip" | "rectified_image";
+            /** Media Type */
+            media_type: string;
+            /**
+             * Plan Id
+             * Format: uuid
+             */
+            plan_id: string;
+            /** Revision Id */
+            revision_id: string | null;
+            /** Sha256 */
+            sha256: string;
+        };
         /**
          * CalibrationAcceptIn
          * @description Calibration inputs plus whether to accept the calibration as metric.
@@ -1383,6 +1536,25 @@ export interface components {
             /** Label */
             label?: string | null;
         };
+        /**
+         * ExportIn
+         * @description ``scale`` null uses the proposed scale; ``paper`` ``auto`` the proposed sheet.
+         */
+        ExportIn: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "draft" | "final";
+            /**
+             * Paper
+             * @default auto
+             * @enum {string}
+             */
+            paper: "A4" | "A3" | "auto";
+            /** Scale */
+            scale?: (50 | 100 | 200 | 250 | 500) | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1927,6 +2099,56 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_artifact_api_v1_artifacts__artifact_id__get: {
+        parameters: {
+            query?: {
+                confirm?: boolean;
+            };
+            header?: never;
+            path: {
+                artifact_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Without ``confirm``: the artifact metadata (JSON). With ``confirm=true``: the bytes as an attachment with ``X-Content-SHA256``. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactDetailOut"];
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description The user lacks ``read``, or ``deliver`` to download a final artifact (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The artifact does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
@@ -2737,6 +2959,53 @@ export interface operations {
             };
         };
     };
+    list_artifacts_api_v1_plans__plan_id__artifacts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactOut"][];
+                };
+            };
+            /** @description The user lacks ``read`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     propose_calibration_api_v1_plans__plan_id__calibration_put: {
         parameters: {
             query?: never;
@@ -2852,6 +3121,67 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    post_export_api_v1_plans__plan_id__exports_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_csrf?: string | null;
+                s2c_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description The user lacks ``edit`` (draft) or ``deliver`` (final) on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ``final`` on a plan that is not ``VALIDATED`` (``code`` ``V-11``), or ``draft`` before ``EDITING`` (``code`` ``draft_not_allowed``). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

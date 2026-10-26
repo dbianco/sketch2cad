@@ -4,17 +4,21 @@ Commands (run from ``sketch2cad-api/``, with ``DATABASE_URL`` set):
 
 - ``python -m sketch2cad.worker.app apply-schema`` applies the Procrastinate schema;
   it is idempotent (does nothing when ``procrastinate_jobs`` already exists).
-- ``procrastinate --app=sketch2cad.worker.app.app worker`` starts the worker.
+- ``procrastinate --app=sketch2cad.worker.app.worker_app worker`` starts the worker.
 
 ``DATABASE_URL`` is the SQLAlchemy URL used by the API (``postgresql+psycopg://...``);
 it is converted to a libpq conninfo, and its query parameters (for example
 ``options=-csearch_path=...``) are forwarded as connection parameters. Only
-``DATABASE_URL`` is read; the full application settings are not required.
+``DATABASE_URL`` (and ``SIGNING_KEY_PATH`` for ``worker_app``) is read; the full
+application settings are not required.
 
-Importing this module has no side effects: the module-level ``app`` that the
-Procrastinate CLI loads is built on first access. Registered tasks: ``rasterize``
+Importing this module has no side effects: the module-level ``app`` is built on first
+access. The API defers jobs through ``app``; the worker process loads ``worker_app``, the
+same app after checking the signing key at ``SIGNING_KEY_PATH`` (missing, or mode wider
+than 0600: exit status 1 naming the path, jotdown H4-11). Registered tasks: ``rasterize``
 (:mod:`sketch2cad.worker.tasks_raster`), ``qc`` (:mod:`sketch2cad.worker.tasks_qc`) and
-``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`).
+``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`) and ``export``
+(:mod:`sketch2cad.worker.tasks_export`).
 """
 
 import argparse
@@ -31,7 +35,8 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 from sketch2cad.logging import configure_logging
-from sketch2cad.worker import tasks_qc, tasks_raster, tasks_rectify
+from sketch2cad.package.signing import require_signing_key
+from sketch2cad.worker import tasks_export, tasks_qc, tasks_raster, tasks_rectify
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -89,6 +94,7 @@ def create_worker_app(conninfo: str | None = None) -> procrastinate.App:
     tasks_raster.register(app)
     tasks_qc.register(app)
     tasks_rectify.register(app)
+    tasks_export.register(app)
     return app
 
 
@@ -116,8 +122,13 @@ def _module_app() -> procrastinate.App:
 
 
 def __getattr__(name: str) -> procrastinate.App:
-    """Build the module-level ``app`` lazily, for ``procrastinate --app=...app``."""
+    """Build the module-level ``app`` (and ``worker_app``) lazily, for ``--app=...``."""
     if name == "app":
+        return _module_app()
+    if name == "worker_app":
+        # The worker process signs packages: refuse to start without a safe signing key.
+        # SystemExit names the path; no traceback.
+        require_signing_key()
         return _module_app()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

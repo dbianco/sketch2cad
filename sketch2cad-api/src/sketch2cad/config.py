@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     DIMENSION_DISCREPANCY_TOLERANCE_M: float = Field(default=0.02, gt=0)
     """Declared vs measured difference above which a dimension is flagged, in metres
     (``dimension.discrepancy_tolerance_m``)."""
+    LEGAL_DISCLAIMER_ENABLED: bool = True
+    """Whether the final PDF and the audit report print the legal disclaimer
+    (``legal.disclaimer_enabled``); true until the legal review (DEC-8)."""
 
 
 def get_settings() -> Settings:

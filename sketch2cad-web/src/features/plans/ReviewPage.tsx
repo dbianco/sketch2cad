@@ -8,6 +8,7 @@ import type { components } from "../../api/schema";
 import type { PlanOut } from "../../editor/plan/planStore";
 import { useAuth } from "../auth/authStore";
 import { planEditorPath } from "../calibration/CalibrationPage";
+import { planExportPath } from "../exports/messages";
 import { METRIC_STATUS_LABELS, PLAN_MESSAGES as M, PLAN_STATUS_LABELS } from "./messages";
 import { TransitionBar } from "./TransitionBar";
 
@@ -95,6 +96,7 @@ export function ReviewPage({ api = defaultApi }: ReviewPageProps) {
         {M.reviewTitle} · {plan.title}
       </h1>
       <Link to={planEditorPath(caseId, plan.id)}>{M.openEditor}</Link>
+      <Link to={planExportPath(caseId, plan.id)}>{M.openExport}</Link>
       <dl style={{ margin: 0 }}>
         {summary.map(([term, value]) => (
           <div key={term} style={{ display: "flex", gap: 8 }}>

@@ -1,7 +1,7 @@
 ---
 id: 001-085
 title: "Export dimensions to DXF with declared value override"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-084]

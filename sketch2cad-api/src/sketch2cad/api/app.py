@@ -11,12 +11,14 @@ from sketch2cad.api.routers import (
     entities,
     events,
     evidence,
+    exports,
     health,
     jobs,
     plans,
     sources,
 )
 from sketch2cad.logging import configure_logging
+from sketch2cad.package.signing import require_signing_key
 
 
 def create_app() -> FastAPI:
@@ -35,4 +37,16 @@ def create_app() -> FastAPI:
     app.include_router(calibration.router)
     app.include_router(entities.router)
     app.include_router(evidence.router)
+    app.include_router(exports.router)
     return app
+
+
+def create_server_app() -> FastAPI:
+    """Entry point of the served API (``uvicorn --factory sketch2cad.api:create_server_app``).
+
+    Refuses to start (``SystemExit`` naming the path, exit status 1) when the signing key
+    at ``SIGNING_KEY_PATH`` is missing or its mode is wider than 0600 (jotdown H4-11).
+    Tests build the app with :func:`create_app`, which skips this check.
+    """
+    require_signing_key()
+    return create_app()

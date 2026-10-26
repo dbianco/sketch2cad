@@ -29,6 +29,9 @@ defaults:
 env:
   NODE_VERSION: "24.22.1"
   PNPM_VERSION: "11.20.0"
+  # Same uv as api-ci.yml: e2e/export_verify.spec.ts runs the package verifier through
+  # scripts/verify_downloaded_zip.sh (`uv run --frozen --project ../sketch2cad-api`).
+  UV_VERSION: "0.12.5"
 
 jobs:
   e2e:
@@ -45,11 +48,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
           cache-dependency-path: sketch2cad-web/pnpm-lock.yaml
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: ${{ env.UV_VERSION }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsc --noEmit -p e2e
       - run: pnpm exec playwright install --with-deps chromium
-      # global-setup.ts runs scripts/e2e-stack.sh up (compose up --build --wait plus the E2E
-      # user); global-teardown.ts runs scripts/e2e-stack.sh down (down -v).
+      # global-setup.ts runs scripts/e2e-stack.sh up (compose build, signing key, up --wait plus
+      # the technician and reviewer users); global-teardown.ts runs scripts/e2e-stack.sh down.
       - run: pnpm exec playwright test
       - name: Upload the Playwright report
         if: always()

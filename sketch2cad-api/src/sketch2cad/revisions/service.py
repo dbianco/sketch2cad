@@ -26,7 +26,15 @@ from sqlalchemy.orm import Session
 from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.auth.lockout import utc_now
 from sketch2cad.catalog import default_catalog
-from sketch2cad.db.models import Catalog, Entity, Plan, Revision, RevisionState, User
+from sketch2cad.db.models import (
+    Catalog,
+    Entity,
+    Evidence,
+    Plan,
+    Revision,
+    RevisionState,
+    User,
+)
 from sketch2cad.plans.service import active_calibration, recompute_metric_status
 from sketch2cad.revisions.snapshot import build_snapshot, snapshot_sha256
 
@@ -62,8 +70,14 @@ def active_catalog_version(db: Session) -> str:
 def revision_snapshot(db: Session, plan: Plan, revision: Revision) -> dict[str, Any]:
     """The spec section 8.3 snapshot of ``revision`` from the current database rows."""
     entities = db.scalars(select(Entity).where(Entity.revision_id == revision.id))
+    evidence = db.scalars(select(Evidence).where(Evidence.case_file_id == plan.case_file_id))
     return build_snapshot(
-        plan, revision, active_calibration(db, plan), active_catalog_version(db), entities
+        plan,
+        revision,
+        active_calibration(db, plan),
+        active_catalog_version(db),
+        entities,
+        evidence,
     )
 
 

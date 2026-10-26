@@ -14,13 +14,15 @@ dependencies = [
     "argon2-cffi>=23.1",
     "procrastinate>=2.15",
     "uvicorn>=0.32",
-    "ezdxf>=1.4.5",
+    "ezdxf==1.4.5",
     "rfc8785>=0.1.4",
     "pillow>=13.0.0",
     "python-multipart>=0.0.32",
     "pypdfium2>=5.14.0",
     "opencv-python-headless>=5.0.0.93",
     "numpy>=2.5.4",
+    "reportlab==5.1.0",
+    "cryptography>=46",
 ]
 
 [dependency-groups]
@@ -58,7 +60,7 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "N"]
 "tests/**" = ["S101"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "verifier"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 venvPath = "."

@@ -1,7 +1,7 @@
 ---
 id: 001-096
 title: "Regenerate the web client for the H4 endpoints"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-093]

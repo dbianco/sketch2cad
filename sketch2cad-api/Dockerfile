@@ -27,15 +27,22 @@ RUN uv sync --frozen --no-dev --no-editable
 # Runtime stage: the virtual environment plus migrations, without uv.
 FROM python:3.12.13-slim
 
+# XDG_CACHE_HOME: ezdxf caches font data under $XDG_CACHE_HOME/ezdxf; the default
+# (/app/.cache) is not writable by `app`. The cache does not affect the DXF bytes.
 ENV PATH=/app/.venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    XDG_CACHE_HOME=/tmp/.cache
 
 RUN useradd --uid 10001 --user-group --no-create-home --home-dir /app --shell /usr/sbin/nologin app
 
 # Mount point of the `objects` volume (STORAGE_ROOT); a new named volume copies this
 # ownership, so the unprivileged user can write objects.
 RUN mkdir -p /app/storage && chown app:app /app/storage
+
+# Mount point of the `signing-keys` volume (SIGNING_KEY_PATH lives here in compose);
+# private to `app`, so the generated key file stays owner-only.
+RUN mkdir -p /app/keys && chown app:app /app/keys && chmod 700 /app/keys
 
 WORKDIR /app
 
@@ -49,5 +56,6 @@ USER app
 EXPOSE 8000
 
 # Default command (the `api` service); compose overrides it to run migrations
-# first, and the `worker` service runs the Procrastinate worker instead.
-CMD ["uvicorn", "--factory", "sketch2cad.api:create_app", "--host", "0.0.0.0", "--port", "8000"]
+# first, and the `worker` service runs the Procrastinate worker instead. Both refuse to
+# start without a mode-0600 key file at SIGNING_KEY_PATH.
+CMD ["uvicorn", "--factory", "sketch2cad.api:create_server_app", "--host", "0.0.0.0", "--port", "8000"]

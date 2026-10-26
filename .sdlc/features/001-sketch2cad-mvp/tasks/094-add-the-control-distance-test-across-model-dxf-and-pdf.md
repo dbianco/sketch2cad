@@ -1,7 +1,7 @@
 ---
 id: 001-094
 title: "Add the control-distance test across model, DXF and PDF"
-status: todo
+status: in_review
 milestone: "H4 — Exportación y auditoría"
 repository: sketch2cad
 depends_on: [001-093]

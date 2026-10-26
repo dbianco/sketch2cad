@@ -24,6 +24,7 @@ from sketch2cad.db.models import (
     CaseFile,
     Entity,
     Event,
+    Evidence,
     IncidentType,
     MetricStatus,
     Plan,
@@ -247,7 +248,102 @@ def test_numbers_that_cannot_round_trip_are_rejected(value: float) -> None:
         build_snapshot(plan, revision, None, "default-1", [bad])
 
 
+def evidence_point(
+    index: int, evidence: Evidence, revision_id: uuid.UUID | None = None, **overrides: Any
+) -> Entity:
+    geometry = {"kind": "point", "coords_m": [[1.25 * index, -0.5]]}
+    values = {"type": "point", "layer": "L_EVIDENCE", "geometry": geometry}
+    return entity(revision_id, index, evidence_id=evidence.id, **{**values, **overrides})
+
+
+def test_evidence_table_lists_placed_evidence_by_number() -> None:
+    plan, revision = pure_inputs()
+    seven = Evidence(id=uuid.UUID(int=70), number=7, label="Casquillo")
+    two = Evidence(id=uuid.UUID(int=20), number=2, label="Mancha")
+    unplaced = Evidence(id=uuid.UUID(int=90), number=1, label="Sin ubicar")
+    symbol = entity(
+        None,
+        3,
+        type="symbol",
+        layer="L_SYMBOLS",
+        geometry={"kind": "symbol", "anchor_m": [4.5, 2.0], "symbol_id": "tree"},
+        evidence_id=two.id,
+        metric_origin="triangulation",
+    )
+    entities = [
+        evidence_point(1, seven),
+        symbol,
+        evidence_point(2, two, deleted_at=NOW),
+        entity(None, 4),
+    ]
+
+    table = build_snapshot(plan, revision, None, "default-1", entities, [seven, two, unplaced])[
+        "evidence_table"
+    ]
+
+    assert table == [
+        {
+            "evidence_id": str(two.id),
+            "evidence_number": 2,
+            "entity_id": str(symbol.id),
+            "label": "Mancha",
+            "x_m": 4.5,
+            "y_m": 2.0,
+            "metric_origin": "triangulation",
+        },
+        {
+            "evidence_id": str(seven.id),
+            "evidence_number": 7,
+            "entity_id": str(entities[0].id),
+            "label": "Casquillo",
+            "x_m": 1.25,
+            "y_m": -0.5,
+            "metric_origin": "scaled_drawing",
+        },
+    ]
+
+
+def test_evidence_of_another_case_file_is_rejected() -> None:
+    plan, revision = pure_inputs()
+    foreign = Evidence(id=uuid.UUID(int=70), number=7, label="Casquillo")
+
+    with pytest.raises(SnapshotError, match="evidence"):
+        build_snapshot(plan, revision, None, "default-1", [evidence_point(1, foreign)])
+
+
 # --- Freeze --------------------------------------------------------------------------------
+
+
+def test_freeze_fills_the_evidence_table_from_the_case_register(
+    factory: sessionmaker[Session], plan_id: uuid.UUID, user: User
+) -> None:
+    with factory() as db:
+        plan, revision = load(db, plan_id)
+        found = Evidence(
+            case_file_id=plan.case_file_id, number=1, label="Huella", created_by=user.id
+        )
+        db.add(found)
+        db.flush()
+        point = evidence_point(5, found, revision.id)
+        db.add(point)
+        db.flush()
+        frozen = service.freeze(db, revision, user)
+        db.commit()
+        snapshot, digest = frozen.snapshot, frozen.snapshot_sha256
+
+    assert snapshot is not None
+    assert snapshot["evidence_table"] == [
+        {
+            "evidence_id": str(found.id),
+            "evidence_number": 1,
+            "entity_id": str(point.id),
+            "label": "Huella",
+            "x_m": 6.25,
+            "y_m": -0.5,
+            "metric_origin": "scaled_drawing",
+        }
+    ]
+    assert snapshot_sha256(snapshot) == digest
 
 
 def test_frozen_snapshot_read_back_from_the_database_has_identical_bytes(

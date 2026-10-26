@@ -12,14 +12,16 @@
 #   GET http://127.0.0.1:8000/healthz inside api    -> 200 (api -> db)
 #
 # Secrets are throwaway random values generated in memory and exported only to this
-# process and its children; they are never written to disk. The stack, including its
-# volumes, is always removed on exit (`down -v`) unless KEEP_UP=1.
+# process and its children; they are never written to disk. The signing key is generated
+# inside the image (CLI `generate-signing-key --if-missing`, as user `app`, mode 0600) on
+# the `signing-keys` volume before `up`; it never touches the host. The stack, including
+# its volumes, is always removed on exit (`down -v`) unless KEEP_UP=1.
 #
 # Optional environment variables:
 #   WEB_PORT          host port of the web service (default 18080)
 #   APP_ENV           application environment (default dev)
-#   SIGNING_KEY_PATH  signing key path passed to the api (default placeholder; the key
-#                     file is not read until H4)
+#   SIGNING_KEY_PATH  signing key path inside the containers (default
+#                     /app/keys/signing-key.pem, on the `signing-keys` volume)
 #   KEEP_UP=1         leave the stack running after the checks
 #   MAX_UP_SECONDS    limit for elapsed_seconds (default 90)
 #
@@ -33,7 +35,7 @@ PROJECT="sketch2cad"
 MAX_UP_SECONDS="${MAX_UP_SECONDS:-90}"
 export WEB_PORT="${WEB_PORT:-18080}"
 export APP_ENV="${APP_ENV:-dev}"
-export SIGNING_KEY_PATH="${SIGNING_KEY_PATH:-/run/sketch2cad/signing-key.pem}"
+export SIGNING_KEY_PATH="${SIGNING_KEY_PATH:-/app/keys/signing-key.pem}"
 POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 SESSION_SECRET="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD SESSION_SECRET
@@ -69,6 +71,10 @@ build_start=$(date +%s)
 compose build
 build_seconds=$(( $(date +%s) - build_start ))
 echo "build_seconds=${build_seconds}"
+
+echo "Signing key: generate-signing-key --if-missing (inside the image, not timed)"
+compose run --rm --no-deps api python -m sketch2cad.cli generate-signing-key --if-missing \
+  || fail "could not create the signing key"
 
 echo "Step 2/3: docker compose up -d --wait"
 up_start=$(date +%s)

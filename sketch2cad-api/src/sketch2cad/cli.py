@@ -5,11 +5,17 @@ Commands:
 - ``create-user --username NAME --role admin|technician|reviewer [--display-name NAME]``
   reads the password from stdin (first line; prompted twice when stdin is a terminal),
   hashes it with Argon2id and inserts an active user.
+- ``generate-signing-key [--path PATH] [--if-missing]`` creates the Ed25519 signing key
+  file (mode 0600) at ``PATH`` (default ``$SIGNING_KEY_PATH``) and prints its public key
+  id and public key; it never overwrites a file and never prints the private key. With
+  ``--if-missing`` an existing valid key file is kept (exit 0).
 
 Exit status: 0 on success, 1 on runtime errors (duplicate username, empty password,
-missing ``DATABASE_URL``, database failure), 2 on usage errors (argparse).
+missing ``DATABASE_URL``, database failure, existing or unsafe key file), 2 on usage
+errors (argparse).
 
-Only ``DATABASE_URL`` is read from the environment; the full application settings are
+``create-user`` reads only ``DATABASE_URL`` and ``generate-signing-key`` only
+``SIGNING_KEY_PATH`` from the environment; the full application settings are
 not required. Connection parameters such as ``options=-csearch_path=...`` may be given
 in the URL query string.
 """
@@ -28,6 +34,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from sketch2cad.auth.passwords import hash_password
 from sketch2cad.db.models import User, UserRole
 from sketch2cad.db.session import create_db_engine, create_session_factory
+from sketch2cad.package.signing import (
+    SIGNING_KEY_ENV,
+    SigningKeyError,
+    encode_public_key,
+    generate_signing_key,
+    load_signing_key,
+    public_key_id,
+)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -77,6 +91,20 @@ def build_parser() -> argparse.ArgumentParser:
     create_user.add_argument("--role", required=True, choices=[role.value for role in UserRole])
     create_user.add_argument("--display-name", default=None)
     _add_rejected_password_option(create_user)
+
+    signing_key = commands.add_parser(
+        "generate-signing-key",
+        help="create the Ed25519 signing key file (mode 0600)",
+        description="Create the Ed25519 signing key file with mode 0600. Never overwrites.",
+    )
+    signing_key.add_argument(
+        "--path", default=None, help=f"key file path (default: ${SIGNING_KEY_ENV})"
+    )
+    signing_key.add_argument(
+        "--if-missing",
+        action="store_true",
+        help="keep an existing valid key file instead of failing",
+    )
     return parser
 
 
@@ -162,6 +190,30 @@ def _create_user_command(
     return EXIT_OK
 
 
+def _generate_signing_key_command(args: argparse.Namespace) -> int:
+    path: str = args.path or os.environ.get(SIGNING_KEY_ENV, "")
+    if not path:
+        raise CliError(f"no key path: pass --path or set {SIGNING_KEY_ENV}")
+    try:
+        if args.if_missing and (os.path.exists(path) or os.path.islink(path)):
+            key = load_signing_key(path)
+            action = "kept existing"
+        else:
+            key = generate_signing_key(path)
+            action = "created"
+    except SigningKeyError as exc:
+        raise CliError(str(exc)) from None
+    except OSError as exc:
+        raise CliError(
+            f"cannot write signing key file {path} ({exc.strerror or type(exc).__name__})"
+        ) from None
+    public_key = key.public_key()
+    print(f"{action} signing key file {path}")
+    print(f"public_key_id={public_key_id(public_key)}")
+    print(f"public_key={encode_public_key(public_key)}")
+    return EXIT_OK
+
+
 def run(
     argv: Sequence[str],
     stdin: TextIO,
@@ -180,6 +232,8 @@ def run(
     try:
         if args.command == "create-user":
             return _create_user_command(args, stdin, session_factory, read_secret)
+        if args.command == "generate-signing-key":
+            return _generate_signing_key_command(args)
     except CliError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_ERROR

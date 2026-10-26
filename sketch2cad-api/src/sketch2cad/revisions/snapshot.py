@@ -13,7 +13,11 @@ round trip exact, every number must be finite and inside the IEEE 754 safe integ
 (``|x| < 2**53``): a larger float would come back from JSONB as an integer that JCS
 rejects. :func:`build_snapshot` raises :class:`SnapshotError` otherwise.
 
-``evidence_table`` stays empty until the evidence register (H3) exists.
+``evidence_table`` has one row per live entity that places evidence of the case
+(``evidence_id`` set): the evidence id, number and label, the entity id, the position in
+local-frame metres (``coords_m[0]`` of a point, ``anchor_m`` of a symbol) and the entity
+``metric_origin``, sorted by evidence number and then entity id. Evidence that no entity of
+the revision places has no row.
 """
 
 import hashlib
@@ -25,7 +29,7 @@ from typing import Any, cast
 import rfc8785
 
 from sketch2cad.audit.canonical import format_timestamp, format_uuid
-from sketch2cad.db.models import Calibration, Entity, Plan, Revision
+from sketch2cad.db.models import Calibration, Entity, Evidence, Plan, Revision
 
 SCHEMA_VERSION = "2.0"
 SAFE_MAGNITUDE = 2**53
@@ -73,16 +77,56 @@ def entity_json(entity: Entity, revision_number: int) -> dict[str, Any]:
     }
 
 
+def _evidence_position(entity: Entity) -> tuple[Any, Any]:
+    geometry = entity.geometry
+    x, y = geometry["anchor_m"] if entity.type == "symbol" else geometry["coords_m"][0]
+    return x, y
+
+
+def evidence_table(
+    entities: Iterable[Entity], evidence: Iterable[Evidence]
+) -> list[dict[str, Any]]:
+    """Rows of the spec section 8.3 ``evidence_table`` for the live ``entities``.
+
+    Raises :class:`SnapshotError` when an entity places evidence missing from ``evidence``
+    (evidence of another case file).
+    """
+    register = {item.id: item for item in evidence}
+    rows: list[dict[str, Any]] = []
+    for entity in entities:
+        if entity.evidence_id is None or entity.deleted_at is not None:
+            continue
+        item = register.get(entity.evidence_id)
+        if item is None:
+            raise SnapshotError(f"entity {entity.id}: evidence {entity.evidence_id} is unknown")
+        x_m, y_m = _evidence_position(entity)
+        rows.append(
+            {
+                "evidence_id": str(item.id),
+                "evidence_number": item.number,
+                "entity_id": str(entity.id),
+                "label": item.label,
+                "x_m": x_m,
+                "y_m": y_m,
+                "metric_origin": entity.metric_origin,
+            }
+        )
+    return sorted(rows, key=lambda row: (row["evidence_number"], row["entity_id"]))
+
+
 def build_snapshot(
     plan: Plan,
     revision: Revision,
     calibration: Calibration | None,
     catalog_version: str,
     entities: Iterable[Entity],
+    evidence: Iterable[Evidence] = (),
 ) -> dict[str, Any]:
     """The snapshot of ``revision``; soft-deleted entities are left out.
 
-    Raises :class:`SnapshotError` when a number cannot round-trip (see module docstring).
+    ``evidence`` is the register of the plan's case file (:func:`evidence_table`). Raises
+    :class:`SnapshotError` when a number cannot round-trip (see module docstring) or an
+    entity places unknown evidence.
     """
     live = sorted((e for e in entities if e.deleted_at is None), key=lambda e: str(e.id))
     snapshot: dict[str, Any] = {
@@ -95,7 +139,7 @@ def build_snapshot(
         "local_frame": None if calibration is None else calibration.local_frame,
         "catalog_version": catalog_version,
         "entities": [entity_json(entity, revision.number) for entity in live],
-        "evidence_table": [],
+        "evidence_table": evidence_table(live, evidence),
     }
     _check_numbers(snapshot, "$")
     return snapshot
