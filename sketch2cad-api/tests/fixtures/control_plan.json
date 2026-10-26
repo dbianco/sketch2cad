@@ -1,0 +1,65 @@
+{
+  "description": "Control-distance plan (CA-07, H4-3): a 14 x 10 m outline with three control segments on L_CONTROL (horizontal 12.000 m, vertical 7.500 m, diagonal 6-8-10 = 10.000 m) plus other geometry. Entity numbers become fixed UUIDs (tests/export/dxf_snapshots.py).",
+  "paper_scale": 100,
+  "entities": [
+    {
+      "number": 1,
+      "type": "polyline",
+      "layer": "L_STRUCTURE",
+      "geometry": {"coords_m": [[0.0, 0.0], [14.0, 0.0], [14.0, 10.0], [0.0, 10.0]], "closed": true}
+    },
+    {
+      "number": 2,
+      "type": "line",
+      "layer": "L_ACCESS",
+      "geometry": {"coords_m": [[5.0, 10.0], [6.2, 10.0]]}
+    },
+    {
+      "number": 3,
+      "type": "point",
+      "layer": "L_CONTROL",
+      "geometry": {"coords_m": [[1.0, 1.0]]}
+    },
+    {
+      "number": 4,
+      "type": "dimension",
+      "layer": "L_DIMENSIONS",
+      "geometry": {
+        "p1_m": [1.0, 1.0],
+        "p2_m": [13.0, 1.0],
+        "offset_m": -0.5,
+        "declared_value_m": 12.0,
+        "measured_value_m": 12.0
+      }
+    },
+    {
+      "number": 5,
+      "type": "text",
+      "layer": "L_TEXT",
+      "geometry": {"anchor_m": [2.0, 8.5], "rotation_deg": 0.0, "height_mm_paper": 2.5, "content": "Distancias de control"}
+    },
+    {
+      "number": 11,
+      "type": "line",
+      "layer": "L_CONTROL",
+      "geometry": {"coords_m": [[1.0, 1.0], [13.0, 1.0]]}
+    },
+    {
+      "number": 12,
+      "type": "line",
+      "layer": "L_CONTROL",
+      "geometry": {"coords_m": [[13.0, 1.5], [13.0, 9.0]]}
+    },
+    {
+      "number": 13,
+      "type": "polyline",
+      "layer": "L_CONTROL",
+      "geometry": {"coords_m": [[1.5, 1.5], [7.5, 9.5]], "closed": false}
+    }
+  ],
+  "control_segments": [
+    {"name": "horizontal", "entity": 11, "expected_m": 12.0},
+    {"name": "vertical", "entity": 12, "expected_m": 7.5},
+    {"name": "diagonal", "entity": 13, "expected_m": 10.0}
+  ]
+}
