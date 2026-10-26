@@ -4,7 +4,7 @@
 //
 // Pointer: with the Select tool a press on an entity selects it and a press on the background
 // pans; drawing tools take every primary-button press, so with them the canvas pans with the
-// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S, F) and the
+// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S, F, D) and the
 // active tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work anywhere
 // except while typing in a field. The snap settings panel configures snapping for every tool.
 // The plan store (plan/planStore.ts) gives the local frame: the north arrow is drawn over the
@@ -28,6 +28,7 @@ import { SnapSettings, snapSettings, type SnapSettingsStore } from "./panels/Sna
 import { SymbolPicker, symbolPicker, type SymbolPickerStore } from "./panels/SymbolPicker";
 import { planStore, type PlanStore } from "./plan/planStore";
 import { editorStore, type EditorStore } from "./store/entities";
+import { createFixLengthTool } from "./tools/FixLengthTool";
 import { createLineTool } from "./tools/LineTool";
 import { LocalFramePanel, createLocalFrameTool } from "./tools/LocalFrameTool";
 import { createPointTool, createTextTool } from "./tools/PointTextTools";
@@ -52,6 +53,7 @@ export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => E
   text: createTextTool,
   symbol: createSymbolTool,
   frame: createLocalFrameTool,
+  fixlength: createFixLengthTool,
 };
 
 export type EditorWorkspaceProps = Omit<
@@ -63,7 +65,7 @@ export type EditorWorkspaceProps = Omit<
   snap?: StoreApi<SnapSettingsStore>;
   symbols?: StoreApi<SymbolPickerStore>;
   plan?: StoreApi<PlanStore>;
-  /** API client of the local frame panel; the same-origin client by default. */
+  /** API client of the local frame panel and the fix-length tool; the same-origin client by default. */
   api?: ApiClient;
 };
 
@@ -88,8 +90,8 @@ export function EditorWorkspace({
     () =>
       readOnly
         ? undefined
-        : TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap, symbols, paperScale }),
-    [readOnly, activeTool, store, ui, catalog, snap, symbols, paperScale],
+        : TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap, symbols, paperScale, api }),
+    [readOnly, activeTool, store, ui, catalog, snap, symbols, paperScale, api],
   );
 
   useEffect(() => {

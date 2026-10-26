@@ -13,6 +13,7 @@ export const TOOL_SHORTCUTS: Readonly<Record<ToolId, string>> = {
   text: "T",
   symbol: "S",
   frame: "F",
+  fixlength: "D",
 };
 
 /** Tools that place points on the canvas, so the keyboard cursor drives them. */
@@ -23,6 +24,7 @@ export const CURSOR_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
   "text",
   "symbol",
   "frame",
+  "fixlength",
 ]);
 
 /** Key that opens the keyboard help. */
@@ -100,6 +102,7 @@ const TOOL_NAMES: Readonly<Record<ToolId, string>> = {
   text: "Texto",
   symbol: "Símbolo",
   frame: "Sistema local",
+  fixlength: "Fijar longitud",
 };
 
 /** Everything the keyboard help lists, in Spanish. */
@@ -140,6 +143,11 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       },
       { keys: "Seleccionar: Supr o Retroceso", description: "Borrar la selección" },
       { keys: "Vértices: Tab y flechas", description: "Elegir un vértice y moverlo" },
+      {
+        keys: "Fijar longitud: Intro, Intro",
+        description: "Elegir el segmento y después su vértice ancla (o Tab hasta el extremo)",
+      },
+      { keys: "Fijar longitud: Esc", description: "Cancelar el segmento elegido" },
     ],
   },
   {

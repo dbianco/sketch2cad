@@ -412,6 +412,7 @@ describe("palette", () => {
       "Texto",
       "Símbolo",
       "Sistema local",
+      "Fijar longitud",
     ]);
     for (const [index, button] of buttons.entries()) {
       expect(button.getAttribute("title")).toBe(
