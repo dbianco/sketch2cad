@@ -144,6 +144,24 @@ def test_crossing_strokes_merge_collinear_branches() -> None:
         assert endpoint_error(polyline, segment) < TOLERANCE_PX
 
 
+@pytest.mark.parametrize("angle_deg", [30, 45, 60])
+@pytest.mark.parametrize("thickness", [3, 6])
+def test_oblique_crossing_keeps_both_strokes_whole(angle_deg: int, thickness: int) -> None:
+    # An oblique crossing skeletonizes into two 3-way junctions a few px apart.
+    angle = math.radians(angle_deg)
+    centre, half = (1000.0, 700.0), 450.0
+    dx, dy = half * math.cos(angle), half * math.sin(angle)
+    horizontal = ((200.0, 700.0), (1800.0, 700.0))
+    oblique = ((centre[0] - dx, centre[1] - dy), (centre[0] + dx, centre[1] + dy))
+    result = suggest_polylines(draw(paper(), [horizontal, oblique], thickness))
+
+    assert len(result) == 2
+    for segment in (horizontal, oblique):
+        polyline = min(result, key=lambda p: max_deviation(p, segment))
+        assert max_deviation(polyline, segment) < TOLERANCE_PX
+        assert endpoint_error(polyline, segment) < TOLERANCE_PX
+
+
 def test_t_junction_keeps_the_bar_whole_and_the_stem_separate() -> None:
     bar, stem = ((200.0, 400.0), (1800.0, 400.0)), ((1000.0, 400.0), (1000.0, 1200.0))
     result = suggest_polylines(draw(paper(), [bar, stem]))

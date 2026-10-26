@@ -9,6 +9,10 @@ instead of with ``sknw`` (unmaintained since 2022 and pulling numba/llvmlite):
   each end; closed loops without any node are traced as closed paths;
 * spurs (an edge from an endpoint to a junction) and self-loops shorter than the minimum
   length are pruned until none is left;
+* junctions joined by an edge of at most ``JUNCTION_MERGE_PX`` are contracted into one
+  node (that edge is dropped): an oblique crossing of two thick strokes skeletonizes into
+  two 3-way junctions a few pixels apart, and only as one 4-way node can the collinear
+  branches be paired;
 * edges are joined into paths through every node of degree 2 (a pass-through, typically a
   corner whose spur was pruned) and, at junctions of degree 3 or more, through the pairs
   of branches whose directions are collinear within ``merge_angle_deg`` (closest first),
@@ -35,6 +39,9 @@ PathXY = list[tuple[int, int]]
 
 DIRECTION_SPAN_PX = 20
 """Pixels from a node used to estimate the direction of a branch (2 mm at 10 px/mm)."""
+
+JUNCTION_MERGE_PX = 20
+"""Junctions joined by an edge this short or shorter (2 mm at 10 px/mm) are one node."""
 
 _OFFSETS = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
 _Pixel = tuple[int, int]
@@ -72,7 +79,7 @@ def skeleton_paths(mask: Mask, *, min_length_px: float, merge_angle_deg: float) 
     found = cast(Any, cv2.connectedComponents(nodes, connectivity=8, ltype=cv2.CV_32S))
     labels: npt.NDArray[np.int32] = np.asarray(found[1], dtype=np.int32)
     visited = np.zeros(skeleton.shape, dtype=np.bool_)
-    edges = _prune(_trace_edges(skeleton, labels, visited), min_length_px)
+    edges = _contract_junctions(_prune(_trace_edges(skeleton, labels, visited), min_length_px))
     paths = _join(edges, merge_angle_deg) + _trace_loops(skeleton, visited)
     return [[(col - 1, row - 1) for row, col in path] for path in paths]
 
@@ -154,6 +161,41 @@ def _prune(edges: list[_Edge], min_length_px: float) -> list[_Edge]:
         if len(keep) == len(alive):
             return [edges[i] for i in alive]
         alive = keep
+
+
+def _contract_junctions(edges: list[_Edge]) -> list[_Edge]:
+    """Merge junctions (degree >= 3) linked by an edge of at most ``JUNCTION_MERGE_PX``.
+
+    The linking edges are dropped and the other edges are re-attached to the merged node,
+    so joined paths jump the few pixels between the original junctions.
+    """
+    degree = Counter(node for edge in edges for node in (edge.start, edge.end))
+    root: dict[int, int] = {}
+
+    def find(node: int) -> int:
+        while root.get(node, node) != node:
+            node = root[node]
+        return node
+
+    dropped: set[int] = set()
+    for i, edge in enumerate(edges):
+        if (
+            edge.start != edge.end
+            and degree[edge.start] >= 3
+            and degree[edge.end] >= 3
+            and pixel_length(edge.pixels) <= JUNCTION_MERGE_PX
+        ):
+            dropped.add(i)
+            a, b = find(edge.start), find(edge.end)
+            if a != b:
+                root[max(a, b)] = min(a, b)
+    if not dropped:
+        return edges
+    return [
+        _Edge(find(edge.start), find(edge.end), edge.pixels)
+        for i, edge in enumerate(edges)
+        if i not in dropped
+    ]
 
 
 def _direction(edge: _Edge, at_start: bool) -> tuple[float, float] | None:
