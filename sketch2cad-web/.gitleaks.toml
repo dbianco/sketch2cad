@@ -11,6 +11,10 @@
 #   gitleaks detect --source . --config .gitleaks.toml                     -> fixtures excluded
 #   gitleaks detect --no-git --source tests/fixtures --config .gitleaks.toml -> fixture reported
 # (in --no-git mode the path is "tests/fixtures/...", which the anchors do not match).
+# One more exclusion (2026-10-26): the generic-api-key rule flags the type annotations
+# `signing_key: Ed25519PrivateKey` / `key: Ed25519PrivateKey` (package/build.py and
+# tests/package/test_verifier.py) as secrets. They are code, not keys; the regex below matches
+# only whole lines of that exact shape.
 # Do not add other entries without a reviewed justification.
 
 title = "sketch2cad-web"
@@ -21,3 +25,5 @@ useDefault = true
 [allowlist]
 description = "Deliberately fake secrets used to test the scanner"
 paths = ['''^sketch2cad-web/tests/fixtures/''', '''^sketch2cad-api/tests/fixtures/''']
+regexTarget = "line"
+regexes = ['''^\s*(signing_)?key: Ed25519PrivateKey\s*$''']
