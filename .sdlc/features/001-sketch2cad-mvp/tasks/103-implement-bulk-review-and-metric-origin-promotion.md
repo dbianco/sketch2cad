@@ -1,7 +1,7 @@
 ---
 id: 001-103
 title: "Implement bulk review and metric-origin promotion"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-102, 001-076]
