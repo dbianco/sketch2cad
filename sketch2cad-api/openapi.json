@@ -612,7 +612,7 @@
       },
       "DimensionGeometry": {
         "additionalProperties": false,
-        "description": "``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.",
+        "description": "``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.\n\nA client-sent ``measured_value_m`` is ignored and replaced by the ``p1_m``-``p2_m``\ndistance; ``declared_value_m`` is kept as sent (``sketch2cad.entities.dimensions``).",
         "properties": {
           "declared_value_m": {
             "anyOf": [
@@ -1117,7 +1117,7 @@
         "type": "string"
       },
       "EntityOut": {
-        "description": "An entity of spec section 8.2; ``created_by`` is null for system entities.",
+        "description": "An entity of spec section 8.2; ``created_by`` is null for system entities.\n\n``discrepancy`` is set for dimensions only (null for other types): true when\n``|declared_value_m - measured_value_m|`` exceeds ``dimension.discrepancy_tolerance_m``.\nIt is computed on every read and never stored.",
         "properties": {
           "attributes": {
             "additionalProperties": true,
@@ -1170,6 +1170,17 @@
               }
             ],
             "title": "Deleted At"
+          },
+          "discrepancy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discrepancy"
           },
           "evidence_id": {
             "anyOf": [
@@ -1294,7 +1305,8 @@
           "metric_origin",
           "created_by",
           "updated_at",
-          "deleted_at"
+          "deleted_at",
+          "discrepancy"
         ],
         "title": "EntityOut",
         "type": "object"
@@ -1677,6 +1689,17 @@
             ],
             "title": "Deleted At"
           },
+          "discrepancy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discrepancy"
+          },
           "evidence_id": {
             "anyOf": [
               {
@@ -1800,7 +1823,8 @@
           "metric_origin",
           "created_by",
           "updated_at",
-          "deleted_at"
+          "deleted_at",
+          "discrepancy"
         ],
         "title": "EntityPatchOut",
         "type": "object"

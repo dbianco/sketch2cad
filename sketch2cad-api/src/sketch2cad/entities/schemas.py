@@ -6,7 +6,6 @@ strings are never coerced. ``dimension.measured_value_m`` is always recomputed f
 ``p1_m`` and ``p2_m``: the server is the authority on measurements.
 """
 
-import math
 import uuid
 from datetime import datetime
 from enum import StrEnum
@@ -25,6 +24,7 @@ from pydantic import (
 
 from sketch2cad.catalog.schema import ATTRIBUTE_NAME, LAYER_NAME, SYMBOL_ID
 from sketch2cad.db.models import EntityType, MetricOrigin, ReviewStatus
+from sketch2cad.entities.dimensions import measured_length
 
 # One request carries at most the entity count the editor is sized for (spec section 17).
 MAX_ENTITIES_PER_REQUEST = 2000
@@ -107,7 +107,11 @@ class TextGeometry(_Strict):
 
 
 class DimensionGeometry(_Strict):
-    """``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed."""
+    """``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.
+
+    A client-sent ``measured_value_m`` is ignored and replaced by the ``p1_m``-``p2_m``
+    distance; ``declared_value_m`` is kept as sent (``sketch2cad.entities.dimensions``).
+    """
 
     kind: Literal["dimension"]
     p1_m: Coordinate
@@ -118,8 +122,7 @@ class DimensionGeometry(_Strict):
 
     @model_validator(mode="after")
     def _measure(self) -> "DimensionGeometry":
-        (x1, y1), (x2, y2) = self.p1_m, self.p2_m
-        self.measured_value_m = math.hypot(x2 - x1, y2 - y1)
+        self.measured_value_m = measured_length(self.p1_m, self.p2_m)
         return self
 
 
@@ -256,7 +259,12 @@ class EntitySource(BaseModel):
 
 
 class EntityOut(BaseModel):
-    """An entity of spec section 8.2; ``created_by`` is null for system entities."""
+    """An entity of spec section 8.2; ``created_by`` is null for system entities.
+
+    ``discrepancy`` is set for dimensions only (null for other types): true when
+    ``|declared_value_m - measured_value_m|`` exceeds ``dimension.discrepancy_tolerance_m``.
+    It is computed on every read and never stored.
+    """
 
     id: uuid.UUID
     revision_id: uuid.UUID
@@ -276,6 +284,7 @@ class EntityOut(BaseModel):
     created_by: uuid.UUID | None
     updated_at: datetime
     deleted_at: datetime | None
+    discrepancy: bool | None
 
 
 class EntityPatchOut(EntityOut):
