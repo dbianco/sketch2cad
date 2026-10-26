@@ -40,6 +40,10 @@ RUN useradd --uid 10001 --user-group --no-create-home --home-dir /app --shell /u
 # ownership, so the unprivileged user can write objects.
 RUN mkdir -p /app/storage && chown app:app /app/storage
 
+# Mount point of the `signing-keys` volume (SIGNING_KEY_PATH lives here in compose);
+# private to `app`, so the generated key file stays owner-only.
+RUN mkdir -p /app/keys && chown app:app /app/keys && chmod 700 /app/keys
+
 WORKDIR /app
 
 COPY --from=build /app/.venv ./.venv
@@ -52,5 +56,6 @@ USER app
 EXPOSE 8000
 
 # Default command (the `api` service); compose overrides it to run migrations
-# first, and the `worker` service runs the Procrastinate worker instead.
-CMD ["uvicorn", "--factory", "sketch2cad.api:create_app", "--host", "0.0.0.0", "--port", "8000"]
+# first, and the `worker` service runs the Procrastinate worker instead. Both refuse to
+# start without a mode-0600 key file at SIGNING_KEY_PATH.
+CMD ["uvicorn", "--factory", "sketch2cad.api:create_server_app", "--host", "0.0.0.0", "--port", "8000"]

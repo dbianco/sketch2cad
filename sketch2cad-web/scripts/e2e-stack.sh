@@ -11,7 +11,9 @@
 #
 # Secrets: POSTGRES_PASSWORD and SESSION_SECRET are throwaway random values generated in
 # memory and exported only to this process and its children (same as
-# sketch2cad-api/scripts/compose_smoke.sh). The E2E user's random password is written only
+# sketch2cad-api/scripts/compose_smoke.sh). The signing key is generated inside the image
+# (`generate-signing-key --if-missing`, mode 0600) on the `signing-keys` volume, never on
+# the host. The E2E user's random password is written only
 # to a mode-600 file inside E2E_STATE_DIR (default: a new `mktemp -d` directory outside the
 # repository); it is never printed. `up` prints the path of that file on its last line as
 # `E2E_CREDENTIALS_FILE=<path>`. The file holds two lines: username and password.
@@ -19,7 +21,8 @@
 # Optional environment variables:
 #   WEB_PORT          host port of the web service (default 18080)
 #   APP_ENV           application environment (default dev)
-#   SIGNING_KEY_PATH  signing key path passed to the api (default placeholder, unused in H0)
+#   SIGNING_KEY_PATH  signing key path inside the containers (default
+#                     /app/keys/signing-key.pem, on the `signing-keys` volume)
 #   E2E_STATE_DIR     existing private directory for the credentials file
 #   E2E_REUSE=1       reuse an already running `sketch2cad` project instead of refusing; the
 #                     stack is not rebuilt and only the user is created
@@ -35,7 +38,7 @@ cd "$api_dir"
 PROJECT="sketch2cad"
 export WEB_PORT="${WEB_PORT:-18080}"
 export APP_ENV="${APP_ENV:-dev}"
-export SIGNING_KEY_PATH="${SIGNING_KEY_PATH:-/run/sketch2cad/signing-key.pem}"
+export SIGNING_KEY_PATH="${SIGNING_KEY_PATH:-/app/keys/signing-key.pem}"
 
 compose() {
   docker compose -p "$PROJECT" "$@"
@@ -85,9 +88,12 @@ cmd_up() {
     POSTGRES_PASSWORD="$(openssl rand -hex 24)"
     SESSION_SECRET="$(openssl rand -hex 32)"
     export POSTGRES_PASSWORD SESSION_SECRET
-    echo "docker compose up -d --build --wait"
+    echo "docker compose build, generate-signing-key --if-missing, up -d --wait"
     up_start=$(date +%s)
-    compose up -d --build --wait --wait-timeout 300 || {
+    compose build || fail "docker compose build failed"
+    compose run --rm --no-deps api python -m sketch2cad.cli generate-signing-key --if-missing \
+      || fail "could not create the signing key"
+    compose up -d --wait --wait-timeout 300 || {
       compose ps -a >&2 || true
       fail "docker compose up --wait failed"
     }

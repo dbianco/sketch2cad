@@ -10,6 +10,9 @@ x-app-environment: &app-environment
   # Object storage: objects/ and tmp/ must share one filesystem (hard-link publishing),
   # so the whole root is one volume.
   STORAGE_ROOT: /app/storage
+  # Ed25519 signing key (mode 0600). api and worker refuse to start when it is missing or
+  # its mode is wider; create it once with `generate-signing-key` (docs/running-locally.md).
+  SIGNING_KEY_PATH: ${SIGNING_KEY_PATH:?SIGNING_KEY_PATH is required}
 
 services:
   db:
@@ -36,14 +39,14 @@ services:
     command:
       - sh
       - -c
-      - alembic upgrade head && exec uvicorn --factory sketch2cad.api:create_app --host 0.0.0.0 --port 8000
+      - alembic upgrade head && exec uvicorn --factory sketch2cad.api:create_server_app --host 0.0.0.0 --port 8000
     environment:
       <<: *app-environment
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
-      SIGNING_KEY_PATH: ${SIGNING_KEY_PATH:?SIGNING_KEY_PATH is required}
       APP_ENV: ${APP_ENV:?APP_ENV is required}
     volumes:
       - objects:/app/storage
+      - signing-keys:/app/keys
     depends_on:
       db:
         condition: service_healthy
@@ -66,11 +69,12 @@ services:
     command:
       - sh
       - -c
-      - python -m sketch2cad.worker.app apply-schema && exec procrastinate --app=sketch2cad.worker.app.app worker
+      - python -m sketch2cad.worker.app apply-schema && exec procrastinate --app=sketch2cad.worker.app.worker_app worker
     environment:
       <<: *app-environment
     volumes:
       - objects:/app/storage
+      - signing-keys:/app/keys
     depends_on:
       db:
         condition: service_healthy
@@ -98,3 +102,5 @@ services:
 volumes:
   db-data:
   objects:
+  # Holds the signing key file; owned by `app` with mode 0700 (see Dockerfile).
+  signing-keys:
