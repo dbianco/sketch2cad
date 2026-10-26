@@ -21,7 +21,7 @@ import io
 import json
 import logging
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import cv2
@@ -309,11 +309,21 @@ def _record_internal_failure(factory: sessionmaker[Session], job_id: uuid.UUID) 
             _finish(job, JobStatus.FAILED, INTERNAL_ERROR)
 
 
-def run_rectify_job(factory: sessionmaker[Session], storage: Storage, job_id: uuid.UUID) -> str:
+OnRectified = Callable[[Session, JobMeta, Artifact], None]
+"""Hook run in the job's final transaction after the artifact is stored (chained jobs)."""
+
+
+def run_rectify_job(
+    factory: sessionmaker[Session],
+    storage: Storage,
+    job_id: uuid.UUID,
+    on_success: OnRectified | None = None,
+) -> str:
     """Run the ``rectify`` job ``job_id`` and return its final status.
 
-    Same lifecycle as the ``qc`` job: ``running`` commits first, then the artifact and the
-    final status commit together; a finished job is left untouched. Expected failures end
+    Same lifecycle as the ``qc`` job: ``running`` commits first, then the artifact, the
+    final status and whatever ``on_success`` writes (the worker queues ``suggest_lines``)
+    commit together; a finished job is left untouched. Expected failures end
     ``failed`` with a Spanish ``{cause, action}``; an unexpected error ends ``failed``
     with :data:`INTERNAL_ERROR` and is re-raised.
     """
@@ -334,6 +344,8 @@ def run_rectify_job(factory: sessionmaker[Session], storage: Storage, job_id: uu
                 return job.status
             job.result_ref = str(artifact.id)
             _finish(job, JobStatus.SUCCEEDED)
+            if on_success is not None:
+                on_success(db, job, artifact)
             logger.info("Rectify job %s stored artifact %s", job.id, artifact.id)
             return job.status
     except Exception:

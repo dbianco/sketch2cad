@@ -3112,6 +3112,28 @@
         "title": "PlanCreate",
         "type": "object"
       },
+      "PlanJobIn": {
+        "additionalProperties": false,
+        "description": "A job on a plan; only ``suggest_lines`` for now. Its parameters come from the\nconfiguration (``suggest_lines.*``), so ``params`` must be empty.",
+        "properties": {
+          "kind": {
+            "const": "suggest_lines",
+            "title": "Kind",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "maxProperties": 0,
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "PlanJobIn",
+        "type": "object"
+      },
       "PlanOut": {
         "description": "A plan with its active calibration, edit lease and current revision.\n\n``calibration`` is null until a calibration is accepted. ``lease`` is null while no\nuser holds a valid (unexpired) edit lease.",
         "properties": {
@@ -6204,6 +6226,109 @@
         "summary": "Post Export",
         "tags": [
           "exports"
+        ]
+      }
+    },
+    "/api/v1/plans/{plan_id}/jobs": {
+      "post": {
+        "description": "Relaunch ``suggest_lines`` (202); poll ``GET /jobs/{id}``. Requires ``edit``.\n\nAllowed while no entity of the plan is accepted, corrected or manual, with the plan's\nedit lease. Soft-deletes the pending suggestions (one ``entity.deleted`` event with\ntheir ids), supersedes earlier jobs and queues a new one; it inserts its suggestions\nwith ``suggestions.added``. 404 when ``ai_assist.enabled`` is false.",
+        "operationId": "post_plan_job_api_v1_plans__plan_id__jobs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Csrf"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanJobIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``edit`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist, or AI assist is disabled."
+          },
+          "409": {
+            "description": "The plan is not editable or the user does not hold its edit lease (``V-10``, ``V-12`` with ``holder``, ``lease_required``); it has no calibration (``calibration_required``); an entity is accepted or manual (``suggestions_locked``); or its rectified image is not ready (``rectified_image_pending``)."
+          },
+          "422": {
+            "description": "Invalid body: unknown kind or non-empty params."
+          }
+        },
+        "summary": "Post Plan Job",
+        "tags": [
+          "jobs"
         ]
       }
     },

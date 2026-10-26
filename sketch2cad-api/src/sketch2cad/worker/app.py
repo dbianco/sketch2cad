@@ -17,8 +17,8 @@ access. The API defers jobs through ``app``; the worker process loads ``worker_a
 same app after checking the signing key at ``SIGNING_KEY_PATH`` (missing, or mode wider
 than 0600: exit status 1 naming the path, jotdown H4-11). Registered tasks: ``rasterize``
 (:mod:`sketch2cad.worker.tasks_raster`), ``qc`` (:mod:`sketch2cad.worker.tasks_qc`) and
-``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`) and ``export``
-(:mod:`sketch2cad.worker.tasks_export`).
+``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`), ``suggest_lines``
+(:mod:`sketch2cad.worker.tasks_suggest`) and ``export`` (:mod:`sketch2cad.worker.tasks_export`).
 """
 
 import argparse
@@ -36,7 +36,13 @@ from sqlalchemy.exc import ArgumentError
 
 from sketch2cad.logging import configure_logging
 from sketch2cad.package.signing import require_signing_key
-from sketch2cad.worker import tasks_export, tasks_qc, tasks_raster, tasks_rectify
+from sketch2cad.worker import (
+    tasks_export,
+    tasks_qc,
+    tasks_raster,
+    tasks_rectify,
+    tasks_suggest,
+)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -94,6 +100,7 @@ def create_worker_app(conninfo: str | None = None) -> procrastinate.App:
     tasks_raster.register(app)
     tasks_qc.register(app)
     tasks_rectify.register(app)
+    tasks_suggest.register(app)
     tasks_export.register(app)
     return app
 
