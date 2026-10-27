@@ -1,7 +1,8 @@
 ---
 id: 001-115
 title: "Prepare the validation set: 10 hand-drawn sketches, the printed pattern and the synthetic set"
-status: todo
+status: partial
+unmet: ["validation/sketches holds fewer than 10 hand-drawn sketches (needs the owner's drawings)", "validation/pattern has no oblique photo of the printed pattern", "README tables of declared dimensions are empty templates"]
 milestone: "H6 — Endurecimiento y validación interna"
 repository: sketch2cad
 depends_on: [001-098]
