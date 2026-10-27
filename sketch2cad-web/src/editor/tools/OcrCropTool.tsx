@@ -232,7 +232,7 @@ function targetEnds(context: ToolContext, target: OcrTarget): [Point2, Point2] |
 }
 
 /** Layer of a new dimension: L_DIMENSIONS when the catalog has it, else the drawing layer. */
-function dimensionLayer(context: ToolContext): string | null {
+export function dimensionLayer(context: ToolContext): string | null {
   const ui = context.ui.getState();
   if (!context.catalog.layers.some((layer) => layer.name === DIMENSION_LAYER)) {
     return drawingLayer(ui, context.catalog);

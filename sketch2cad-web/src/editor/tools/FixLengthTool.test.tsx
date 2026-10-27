@@ -12,7 +12,7 @@ import { createEditorStore } from "../store/entities";
 import type { EntityOut, Point2 } from "../store/types";
 import { createEditorUiStore, type ToolId } from "../ui/editorUi";
 import { DISTANCE_MESSAGE } from "../util/parseDistance";
-import { FIX_LENGTH_TEXT } from "./FixLengthTool";
+import { FIX_LENGTH_TEXT, fixLengthSummary } from "./FixLengthTool";
 
 const CATALOG = catalogJson as Catalog;
 const REVISION_ID = "00000000-0000-4000-8000-0000000000r1";
@@ -82,6 +82,7 @@ interface SetupOptions {
   readOnly?: boolean;
   tool?: ToolId;
   locked?: boolean;
+  lockedLayers?: string[];
 }
 
 function setup(options: SetupOptions = {}) {
@@ -101,7 +102,11 @@ function setup(options: SetupOptions = {}) {
   store.getState().load(REVISION_ID, [polylineOut(POLYLINE)]);
   const ui = createEditorUiStore({
     activeTool: options.tool ?? "fixlength",
-    layerFlags: options.locked === true ? { L_STRUCTURE: { visible: true, locked: true } } : {},
+    layerFlags: Object.fromEntries(
+      [...(options.locked === true ? ["L_STRUCTURE"] : []), ...(options.lockedLayers ?? [])].map(
+        (name) => [name, { visible: true, locked: true }],
+      ),
+    ),
   });
   const plan = createPlanStore({ revisionId: REVISION_ID, readOnly: options.readOnly ?? false });
   let viewport: Viewport | null = null;
@@ -290,6 +295,63 @@ describe("fix-length tool", () => {
     fireEvent.keyDown(field(), { key: "Escape" });
     expect(screen.queryByTestId("fix-length-segment")).toBeNull();
     expect(screen.getByText(FIX_LENGTH_TEXT.pickSegment)).toBeTruthy();
+  });
+
+  it("sends the locked layers and reports the connected vertices that moved", async () => {
+    const other = "abcdef12-0000-4000-8000-000000000000";
+    const connected = {
+      tolerance_m: 0.1,
+      moved: [{ entity_id: other, vertex: 0, from_m: [3, 0], to_m: [4.2, 0] }],
+      pinned: [],
+      length_conflicts: [],
+    };
+    const patch = json({ ...polylineOut(STRETCHED), candidates: null, connected });
+    const { calls, click } = setup({ patch, lockedLayers: ["L_ACCESS", "L_ANNOTATIONS"] });
+    click([1.5, 0]);
+    click([0, 0]);
+
+    await enter("4,20");
+
+    expect((calls[0]?.body as Record<string, unknown>).locked_layers).toEqual([
+      "L_ACCESS",
+      "L_ANNOTATIONS",
+    ]);
+    const notice = screen.getByText(/Se movió 1 vértice conectado/);
+    expect(notice.textContent).toBe(
+      "Longitud fijada en 4,20 m. Se movió 1 vértice conectado (1 entidad: abcdef12).",
+    );
+    expect(notice.getAttribute("role")).toBe("status");
+  });
+
+  it("warns with ids and metres about pinned vertices and broken declared lengths", () => {
+    const summary = fixLengthSummary(4.8, {
+      tolerance_m: 0.1,
+      moved: [
+        { entity_id: "11111111-a", vertex: 0, from_m: [4, 3], to_m: [4.8, 3] },
+        { entity_id: "22222222-b", vertex: 1, from_m: [4, 3], to_m: [4.8, 3] },
+      ],
+      pinned: [{ entity_id: "33333333-c", vertex: 0, layer: "L_ACCESS", gap_m: 0.8 }],
+      length_conflicts: [
+        {
+          entity_id: "11111111-a",
+          segment: 0,
+          declared_m: 3,
+          actual_m: 3.104,
+          residual_m: 0.104,
+        },
+      ],
+    });
+    expect(summary.warning).toBe(true);
+    expect(summary.text).toBe(
+      "Longitud fijada en 4,80 m. Se movieron 2 vértices conectados (2 entidades: 11111111, " +
+        "22222222). 1 vértice conectado en capas bloqueadas (L_ACCESS) no se movió: queda un " +
+        "hueco de hasta 0,800 m. La longitud declarada 3,00 m del segmento 1 de 11111111 ya no " +
+        "se cumple: mide 3,104 m (diferencia 0,104 m).",
+    );
+    expect(fixLengthSummary(4.8, null)).toEqual({
+      text: "Longitud fijada en 4,80 m",
+      warning: false,
+    });
   });
 
   it("does not pick segments on a locked layer", () => {

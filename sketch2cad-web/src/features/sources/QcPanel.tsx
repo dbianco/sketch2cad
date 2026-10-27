@@ -3,14 +3,23 @@ import type { CSSProperties } from "react";
 /** Semaphore status of the whole QC result and of each check. */
 export type QcStatus = "green" | "amber" | "red";
 
-/** One entry of `source.qc.checks`; `message` is already in Spanish. */
+/**
+ * One entry of `source.qc.checks`; texts are already in Spanish. An amber or red check also
+ * says why (`cause`) and what to do (`action`); both are null for a green check and in results
+ * stored before the API added them.
+ */
 export interface QcCheck {
   name: string;
   status: QcStatus;
   value: number | null;
   threshold: number | null;
   message: string;
+  cause?: string | null;
+  action?: string | null;
 }
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;
 
 /** The `source.qc` JSON written by the QC job. */
 export interface QcResult {
@@ -45,6 +54,8 @@ export function parseQc(raw: unknown): QcResult | null {
       value: typeof check.value === "number" ? check.value : null,
       threshold: typeof check.threshold === "number" ? check.threshold : null,
       message: typeof check.message === "string" ? check.message : "",
+      cause: textOrNull(check.cause),
+      action: textOrNull(check.action),
     });
   }
   return { status, checks: parsed };
@@ -64,12 +75,18 @@ export const STATUS_LABELS: Record<QcStatus, string> = {
   red: "Rojo",
 };
 
-/** What the technician can do for each overall status. */
+/**
+ * What each overall status means. A red result does not stop the automatic suggestions, so the
+ * text says they may be unreliable rather than unavailable; what to do comes from each check.
+ */
 export const STATUS_GUIDANCE: Record<QcStatus, string> = {
   green: "La fuente cumple los controles de calidad.",
   amber: "Las advertencias no te impiden continuar.",
-  red: "La calidad es insuficiente para las sugerencias automáticas. Carga una foto o un escaneo mejor, o continúa en modo manual.",
+  red: "Puedes continuar, pero las sugerencias automáticas pueden ser poco fiables con esta calidad de imagen: revísalas una a una o dibuja a mano.",
 };
+
+/** Label before the action of a check. */
+export const QC_ACTION_LABEL = "Qué hacer:";
 
 const STATUS_COLORS: Record<QcStatus, string> = {
   green: "#145A32",
@@ -125,7 +142,9 @@ function formatValue(check: QcCheck): string {
 
 /** Traffic light of a source: one row per check, then the reasons and what to do. */
 export function QcPanel({ qc }: { qc: QcResult }) {
-  const reasons = qc.checks.filter((check) => check.status !== "green" && check.message !== "");
+  const reasons = qc.checks.filter(
+    (check) => check.status !== "green" && (check.cause ?? check.message) !== "",
+  );
   return (
     <section aria-labelledby="qc-heading" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <p id="qc-heading" style={{ ...styles.summary, color: STATUS_COLORS[qc.status] }}>
@@ -156,7 +175,15 @@ export function QcPanel({ qc }: { qc: QcResult }) {
         {reasons.length > 0 && (
           <ul aria-label="Motivos" style={styles.reasons}>
             {reasons.map((check) => (
-              <li key={check.name}>{check.message}</li>
+              <li key={check.name}>
+                {check.cause ?? check.message}
+                {check.action != null && (
+                  <>
+                    {" "}
+                    <strong>{QC_ACTION_LABEL}</strong> {check.action}
+                  </>
+                )}
+              </li>
             ))}
           </ul>
         )}

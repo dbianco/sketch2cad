@@ -379,8 +379,10 @@ export interface paths {
          *
          *     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
          *     optional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``
-         *     and set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires
-         *     ``edit``.
+         *     and set ``metric_origin``; ``triangulate`` also returns ``candidates``. ``fix_length``
+         *     also moves the connected vertices of other entities and returns them in ``connected``,
+         *     with the vertices pinned on ``locked_layers`` and the declared lengths that broke.
+         *     Requires ``edit``.
          */
         patch: operations["patch_entity_api_v1_entities__entity_id__patch"];
         trace?: never;
@@ -553,7 +555,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Plan Jobs
+         * @description The plan's most recent jobs on its primary source, newest first.
+         *
+         *     At most :data:`PLAN_JOBS_LIMIT` jobs; ``kind`` (repeatable) keeps only those kinds,
+         *     for example ``?kind=rectify&kind=suggest_lines``. A failed job carries
+         *     ``error {cause, action}``. Writes nothing. Requires ``read`` on the plan's case
+         *     file; others get 403 and an ``access.denied`` event.
+         */
+        get: operations["list_plan_jobs_api_v1_plans__plan_id__jobs_get"];
         put?: never;
         /**
          * Post Plan Job
@@ -1188,6 +1199,45 @@ export interface components {
          */
         ConfigScope: "global" | "incident_type";
         /**
+         * ConnectedChangesOut
+         * @description What a ``fix_length`` changed besides the entity (``sketch2cad.entities.connected``).
+         *
+         *     ``tolerance_m`` is the distance within which vertices counted as connected.
+         */
+        ConnectedChangesOut: {
+            /** Length Conflicts */
+            length_conflicts: components["schemas"]["LengthConflictOut"][];
+            /** Moved */
+            moved: components["schemas"]["ConnectedVertexOut"][];
+            /** Pinned */
+            pinned: components["schemas"]["PinnedVertexOut"][];
+            /** Tolerance M */
+            tolerance_m: number;
+        };
+        /**
+         * ConnectedVertexOut
+         * @description A vertex of another entity that followed a ``fix_length`` (``from_m`` → ``to_m``).
+         */
+        ConnectedVertexOut: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** From M */
+            from_m: [
+                number,
+                number
+            ];
+            /** To M */
+            to_m: [
+                number,
+                number
+            ];
+            /** Vertex */
+            vertex: number;
+        };
+        /**
          * DimensionGeometry
          * @description ``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.
          *
@@ -1461,6 +1511,9 @@ export interface components {
          *
          *     - ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and
          *       the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).
+         *       Vertices of other entities connected to a moved vertex follow it
+         *       (``sketch2cad.entities.connected``) except on the optional ``locked_layers`` (the
+         *       layers the editor shows as locked), which stay and are reported.
          *     - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b`` (each a
          *       point or symbol id, or a :class:`VertexRef` ``{entity_id, vertex}``), distances
          *       ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is
@@ -1499,6 +1552,8 @@ export interface components {
             geometry?: (components["schemas"]["LineGeometry"] | components["schemas"]["PolylineGeometry"] | components["schemas"]["PointGeometry"] | components["schemas"]["TextGeometry"] | components["schemas"]["DimensionGeometry"] | components["schemas"]["SymbolGeometry"]) | null;
             /** Layer */
             layer?: string | null;
+            /** Locked Layers */
+            locked_layers?: string[] | null;
             operation: components["schemas"]["EntityOperation"];
             /** Reason */
             reason?: string | null;
@@ -1521,7 +1576,9 @@ export interface components {
          *
          *     ``candidates`` holds the 1 (tangent circles) or 2 intersection points, the first to the
          *     left of the direction from ``ref_a`` to ``ref_b``; ``chosen_candidate`` is the index of
-         *     the one applied. Both are null for every other operation.
+         *     the one applied. Both are null for every other operation. ``connected`` is set by
+         *     ``fix_length`` only: the connected vertices that followed, those pinned on locked
+         *     layers and the declared lengths that no longer hold.
          */
         EntityPatchOut: {
             /** Attributes */
@@ -1537,6 +1594,7 @@ export interface components {
             chosen_candidate?: number | null;
             /** Confidence */
             confidence: number | null;
+            connected?: components["schemas"]["ConnectedChangesOut"] | null;
             /** Constraint */
             constraint: {
                 [key: string]: unknown;
@@ -1825,6 +1883,27 @@ export interface components {
             /** Released */
             released: boolean;
         };
+        /**
+         * LengthConflictOut
+         * @description A declared segment length the edit broke; ``residual_m = |actual_m - declared_m|``.
+         *
+         *     ``actual_m`` and ``residual_m`` are null when the segments were renumbered.
+         */
+        LengthConflictOut: {
+            /** Actual M */
+            actual_m: number | null;
+            /** Declared M */
+            declared_m: number;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Residual M */
+            residual_m: number | null;
+            /** Segment */
+            segment: number;
+        };
         /** LineGeometry */
         LineGeometry: {
             /** Coords M */
@@ -1899,13 +1978,17 @@ export interface components {
          *     ``metric_origin`` is not metric; ``reasons`` maps each of them to its reason code (that
          *     ``metric_origin``: ``trace_only`` or ``none``). A plan without an accepted calibration is
          *     ``non_metric`` with no blocking entity. ``discrepant_dimensions`` lists the dimensions
-         *     whose declared and measured values disagree; they do not change ``status``.
+         *     whose declared and measured values disagree and ``length_conflicts`` the entities whose
+         *     declared segment lengths a ``fix_length`` of a connected entity broke
+         *     (``attributes.length_conflicts``); neither changes ``status``.
          */
         MetricStatusOut: {
             /** Blocking Entities */
             blocking_entities: string[];
             /** Discrepant Dimensions */
             discrepant_dimensions: string[];
+            /** Length Conflicts */
+            length_conflicts: string[];
             /** Reasons */
             reasons: {
                 [key: string]: string;
@@ -2032,6 +2115,23 @@ export interface components {
              */
             type: "bool" | "int" | "float" | "str";
         };
+        /**
+         * PinnedVertexOut
+         * @description A connected vertex on a locked layer that did not follow; ``gap_m`` is left open.
+         */
+        PinnedVertexOut: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Gap M */
+            gap_m: number;
+            /** Layer */
+            layer: string;
+            /** Vertex */
+            vertex: number;
+        };
         /** PlanCreate */
         PlanCreate: {
             /**
@@ -2059,6 +2159,45 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * PlanJobOut
+         * @description A job of a plan as listed by ``GET /plans/{plan_id}/jobs``.
+         */
+        PlanJobOut: {
+            /** Calibration Id */
+            calibration_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            error: components["schemas"]["JobErrorOut"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            result?: components["schemas"]["OcrResultOut"] | null;
+            /** Result Ref */
+            result_ref: string | null;
+            /** Source Id */
+            source_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed";
+        };
+        /**
+         * PlanJobsOut
+         * @description The plan's most recent jobs, newest first (at most :data:`PLAN_JOBS_LIMIT`).
+         */
+        PlanJobsOut: {
+            /** Jobs */
+            jobs: components["schemas"]["PlanJobOut"][];
         };
         /**
          * PlanOut
@@ -3680,6 +3819,55 @@ export interface operations {
             };
             /** @description ``final`` on a plan that is not ``VALIDATED`` (``code`` ``V-11``), or ``draft`` before ``EDITING`` (``code`` ``draft_not_allowed``). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plan_jobs_api_v1_plans__plan_id__jobs_get: {
+        parameters: {
+            query?: {
+                kind?: string[] | null;
+            };
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanJobsOut"];
+                };
+            };
+            /** @description The user lacks ``read`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

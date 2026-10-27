@@ -10,3 +10,6 @@ Decisiones tomadas para la prueba de concepto que deben revisarse al probar con 
 - **Deshacer no cruza operaciones métricas del servidor.** Fijar longitud, triangular y base+offset vacían la pila de deshacer local (001-079).
 - **403 para quien no es miembro.** Un usuario que no es miembro del expediente recibe 403 en lugar de 404 (revela que el recurso existe).
 - **Puntos dibujados a mano nacen `none`.** En un croquis esquemático un punto o símbolo dibujado a mano tiene `metric_origin` `none` hasta fijarlo por triangulación o base+offset.
+- **Herramienta Cota (tecla A).** Crea una cota declarada (`dimension` en `L_DIMENSIONS`) con dos clics o con un clic sobre un segmento; la separación por defecto de la línea de cota es 5 mm de papel (0,50 m a 1:100). Se deshace con Deshacer como cualquier entidad dibujada. La tecla C no se usó porque cierra la polilínea.
+  - El lienzo marca la discrepancia entre valor declarado y medido con la tolerancia por defecto de `dimension.discrepancy_tolerance_m` (0,02 m); un override por tipo de incidente solo se refleja en el panel de estado métrico, que usa el cálculo del servidor.
+  - Una cota cuyos dos puntos coinciden se rechaza con 422 al crearla o editarla (la exportación DXF/PDF no puede dibujarla).

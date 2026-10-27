@@ -43,6 +43,7 @@ export const TOOL_BUTTONS: readonly ToolButton[] = [
     caption: "Fijar longitud",
     shortcut: TOOL_SHORTCUTS.fixlength,
   },
+  { id: "dimension", label: "Cota", caption: "Cota", shortcut: TOOL_SHORTCUTS.dimension },
   {
     id: "triangulate",
     label: "Triangulación",

@@ -15,7 +15,8 @@ previous jobs (``params.superseded_at``); a superseded job finishes ``succeeded`
 inserting anything (``params.result.skipped``). :func:`relaunch` does the same on request
 while no entity is accepted or manual.
 
-The job decodes the image, runs :func:`sketch2cad.vision.suggest_polylines` with the
+The job decodes the image in colour (BGR, so ``suggest_lines.remove_grid`` can drop a
+coloured grid; gray images stay gray), runs :func:`sketch2cad.vision.suggest_polylines` with the
 parameters of the case's incident type, then, under the plan row lock, converts to the
 active calibration's local metres (:mod:`sketch2cad.vision.convert`) and inserts every
 polyline in the current draft revision in ONE transaction with ONE ``suggestions.added``
@@ -69,11 +70,9 @@ from sketch2cad.geometry.frame import LocalFrame
 from sketch2cad.jobs.service import (
     TERMINAL_STATUSES,
     JobError,
-    QcJobError,
     _finish,  # pyright: ignore[reportPrivateUsage]
     _locked_job,  # pyright: ignore[reportPrivateUsage]
     _start,  # pyright: ignore[reportPrivateUsage]
-    decode_image,
 )
 from sketch2cad.plans.service import active_calibration, current_revision, recompute_metric_status
 from sketch2cad.sources.raster import RASTER_DPI
@@ -85,7 +84,7 @@ logger = logging.getLogger(__name__)
 SUGGEST_JOB_KIND = "suggest_lines"
 SUGGEST_TASK_NAME = "suggest_lines"
 VISION_PIPELINE_VERSION = (
-    f"suggest_lines/1 skimage={version('scikit-image')} shapely={version('shapely')} "
+    f"suggest_lines/2 skimage={version('scikit-image')} shapely={version('shapely')} "
     f"opencv={cv2.__version__}"
 )
 """``entity.model_version`` and ``job_meta.model_version`` of the suggestions."""
@@ -412,11 +411,21 @@ def _rectified_pixels(db: Session, storage: Storage, job: JobMeta) -> npt.NDArra
     if artifact is None:
         raise SuggestJobError(RECTIFIED_MISSING, "job has no rectified image")
     try:
-        return decode_image(storage.get(artifact.storage_key))
+        data = storage.get(artifact.storage_key)
     except ObjectNotFoundError as exc:
         raise SuggestJobError(RECTIFIED_MISSING, "rectified image object is missing") from exc
-    except QcJobError as exc:
+    try:
+        decode = rectify_job._decode  # pyright: ignore[reportPrivateUsage]
+        return _rgb_to_bgr(decode(data))
+    except rectify_job.RectifyJobError as exc:
         raise SuggestJobError(UNREADABLE_INPUT, "rectified image does not decode") from exc
+
+
+def _rgb_to_bgr(pixels: npt.NDArray[Any]) -> npt.NDArray[Any]:
+    """Pillow's RGB as the BGR the vision pipeline expects; gray is returned unchanged."""
+    if pixels.ndim == 3 and pixels.shape[2] == 3:
+        return np.ascontiguousarray(pixels[:, :, ::-1])
+    return pixels
 
 
 def _original_pixels(
@@ -440,7 +449,7 @@ def _original_pixels(
         canvas = rectify_job.rectify_image(pixels, matrix, size)
     except rectify_job.RectifyError as exc:
         raise SuggestJobError(IMAGE_UNSUITABLE, str(exc)) from exc
-    return canvas, matrix
+    return _rgb_to_bgr(canvas), matrix
 
 
 def _load_inputs(db: Session, storage: Storage, job: JobMeta) -> _Inputs:

@@ -2,6 +2,7 @@
 // `JobOut` (`error`), announced as an alert, with a button to dismiss it. It only reports: it
 // disables nothing, so the plan stays editable after a failed job. A failed job without `error`
 // gets generic texts, so a failure is never shown as an empty or reassuring message.
+import type { ReactNode } from "react";
 import type { components } from "../../api/schema";
 
 export type JobError = components["schemas"]["JobErrorOut"];
@@ -29,9 +30,16 @@ export interface JobFailureProps {
   title?: string;
   /** Called by the dismiss button; without it there is no button. */
   onDismiss?: () => void;
+  /** Extra content after the action, such as a link to where the user can fix it. */
+  children?: ReactNode;
 }
 
-export function JobFailure({ error, title = JOB_FAILURE_TEXT.title, onDismiss }: JobFailureProps) {
+export function JobFailure({
+  error,
+  title = JOB_FAILURE_TEXT.title,
+  onDismiss,
+  children,
+}: JobFailureProps) {
   return (
     <div
       role="alert"
@@ -45,6 +53,7 @@ export function JobFailure({ error, title = JOB_FAILURE_TEXT.title, onDismiss }:
       <p style={{ margin: "4px 0 0" }}>
         <strong>{JOB_FAILURE_TEXT.action}</strong> {error.action}
       </p>
+      {children}
       {onDismiss !== undefined && (
         <button type="button" style={{ marginTop: 6 }} onClick={onDismiss}>
           {JOB_FAILURE_TEXT.dismiss}

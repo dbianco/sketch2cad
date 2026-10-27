@@ -108,14 +108,56 @@ def test_stroke_shorter_than_min_length_is_dropped() -> None:
     assert max_deviation(result[0], THREE_SEGMENTS[0]) < TOLERANCE_PX
 
 
-def test_collinear_segments_with_a_gap_stay_two_polylines() -> None:
-    # Gaps are never bridged: the pipeline only traces what is drawn.
+def test_collinear_segments_with_a_gap_wider_than_join_gap_stay_two_polylines() -> None:
+    # A 3 mm gap is wider than suggest_lines.join_gap_mm (2 mm): it is not bridged.
     left, right = ((200.0, 500.0), (900.0, 500.0)), ((930.0, 500.0), (1600.0, 500.0))
     result = suggest_polylines(draw(paper(), [left, right]))
 
     assert len(result) == 2
     assert max_deviation(result[0], left) < TOLERANCE_PX
     assert max_deviation(result[1], right) < TOLERANCE_PX
+
+
+@pytest.mark.parametrize("gap_px", [1, 3, 10])
+def test_a_small_stroke_gap_is_joined_into_one_segment(gap_px: int) -> None:
+    # Edge-to-edge paper gap of gap_px between the round caps of two 3 px strokes.
+    wall = ((200.0, 500.0), (1600.0, 500.0))
+    left, right = (wall[0], (900.0, 500.0)), ((903.0 + gap_px, 500.0), wall[1])
+    result = suggest_polylines(draw(paper(), [left, right]))
+
+    assert len(result) == 1
+    assert len(result[0].points) == 2
+    assert endpoint_error(result[0], wall) < TOLERANCE_PX
+    assert result[0].length_mm == pytest.approx(140.0, abs=2.0)
+
+
+def test_join_gap_zero_keeps_a_gap_open() -> None:
+    left, right = ((200.0, 500.0), (900.0, 500.0)), ((913.0, 500.0), (1600.0, 500.0))
+    params = SuggestParams.from_params({"suggest_lines.join_gap_mm": 0.0})
+
+    assert len(suggest_polylines(draw(paper(), [left, right]), params)) == 2
+
+
+def test_offset_restart_of_a_stroke_is_joined() -> None:
+    # The pen lifted and restarted 0.6 mm to the side, 1 mm further on.
+    wall = ((200.0, 500.0), (1600.0, 503.0))
+    left, right = ((200.0, 500.0), (900.0, 500.0)), ((913.0, 506.0), (1600.0, 506.0))
+    result = suggest_polylines(draw(paper(), [left, right]))
+
+    assert len(result) == 1
+    assert max_deviation(result[0], wall) < TOLERANCE_PX
+    assert endpoint_error(result[0], wall) < TOLERANCE_PX
+
+
+def test_a_slight_bend_is_straightened_into_one_segment() -> None:
+    # The middle vertex leaves the chord by 0.9 mm: above the 0.8 mm simplification
+    # tolerance, within the 1 mm join offset.
+    bent = [((200.0, 500.0), (900.0, 509.0)), ((900.0, 509.0), (1600.0, 500.0))]
+    image = draw(paper(), bent)
+
+    assert len(suggest_polylines(image)[0].points) == 2
+    unstraightened = SuggestParams.from_params({"suggest_lines.join_offset_mm": 0.0})
+    assert len(suggest_polylines(image, unstraightened)[0].points) == 3
 
 
 def test_l_shape_is_one_polyline_with_a_corner_vertex() -> None:
@@ -169,6 +211,30 @@ def test_t_junction_keeps_the_bar_whole_and_the_stem_separate() -> None:
     assert len(result) == 2
     assert any(endpoint_error(p, bar) < TOLERANCE_PX for p in result)
     assert any(max_deviation(p, stem) < TOLERANCE_PX for p in result)
+
+
+def test_t_junction_with_misaligned_bar_halves_keeps_the_bar_whole() -> None:
+    # Each half of the bar drawn on its own, meeting the stem 0.4 mm apart.
+    left, right = ((200.0, 400.0), (1000.0, 400.0)), ((1000.0, 404.0), (1800.0, 404.0))
+    stem = ((1000.0, 404.0), (1000.0, 1200.0))
+    bar = ((200.0, 400.0), (1800.0, 404.0))
+    result = suggest_polylines(draw(paper(), [left, right, stem]))
+
+    assert len(result) == 2
+    whole = [p for p in result if endpoint_error(p, bar) < TOLERANCE_PX]
+    assert len(whole) == 1 and len(whole[0].points) == 2
+    assert any(max_deviation(p, stem) < TOLERANCE_PX for p in result)
+
+
+def test_t_junction_with_a_gap_beside_the_stem_keeps_the_bar_whole() -> None:
+    # The bar breaks 1 px after the stem: traced as an L (bar piece + stem) and a piece.
+    left, right = ((200.0, 400.0), (1001.0, 400.0)), ((1005.0, 400.0), (1800.0, 400.0))
+    stem = ((1000.0, 400.0), (1000.0, 1200.0))
+    bar = ((200.0, 400.0), (1800.0, 400.0))
+    result = suggest_polylines(draw(paper(), [left, right, stem]))
+
+    assert any(endpoint_error(p, bar) < TOLERANCE_PX and len(p.points) == 2 for p in result)
+    assert any(endpoint_error(p, stem) < TOLERANCE_PX for p in result)
 
 
 def test_closed_rectangle_is_one_closed_polyline() -> None:
@@ -252,6 +318,52 @@ def test_transparent_pixels_count_as_white_paper() -> None:
     assert all(x >= 990 for p in result for x, _ in p.points)
 
 
+def grid_paper(step: int = 50) -> Image:
+    """Colour paper (BGR) with a light orange grid every ``step`` px."""
+    sheet = np.asarray(cv2.cvtColor(paper(), cv2.COLOR_GRAY2BGR), dtype=np.uint8)
+    for x in range(step // 2, sheet.shape[1], step):
+        cv2.line(sheet, (x, 0), (x, sheet.shape[0] - 1), (170, 200, 240), 2)
+    for y in range(step // 2, sheet.shape[0], step):
+        cv2.line(sheet, (0, y), (sheet.shape[1] - 1, y), (170, 200, 240), 2)
+    return sheet
+
+
+def test_a_light_coloured_grid_is_removed_before_thresholding() -> None:
+    image = grid_paper()
+    for (x0, y0), (x1, y1) in THREE_SEGMENTS:
+        cv2.line(image, (round(x0), round(y0)), (round(x1), round(y1)), (40, 40, 40), 3)
+    kept_grid = SuggestParams.from_params({"suggest_lines.remove_grid": False})
+
+    result = suggest_polylines(image)
+
+    assert len(result) == 3
+    for segment in THREE_SEGMENTS:
+        polyline = min(result, key=lambda p: max_deviation(p, segment))
+        assert endpoint_error(polyline, segment) < TOLERANCE_PX
+    assert len(suggest_polylines(image, kept_grid)) > 3
+
+
+def test_grid_removal_keeps_dark_coloured_ink() -> None:
+    image = grid_paper()
+    blue_pen = THREE_SEGMENTS[0]
+    (x0, y0), (x1, y1) = blue_pen
+    cv2.line(image, (round(x0), round(y0)), (round(x1), round(y1)), (150, 60, 30), 3)
+
+    result = suggest_polylines(image)
+
+    assert len(result) == 1
+    assert endpoint_error(result[0], blue_pen) < TOLERANCE_PX
+
+
+def test_grid_removal_is_a_no_op_on_gray_input() -> None:
+    gray = draw(paper(), THREE_SEGMENTS)
+    no_grid = SuggestParams.from_params({"suggest_lines.remove_grid": False})
+
+    assert suggest_polylines(gray) == suggest_polylines(gray, no_grid)
+    bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    assert suggest_polylines(bgr) == suggest_polylines(bgr, no_grid)
+
+
 def test_params_override_changes_the_result() -> None:
     image = draw(paper(), THREE_SEGMENTS)
     params = SuggestParams.from_params({"suggest_lines.min_length_mm": 112.0})
@@ -268,7 +380,7 @@ def test_default_params_follow_the_configuration_registry() -> None:
     assert set(SuggestParams.param_names()) == {
         name for name in PARAMETERS if name.startswith("suggest_lines.")
     }
-    assert SuggestParams() == SuggestParams(31, 10.0, 3, 0.8, 5.0, 5.0)
+    assert SuggestParams() == SuggestParams(31, 10.0, 3, 0.8, 5.0, 5.0, 2.0, 1.0, True)
     assert SuggestParams.from_params({}) == SuggestParams()
 
 
@@ -280,6 +392,8 @@ def test_default_params_follow_the_configuration_registry() -> None:
         {"opening_kernel_px": 0},
         {"min_length_mm": 0.0},
         {"merge_angle_deg": 90.0},
+        {"join_gap_mm": -1.0},
+        {"join_offset_mm": -0.5},
     ],
 )
 def test_invalid_params_are_refused(overrides: dict[str, float]) -> None:

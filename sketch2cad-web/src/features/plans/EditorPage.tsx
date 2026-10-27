@@ -12,6 +12,11 @@
 // While AI assistance is on (GET /config/features), the header shows the suggestions' batch
 // panel and the canvas the suggestion layer (features/suggestions/), and the palette the OCR crop
 // tool (editor/tools/OcrCropTool.tsx); otherwise none of them renders.
+//
+// The page follows the `rectify` and `suggest_lines` jobs of the plan from mount (usePlanJobs,
+// started before the entities are requested): it reloads the entities when a suggestion job
+// finishes after the editor opened, and PlanJobsNotice says when they are still running or why
+// they failed.
 import { useEffect, useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useStore } from "zustand";
@@ -36,12 +41,14 @@ import { EvidenceTable } from "../evidence/EvidenceTable";
 import { EVIDENCE_MESSAGES } from "../evidence/messages";
 import { planExportPath } from "../exports/messages";
 import { previewUrl } from "../sources/SourceViewer";
+import { SUGGEST_JOB_KIND, usePlanJobs } from "../jobs/usePlanJobs";
 import { useAiAssistEnabled } from "../suggestions/aiAssist";
 import { BatchPanel } from "../suggestions/BatchPanel";
 import { SuggestionLayer } from "../suggestions/SuggestionLayer";
 import { enterReadOnly, LeaseBanner } from "./LeaseBanner";
 import { EDITABLE_STATUSES, PLAN_MESSAGES as M } from "./messages";
 import { MetricStatusPanel } from "./MetricStatusPanel";
+import { PlanJobsNotice, useEntitiesReload } from "./PlanJobsNotice";
 import { planReviewPath } from "./ReviewPage";
 
 /** Quiet time after the last edit before the queue is sent. */
@@ -139,6 +146,8 @@ export interface EditorPageProps {
   plan?: StoreApi<PlanStore>;
   syncDelayMs?: number;
   renewMs?: number;
+  /** Interval of the plan jobs' polling (usePlanJobs). */
+  jobsPollMs?: number;
   /** Fixed canvas size (tests); the canvas fills its container otherwise. */
   width?: number;
   height?: number;
@@ -150,11 +159,19 @@ export function EditorPage({
   plan = planStore,
   syncDelayMs = SYNC_DELAY_MS,
   renewMs,
+  jobsPollMs,
   width,
   height,
 }: EditorPageProps) {
   const { caseId = "", planId = "" } = useParams();
   const userId = useAuth().user?.id ?? null;
+  const reload = useEntitiesReload(api, store, plan);
+  const jobs = usePlanJobs(api, planId, {
+    pollMs: jobsPollMs,
+    onSucceeded: (job) => {
+      if (job.kind === SUGGEST_JOB_KIND) reload.request();
+    },
+  });
   const [state, setState] = useState<Loaded>({ kind: "loading" });
   const sync = useQueueSync(api, store, plan, syncDelayMs);
   const readOnly = useStore(plan, (s) => s.readOnly);
@@ -240,6 +257,13 @@ export function EditorPage({
           <EvidenceTable caseId={loaded.case_file_id} api={api} store={store} plan={plan} />
         </div>
       ) : null}
+      <PlanJobsNotice
+        jobs={jobs}
+        caseId={caseId}
+        planId={loaded.id}
+        calibrationId={loaded.calibration?.id ?? null}
+        reloadError={reload.error}
+      />
       <LeaseBanner
         planId={loaded.id}
         status={loaded.status}

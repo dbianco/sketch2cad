@@ -223,13 +223,16 @@ class MetricStatusOut(BaseModel):
     ``metric_origin`` is not metric; ``reasons`` maps each of them to its reason code (that
     ``metric_origin``: ``trace_only`` or ``none``). A plan without an accepted calibration is
     ``non_metric`` with no blocking entity. ``discrepant_dimensions`` lists the dimensions
-    whose declared and measured values disagree; they do not change ``status``.
+    whose declared and measured values disagree and ``length_conflicts`` the entities whose
+    declared segment lengths a ``fix_length`` of a connected entity broke
+    (``attributes.length_conflicts``); neither changes ``status``.
     """
 
     status: MetricStatus
     blocking_entities: list[uuid.UUID]
     reasons: dict[str, str]
     discrepant_dimensions: list[uuid.UUID]
+    length_conflicts: list[uuid.UUID]
 
 
 def _calibration_out(calibration: Calibration | None) -> CalibrationOut | None:
@@ -365,6 +368,7 @@ def get_metric_status(
         blocking_entities=[uuid.UUID(entity_id) for entity_id in result.blocking_entities],
         reasons=dict(result.reasons),
         discrepant_dimensions=[uuid.UUID(entity_id) for entity_id in result.discrepant_dimensions],
+        length_conflicts=[uuid.UUID(entity_id) for entity_id in result.length_conflicts],
     )
 
 

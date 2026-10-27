@@ -34,7 +34,7 @@ plan's edit lease (CU-04).
 import logging
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from sqlalchemy import select
@@ -57,6 +57,14 @@ from sketch2cad.db.models import (
     RevisionState,
     User,
 )
+from sketch2cad.entities.connected import (
+    PROPAGATED_KINDS,
+    Neighbour,
+    PinnedVertex,
+    VertexMove,
+    connected_tolerance_m,
+    propagate,
+)
 from sketch2cad.entities.constraints import (
     V07_MESSAGE,
     ConstraintOperationError,
@@ -70,10 +78,15 @@ from sketch2cad.entities.constraints import (
 from sketch2cad.entities.ops_baseline import baseline_offset_position
 from sketch2cad.entities.ops_fix_length import (
     DECLARED_SEGMENTS,
+    LENGTH_CONFLICTS,
+    BrokenDeclaration,
+    FixedLength,
     FixLengthError,
+    broken_declarations,
     declared_origin,
     fix_length,
     retained_attributes,
+    with_length_conflicts,
 )
 from sketch2cad.entities.ops_triangulate import triangulate_position
 from sketch2cad.entities.recompute import CONSTRAINT_ERROR, constraint_graph, recompute_dependents
@@ -111,7 +124,7 @@ CONSTRAINT_REMOVAL_MESSAGE = (
 )
 """409 ``constraint_removal_required``: a constrained entity moved without confirmation."""
 # Attributes managed by the server; requests may not set them and relabels keep them.
-SERVER_ATTRIBUTES = (DECLARED_SEGMENTS, CONSTRAINT_ERROR)
+SERVER_ATTRIBUTES = (DECLARED_SEGMENTS, CONSTRAINT_ERROR, LENGTH_CONFLICTS)
 # L_SHEET holds the title block and frame, drawn only on export (spec section 12.1).
 EXPORT_ONLY_LAYERS = frozenset({"L_SHEET"})
 # Entity types that may place evidence (spec section 2.1).
@@ -154,12 +167,28 @@ class EntityGoneError(LookupError):
 
 
 @dataclass(frozen=True)
+class ConnectedChanges:
+    """What a ``fix_length`` changed besides its entity (:func:`_propagate_fix`).
+
+    ``pinned`` pairs each vertex left on a locked layer with that layer; ``conflicts``
+    pairs each broken declaration with its entity id (the fixed entity's own included).
+    """
+
+    tolerance_m: float
+    moves: tuple[VertexMove, ...] = ()
+    pinned: tuple[tuple[PinnedVertex, str], ...] = ()
+    conflicts: tuple[tuple[uuid.UUID, BrokenDeclaration], ...] = ()
+
+
+@dataclass(frozen=True)
 class EntityUpdate:
-    """An edited entity; ``candidates`` and ``chosen`` are set by ``triangulate`` only."""
+    """An edited entity; ``candidates`` and ``chosen`` are set by ``triangulate`` only,
+    ``connected`` by ``fix_length`` only."""
 
     entity: Entity
     candidates: tuple[Point, ...] | None = None
     chosen: int | None = None
+    connected: ConnectedChanges | None = None
 
 
 @dataclass(frozen=True)
@@ -188,8 +217,9 @@ def _check_attributes(attributes: Attributes | None) -> None:
         return
     if DECLARED_SEGMENTS in attributes:
         raise EntityInputError(f"attributes.{DECLARED_SEGMENTS} is set only by fix_length.")
-    if CONSTRAINT_ERROR in attributes:
-        raise EntityInputError(f"attributes.{CONSTRAINT_ERROR} is set only by the server.")
+    for name in (CONSTRAINT_ERROR, LENGTH_CONFLICTS):
+        if name in attributes:
+            raise EntityInputError(f"attributes.{name} is set only by the server.")
 
 
 def _check_refs(refs: CatalogRefs, layer: str, geometry: Geometry | None) -> None:
@@ -508,6 +538,7 @@ def update_entity(
     before = entity_state(entity)
     old_geometry, old_attributes = entity.geometry, entity.attributes
     update = EntityUpdate(entity)
+    fixed: FixedLength | None = None
     if patch.operation in CONSTRAINT_OPERATIONS:
         update = _apply_constraint(db, entity, patch)
     if patch.operation is EntityOperation.FIX_LENGTH:
@@ -531,6 +562,18 @@ def update_entity(
         entity.layer = patch.layer
     if patch.sets_evidence:
         entity.evidence_id = patch.evidence_id
+    own_conflicts: list[BrokenDeclaration] = []
+    if entity.geometry != old_geometry:
+        # The user edited this entity's geometry: earlier conflicts are settled.
+        entity.attributes = {k: v for k, v in entity.attributes.items() if k != LENGTH_CONFLICTS}
+        if fixed is not None:
+            own_conflicts = [
+                item
+                for item in broken_declarations(old_attributes, fixed.attributes, entity.geometry)
+                if item.segment != fixed.segment
+            ]
+        if own_conflicts:
+            entity.attributes = with_length_conflicts(entity.attributes, own_conflicts)
     _sync_evidence_number(db, plan, entity)
     if patch.operation not in CONSTRAINT_OPERATIONS:
         _drop_moved_constraint(entity, old_geometry)
@@ -554,9 +597,78 @@ def update_entity(
     )
     if entity.geometry != old_geometry:
         _recompute_dependents(db, plan, entity, user, client_ip)
+    if fixed is not None:
+        connected = _propagate_fix(
+            db, plan, entity, old_geometry, user, client_ip, patch.locked_layers or []
+        )
+        own = tuple((entity.id, item) for item in own_conflicts)
+        connected = replace(connected, conflicts=own + connected.conflicts)
+        update = EntityUpdate(entity, connected=connected)
     recompute_metric_status(db, plan)
     logger.info("User %s applied %s to entity %s", user.id, patch.operation.value, entity.id)
     return update
+
+
+def _propagate_fix(
+    db: Session,
+    plan: Plan,
+    source: Entity,
+    old_geometry: dict[str, Any],
+    user: User,
+    client_ip: str | None,
+    locked_layers: Sequence[str],
+) -> ConnectedChanges:
+    """Move the vertices connected to the ones ``fix_length`` moved (walkthrough finding).
+
+    Lines, polylines and dimensions of the revision whose vertices coincided with a moved
+    vertex, or whose ends lay on a moved segment, follow it
+    (:func:`~sketch2cad.entities.connected.propagate`); the tolerance is 1 paper mm at the
+    plan's paper scale. Those on ``locked_layers`` stay and are reported as pinned. Each
+    moved entity gets an ``entity.recomputed`` event (``after`` adds ``trigger_entity_id``
+    and ``connected_vertices``), its broken declarations are dropped and recorded in
+    ``attributes.length_conflicts``, and its dependents are recomputed.
+    """
+    calibration = active_calibration(db, plan)
+    tolerance = connected_tolerance_m(None if calibration is None else calibration.paper_scale)
+    query = select(Entity).where(
+        Entity.revision_id == source.revision_id,
+        Entity.deleted_at.is_(None),
+        Entity.id != source.id,
+        Entity.type.in_(PROPAGATED_KINDS),
+    )
+    rows = {str(row.id): row for row in db.scalars(query.order_by(Entity.id))}
+    locked = frozenset(locked_layers)
+    neighbours = [Neighbour(key, row.geometry, row.layer in locked) for key, row in rows.items()]
+    result = propagate(str(source.id), old_geometry, source.geometry, neighbours, tolerance)
+    conflicts: list[tuple[uuid.UUID, BrokenDeclaration]] = []
+    for key, geometry in result.geometries.items():
+        row = rows[key]
+        before, previous, attributes = entity_state(row), row.geometry, row.attributes
+        row.geometry = geometry
+        _apply_declarations(db, plan, row, previous, EntityOperation.MOVE_VERTEX)
+        broken = broken_declarations(attributes, row.attributes, geometry)
+        if broken:
+            row.attributes = with_length_conflicts(row.attributes, broken)
+            conflicts.extend((row.id, item) for item in broken)
+        row.updated_at = utc_now()
+        db.flush()
+        after = {
+            **entity_state(row),
+            "trigger_entity_id": str(source.id),
+            "connected_vertices": [m.vertex for m in result.moves if m.entity_id == key],
+        }
+        _record(db, plan, row, user, EventKind.ENTITY_RECOMPUTED, client_ip, before, after)
+        _recompute_dependents(db, plan, row, user, client_ip)
+    if result.moves or result.pinned:
+        logger.info(
+            "fix_length on %s moved %d connected vertices, %d pinned, %d conflicts",
+            source.id,
+            len(result.moves),
+            len(result.pinned),
+            len(conflicts),
+        )
+    pinned = tuple((item, rows[item.entity_id].layer) for item in result.pinned)
+    return ConnectedChanges(tolerance, result.moves, pinned, tuple(conflicts))
 
 
 def _correct_suggestion(entity: Entity, before: dict[str, Any]) -> bool:

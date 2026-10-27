@@ -69,6 +69,16 @@ export const STROKE_WIDTH_PX = 1.5;
 export const POINT_SIZE_PX = 7;
 /** Paper height of a dimension's text, in mm. */
 export const DIMENSION_TEXT_MM = 2.5;
+/**
+ * Default of `dimension.discrepancy_tolerance_m` (spec 11.4, server code default). The canvas
+ * flags with it; an override per incident type is not known here (the metric status panel
+ * lists the server's flagged dimensions).
+ */
+export const DIMENSION_DISCREPANCY_TOLERANCE_M = 0.02;
+/** Float noise absorbed at the tolerance boundary (server ROUNDING_MARGIN_M). */
+const DISCREPANCY_ROUNDING_M = 1e-9;
+/** Warning colour of a dimension whose measured length differs from its declared value. */
+export const DISCREPANCY_COLOR = "#b35c00";
 /** Color of selected entities. */
 export const SELECTION_COLOR = "#ff7a00";
 /** Zoom factor per wheel pixel: `factor = exp(-deltaY * WHEEL_ZOOM_PER_PX)`. */
@@ -90,6 +100,9 @@ export const CANVAS_TEXT = {
   lock: (layer: string) => `Bloquear capa ${layer}`,
   locked: "Bloqueada",
   fit: "Encuadrar el plano",
+  measured: (value: string) => `medida ${value}`,
+  discrepancy: (declared: string, measured: string) =>
+    `Aviso: la cota declarada (${declared}) no coincide con la medida en el plano (${measured})`,
 } as const;
 
 export interface EditorCanvasProps {
@@ -339,13 +352,25 @@ function renderDimension(
   const off = geometry.offset_m;
   const q1: Point2 = [x1 + nx * off, y1 + ny * off];
   const q2: Point2 = [x2 + nx * off, y2 + ny * off];
-  const value = geometry.declared_value_m ?? geometry.measured_value_m ?? length;
+  const declared = geometry.declared_value_m ?? null;
+  const value = declared ?? length;
+  const discrepant = dimensionDiscrepancy(declared, length);
   let angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
   if (angle > 90 || angle <= -90) angle -= Math.sign(angle) * 180;
   const textHeight = (DIMENSION_TEXT_MM * paperScale) / 1000;
   const mid: Point2 = [(q1[0] + q2[0]) / 2, (q1[1] + q2[1]) / 2];
+  // Oblique ticks at both ends of the dimension line, as in the PDF.
+  const tick = (DIMENSION_TEXT_MM * paperScale) / 1000 / 2 / Math.SQRT2;
+  const ux = length > 0 ? (x2 - x1) / length : 0;
+  const uy = length > 0 ? (y2 - y1) / length : 0;
+  const tx = (ux + nx) * tick;
+  const ty = (uy + ny) * tick;
+  const ticks = [q1, q2]
+    .map(([x, y]) => `M${svgPoints([[x - tx, y - ty], [x + tx, y + ty]])}`)
+    .join("");
+  const placed = `translate(${String(svgX(mid))} ${String(svgY(mid))}) rotate(${String(-angle)})`;
   return (
-    <g {...common}>
+    <g {...common} data-discrepancy={discrepant ? "true" : undefined}>
       {off !== 0 && (
         <path
           d={`M${svgPoints([geometry.p1_m, q1])}M${svgPoints([geometry.p2_m, q2])}`}
@@ -353,8 +378,9 @@ function renderDimension(
         />
       )}
       <polyline points={svgPoints([q1, q2])} vectorEffect="non-scaling-stroke" />
+      <path d={ticks} vectorEffect="non-scaling-stroke" />
       <text
-        transform={`translate(${String(svgX(mid))} ${String(svgY(mid))}) rotate(${String(-angle)})`}
+        transform={placed}
         y={-textHeight / 3}
         fontSize={textHeight}
         textAnchor="middle"
@@ -363,8 +389,38 @@ function renderDimension(
       >
         {formatMetres(value)}
       </text>
+      {discrepant && (
+        // Informative warning (spec 11.4): the declared value wins; the measured one is shown
+        // below the line, in italics and in the warning colour, with a marker.
+        <text
+          data-testid="dimension-discrepancy"
+          transform={placed}
+          y={textHeight}
+          fontSize={textHeight * 0.8}
+          fontStyle="italic"
+          textAnchor="middle"
+          fill={DISCREPANCY_COLOR}
+          stroke="none"
+        >
+          <title>{CANVAS_TEXT.discrepancy(formatMetres(value), formatMetres(length))}</title>
+          {`⚠ ${CANVAS_TEXT.measured(formatMetres(length))}`}
+        </text>
+      )}
     </g>
   );
+}
+
+/**
+ * Whether a declared value differs from the measured length by more than the tolerance (the
+ * server's `dimension_discrepancy`, spec 11.4); a plain measurement never does.
+ */
+export function dimensionDiscrepancy(
+  declared: number | null | undefined,
+  measured: number,
+  toleranceM: number = DIMENSION_DISCREPANCY_TOLERANCE_M,
+): boolean {
+  if (declared === null || declared === undefined) return false;
+  return Math.abs(declared - measured) > toleranceM + DISCREPANCY_ROUNDING_M;
 }
 
 /** One entity; re-renders only when its own entity or selection state changes. */

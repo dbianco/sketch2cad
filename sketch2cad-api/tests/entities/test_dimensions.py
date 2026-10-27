@@ -312,6 +312,25 @@ def test_moving_p2_recomputes_measured_and_discrepancy(
     assert listed(client, revision_id)[created["id"]]["discrepancy"] is True
 
 
+def test_a_dimension_with_coincident_points_is_rejected_on_create_and_on_move(
+    client: TestClient, revision_id: str, factory: sessionmaker[Session]
+) -> None:
+    degenerate = dimension(0.0)
+    item = {"type": "dimension", "layer": "L_DIMENSIONS", "geometry": degenerate}
+    url = f"{REVISIONS_URL}/{revision_id}/entities"
+
+    response = client.post(url, json={"entities": [item]})
+
+    assert response.status_code == 422, response.text
+    assert "must not coincide" in response.text
+    (created,) = create(client, revision_id, dimension(4.20))
+    response = client.patch(
+        f"{ENTITIES_URL}/{created['id']}", json={"operation": "move_vertex", "geometry": degenerate}
+    )
+    assert response.status_code == 422, response.text
+    assert stored_geometry(factory, created["id"])["p2_m"] == [4.20, 0.0]
+
+
 def test_plain_measurements_and_other_types_carry_false_and_null(
     client: TestClient, revision_id: str
 ) -> None:

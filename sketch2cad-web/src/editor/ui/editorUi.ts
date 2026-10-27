@@ -23,6 +23,7 @@ export type ToolId =
   | "symbol"
   | "frame"
   | "fixlength"
+  | "dimension"
   | "triangulate"
   | "baseline"
   | "ocr";

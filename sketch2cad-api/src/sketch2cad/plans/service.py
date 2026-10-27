@@ -36,6 +36,7 @@ from sketch2cad.db.models import (
     User,
 )
 from sketch2cad.entities.dimensions import DimensionTolerances, dimension_discrepancy
+from sketch2cad.entities.ops_fix_length import LENGTH_CONFLICTS
 from sketch2cad.geometry.metric_status import (
     MetricEntity,
     MetricStatusResult,
@@ -163,6 +164,7 @@ def metric_status_of(
                 metric_origin=entity.metric_origin,
                 references_evidence=entity.evidence_id is not None,
                 discrepancy=dimension_discrepancy(entity.type, entity.geometry, tolerances) is True,
+                length_conflict=bool(entity.attributes.get(LENGTH_CONFLICTS)),
             )
             for entity in db.scalars(query.order_by(Entity.id))
         ]

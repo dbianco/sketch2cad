@@ -78,6 +78,15 @@ class Settings(BaseSettings):
     """Paper mm below which a path is discarded (``suggest_lines.min_length_mm``)."""
     SUGGEST_LINES_MERGE_ANGLE_DEG: float = Field(default=5.0, gt=0, lt=90)
     """Angle below which collinear paths are merged (``suggest_lines.merge_angle_deg``)."""
+    SUGGEST_LINES_JOIN_GAP_MM: float = Field(default=2.0, ge=0)
+    """Paper mm up to which the ends of two collinear fragments are joined across a gap or an
+    overlap (``suggest_lines.join_gap_mm``); 0 joins only touching ends."""
+    SUGGEST_LINES_JOIN_OFFSET_MM: float = Field(default=1.0, ge=0)
+    """Paper mm of lateral offset allowed when joining fragments and when straightening
+    small kinks (``suggest_lines.join_offset_mm``); 0 disables straightening."""
+    SUGGEST_LINES_REMOVE_GRID: bool = True
+    """Whether light coloured grid lines (graph paper) are removed from colour images before
+    thresholding (``suggest_lines.remove_grid``); no effect on gray images."""
     OCR_MIN_CONFIDENCE: float = Field(default=0.6, ge=0, le=1)
     """OCR confidence needed to preselect a value (``ocr.min_confidence``)."""
     AI_ASSIST_ENABLED: bool = True

@@ -44,6 +44,7 @@ function status(overrides: Partial<MetricStatusOut> = {}): MetricStatusOut {
     blocking_entities: [],
     reasons: {},
     discrepant_dimensions: [],
+    length_conflicts: [],
     ...overrides,
   };
 }
@@ -164,6 +165,15 @@ describe("MetricStatusPanel", () => {
     const list = within(panel).getByRole("list", { name: "Cotas con discrepancia (informativo)" });
     fireEvent.click(within(list).getByRole("button"));
     expect(store.getState().selection).toEqual([IDS[0]]);
+  });
+
+  it("lists the entities whose declared lengths a connected fix broke", async () => {
+    setup(status({ status: "approximate", length_conflicts: [IDS[0]] }), [entityOut(IDS[0])]);
+    const panel = await openPanel("Estado métrico: Aproximado");
+    const list = within(panel).getByRole("list", {
+      name: "Longitudes declaradas que dejaron de cumplirse (revisar)",
+    });
+    expect(within(list).getByRole("button").textContent).toContain("vuelve a fijarla");
   });
 
   it("fetches again when the queue drains and when the store is reloaded", async () => {

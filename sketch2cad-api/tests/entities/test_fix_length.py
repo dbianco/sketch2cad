@@ -494,3 +494,163 @@ def test_the_closing_segment_of_a_closed_polyline_can_be_fixed() -> None:
     assert fixed.geometry["coords_m"][0] == [0.0, 0.0]
     assert fixed.geometry["coords_m"][3] == pytest.approx([0.0, 3.0], abs=TOLERANCE)
     assert fixed.attributes == {"declared_segments": {"3": 3.0}}
+
+
+# Connected walls (walkthrough finding): separate lines that share corners follow a fix_length.
+
+
+def rectangle_of_lines(client: TestClient, plan: Plan) -> dict[str, dict[str, Any]]:
+    """Top, right, bottom and left walls of a 4.00 x 3.00 rectangle as four separate lines."""
+    corners = {"tl": [0.0, 3.0], "tr": [4.0, 3.0], "br": [4.0, 0.0], "bl": [0.0, 0.0]}
+    sides = {
+        "top": ("tl", "tr"),
+        "right": ("tr", "br"),
+        "bottom": ("br", "bl"),
+        "left": ("bl", "tl"),
+    }
+    return {
+        name: create_one(client, plan, {"kind": "line", "coords_m": [corners[a], corners[b]]})
+        for name, (a, b) in sides.items()
+    }
+
+
+def coords_of(factory: sessionmaker[Session], entity: dict[str, Any]) -> list[list[float]]:
+    return entity_row(factory, entity["id"]).geometry["coords_m"]
+
+
+def test_fixing_one_side_moves_the_neighbouring_ends_of_the_adjacent_lines(
+    client: TestClient, plan: Plan, factory: sessionmaker[Session]
+) -> None:
+    walls = rectangle_of_lines(client, plan)
+
+    response = fix(client, walls["top"]["id"], 0, "4,80", free_vertex=1)
+
+    assert response.status_code == 200, response.text
+    connected = response.json()["connected"]
+    assert connected["tolerance_m"] == pytest.approx(0.1)
+    assert connected["moved"] == [
+        {"entity_id": walls["right"]["id"], "vertex": 0, "from_m": [4.0, 3.0], "to_m": [4.8, 3.0]}
+    ]
+    assert (connected["pinned"], connected["length_conflicts"]) == ([], [])
+    top, right = coords_of(factory, walls["top"]), coords_of(factory, walls["right"])
+    assert top[1] == right[0] == [4.8, 3.0]
+    assert right[1] == [4.0, 0.0]
+    assert coords_of(factory, walls["left"]) == [[0.0, 0.0], [0.0, 3.0]]
+    with factory() as db:
+        query = select(Event).where(Event.kind == EventKind.ENTITY_RECOMPUTED.value)
+        events = list(db.scalars(query))
+    assert [str(e.entity_id) for e in events] == [walls["right"]["id"]]
+    assert events[0].after is not None
+    assert events[0].after["trigger_entity_id"] == walls["top"]["id"]
+    assert events[0].after["connected_vertices"] == [0]
+
+
+def test_fixing_again_with_the_same_value_moves_nothing(
+    client: TestClient, plan: Plan, factory: sessionmaker[Session]
+) -> None:
+    walls = rectangle_of_lines(client, plan)
+    assert fix(client, walls["top"]["id"], 0, 4.8).status_code == 200
+    before = {name: coords_of(factory, wall) for name, wall in walls.items()}
+
+    again = fix(client, walls["top"]["id"], 0, 4.8)
+
+    assert again.status_code == 200, again.text
+    assert again.json()["connected"]["moved"] == []
+    assert {name: coords_of(factory, wall) for name, wall in walls.items()} == before
+
+
+def test_a_wall_on_a_locked_layer_is_not_moved_and_is_reported(
+    client: TestClient, plan: Plan, factory: sessionmaker[Session]
+) -> None:
+    walls = rectangle_of_lines(client, plan)
+    moved = patch(client, walls["right"]["id"], operation="reclassify", layer="L_ACCESS")
+    assert moved.status_code == 200, moved.text
+
+    response = fix(client, walls["top"]["id"], 0, 4.8, locked_layers=["L_ACCESS"])
+
+    assert response.status_code == 200, response.text
+    connected = response.json()["connected"]
+    assert connected["moved"] == []
+    assert connected["pinned"] == [
+        {
+            "entity_id": walls["right"]["id"],
+            "vertex": 0,
+            "layer": "L_ACCESS",
+            "gap_m": pytest.approx(0.8),
+        }
+    ]
+    assert coords_of(factory, walls["right"]) == [[4.0, 3.0], [4.0, 0.0]]
+
+
+def test_locked_layers_belong_to_fix_length_only(client: TestClient, plan: Plan) -> None:
+    entity = create_one(client, plan, LINE)
+
+    response = patch(
+        client, entity["id"], operation="relabel", attributes={}, locked_layers=["L_ACCESS"]
+    )
+
+    assert response.status_code == 422, response.text
+
+
+def test_a_declared_length_broken_by_a_connected_fix_is_reported_and_listed(
+    client: TestClient, plan: Plan, factory: sessionmaker[Session]
+) -> None:
+    walls = rectangle_of_lines(client, plan)
+    assert fix(client, walls["right"]["id"], 0, 3.0).status_code == 200  # declared, same length
+
+    response = fix(client, walls["top"]["id"], 0, 4.8)
+
+    assert response.status_code == 200, response.text
+    [conflict] = response.json()["connected"]["length_conflicts"]
+    actual = math.hypot(0.8, 3.0)
+    assert conflict["entity_id"] == walls["right"]["id"]
+    assert (conflict["segment"], conflict["declared_m"]) == (0, 3.0)
+    assert conflict["actual_m"] == pytest.approx(actual)
+    assert conflict["residual_m"] == pytest.approx(actual - 3.0)
+    right = entity_row(factory, walls["right"]["id"])
+    assert "declared_segments" not in right.attributes
+    assert right.attributes["length_conflicts"]["0"]["declared_m"] == 3.0
+    status = client.get(f"{API_V1_PREFIX}/plans/{plan.id}/metric-status")
+    assert status.status_code == 200, status.text
+    assert status.json()["length_conflicts"] == [walls["right"]["id"]]
+
+    # Declaring the wall again settles the conflict.
+    assert fix(client, walls["right"]["id"], 0, 3.1).status_code == 200
+    assert "length_conflicts" not in entity_row(factory, walls["right"]["id"]).attributes
+    status = client.get(f"{API_V1_PREFIX}/plans/{plan.id}/metric-status")
+    assert status.json()["length_conflicts"] == []
+
+
+def test_a_closed_polyline_reports_its_own_broken_closing_segment(
+    client: TestClient, plan: Plan
+) -> None:
+    square = {"kind": "polyline", "coords_m": [[0, 0], [4, 0], [4, 3], [0, 3]], "closed": True}
+    entity = create_one(client, plan, square)
+    assert fix(client, entity["id"], 1, 3.0, free_vertex=2).status_code == 200
+    assert fix(client, entity["id"], 3, 3.0, free_vertex=0).status_code == 200
+
+    # Vertices 1 to 3 move with the free end, so the closing segment 3 tilts.
+    response = fix(client, entity["id"], 0, 4.8, free_vertex=1)
+
+    assert response.status_code == 200, response.text
+    segments = [c["segment"] for c in response.json()["connected"]["length_conflicts"]]
+    assert segments == [3]
+    assert response.json()["attributes"]["declared_segments"] == {"0": 4.8, "1": 3.0}
+    assert response.json()["attributes"]["length_conflicts"]["3"]["declared_m"] == 3.0
+
+
+def test_clients_cannot_write_length_conflicts(client: TestClient, plan: Plan) -> None:
+    entity = create_one(client, plan, LINE)
+
+    response = patch(client, entity["id"], operation="relabel", attributes={"length_conflicts": 1})
+
+    assert response.status_code == 422, response.text
+
+
+def test_other_operations_return_no_connected_changes(client: TestClient, plan: Plan) -> None:
+    entity = create_one(client, plan, LINE)
+
+    response = patch(client, entity["id"], operation="relabel", attributes={"label": "Muro"})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["connected"] is None

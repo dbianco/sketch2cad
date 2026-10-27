@@ -1,7 +1,9 @@
 // Metric status badge of the editor header (US-11, REQ-07, spec section 11.3). It reads
 // `GET /plans/{id}/metric-status` and opens a panel with the entities that keep the plan from
-// `metric` (type, layer and reason, plus the explanation of a failed constraint) and the
-// dimensions whose declared and measured values disagree. Clicking an item selects the entity on
+// `metric` (type, layer and reason, plus the explanation of a failed constraint), the
+// dimensions whose declared and measured values disagree and the entities whose declared lengths a
+// fix_length of a connected entity broke (`length_conflicts`; the fix-length notice gave the
+// metres, and fixing the entity's length again settles it). Clicking an item selects the entity on
 // the canvas when the editor store has it.
 //
 // The status is read again whenever the store settles: when its queue drains (the edits reached
@@ -106,6 +108,7 @@ export function MetricStatusPanel({ planId, api, store }: MetricStatusPanelProps
   if (state.kind === "loading") return <span role="status">{M.loading}</span>;
   if (state.kind === "error") return <span role="alert">{M.loadFailed}</span>;
   const { status, blocking_entities, reasons, discrepant_dimensions } = state.value;
+  const lengthConflicts = state.value.length_conflicts;
   const style = METRIC_BADGE_STYLES[status];
 
   const select = (id: string) => {
@@ -173,6 +176,16 @@ export function MetricStatusPanel({ planId, api, store }: MetricStatusPanelProps
               byId={byId}
               onSelect={select}
               detail={() => M.discrepantItem}
+            />
+          ) : null}
+          {lengthConflicts.length > 0 ? (
+            <EntityList
+              title={M.lengthConflicts}
+              empty=""
+              ids={lengthConflicts}
+              byId={byId}
+              onSelect={select}
+              detail={() => M.lengthConflictItem}
             />
           ) : null}
         </section>

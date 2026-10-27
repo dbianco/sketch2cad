@@ -5,6 +5,12 @@
 // is sent when it is invalid. "Aplicar" runs the server's `fix_length` (store/serverOps.ts), which
 // also reloads the entities, so Deshacer does not revert it. Esc cancels.
 //
+// The server also moves the vertices of other lines, polylines and dimensions connected to the
+// moved ones (shared corners and T junctions), except on the layers locked here, which are sent as
+// `locked_layers`. The notice says how many connected vertices moved and warns, with the entity
+// ids, about vertices left on locked layers and declared lengths that no longer hold
+// (`fixLengthSummary`).
+//
 // Keyboard: the keyboard cursor clicks with Enter like in the drawing tools; the ends are buttons
 // laid over the canvas (Tab reaches them, Enter picks the anchor) and the field is a normal input.
 // Entities on hidden or locked layers are not picked.
@@ -12,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { api as defaultApi } from "../../api/client";
+import type { components } from "../../api/schema";
 import { formatMetres, svgPoints, type CanvasPointer } from "../canvas/EditorCanvas";
 import { layerFlags as flagsOf, type LayerFlagsByName } from "../canvas/layers";
 import { worldToScreen, type Viewport } from "../canvas/viewport";
@@ -38,7 +45,59 @@ export const FIX_LENGTH_TEXT = {
   applying: "Aplicando…",
   noPlan: "No hay un plano abierto.",
   done: (value: number) => `Longitud fijada en ${formatMetres(value)}`,
+  moved: (vertices: number, ids: readonly string[]) =>
+    `Se ${vertices === 1 ? "movió 1 vértice conectado" : `movieron ${String(vertices)} vértices conectados`} ` +
+    `(${ids.length === 1 ? "1 entidad" : `${String(ids.length)} entidades`}: ${ids.join(", ")}).`,
+  pinned: (vertices: number, layers: string, gap: number) =>
+    `${vertices === 1 ? "1 vértice conectado" : `${String(vertices)} vértices conectados`} en capas ` +
+    `bloqueadas (${layers}) no se ${vertices === 1 ? "movió" : "movieron"}: queda un hueco de hasta ` +
+    `${formatResidual(gap)}.`,
+  conflict: (id: string, segment: number, declared: number, actual: number | null) =>
+    `La longitud declarada ${formatMetres(declared)} del segmento ${String(segment + 1)} de ${shortId(id)} ` +
+    (actual === null
+      ? "ya no se cumple."
+      : `ya no se cumple: mide ${formatResidual(actual)} (diferencia ${formatResidual(Math.abs(actual - declared))}).`),
 } as const;
+
+type ConnectedChanges = components["schemas"]["ConnectedChangesOut"];
+
+/** First 8 characters of an entity id, as the messages show it. */
+export function shortId(id: string): string {
+  return id.slice(0, 8);
+}
+
+/** Metres with 3 decimals and a decimal comma: residuals of a few millimetres stay visible. */
+export function formatResidual(value: number): string {
+  return `${value.toFixed(3).replace(".", ",")} m`;
+}
+
+/**
+ * Notice after a fix_length: the declared length, the connected vertices that moved (with their
+ * entities), and warnings for pinned vertices and broken declared lengths. `warning` is true when
+ * something did not follow or no longer holds.
+ */
+export function fixLengthSummary(
+  value: number,
+  connected: ConnectedChanges | null | undefined,
+): { text: string; warning: boolean } {
+  if (connected == null) return { text: FIX_LENGTH_TEXT.done(value), warning: false };
+  const parts: string[] = [`${FIX_LENGTH_TEXT.done(value)}.`];
+  const moved = [...new Set(connected.moved.map((item) => item.entity_id))];
+  if (moved.length > 0) {
+    parts.push(FIX_LENGTH_TEXT.moved(connected.moved.length, moved.map(shortId)));
+  }
+  if (connected.pinned.length > 0) {
+    const layers = [...new Set(connected.pinned.map((item) => item.layer))].join(", ");
+    const gap = Math.max(...connected.pinned.map((item) => item.gap_m));
+    parts.push(FIX_LENGTH_TEXT.pinned(connected.pinned.length, layers, gap));
+  }
+  for (const item of connected.length_conflicts) {
+    parts.push(FIX_LENGTH_TEXT.conflict(item.entity_id, item.segment, item.declared_m, item.actual_m ?? null));
+  }
+  if (parts.length === 1) return { text: FIX_LENGTH_TEXT.done(value), warning: false };
+  const warning = connected.pinned.length > 0 || connected.length_conflicts.length > 0;
+  return { text: parts.join(" "), warning };
+}
 
 /** The picked segment: its entity and the indices of its two vertices, in drawing order. */
 export interface PickedSegment {
@@ -154,18 +213,22 @@ export function createFixLengthTool(context: ToolContext): EditorTool {
       return;
     }
     const free = picked.ends[0] === anchor ? picked.ends[1] : picked.ends[0];
+    const flags = context.ui.getState().layerFlags;
+    const lockedLayers = Object.keys(flags).filter((name) => flags[name]?.locked === true);
     fix.setState({ busy: true, notice: null });
     const result = await runServerOperation(api, context.store, { revisionId }, picked.entityId, {
       operation: "fix_length",
       anchor_vertex: anchor,
       free_vertex: free,
       value_m: value,
+      ...(lockedLayers.length > 0 ? { locked_layers: lockedLayers.sort() } : {}),
     });
-    fix.setState(
-      result.ok
-        ? { ...IDLE, notice: { text: FIX_LENGTH_TEXT.done(value), error: false } }
-        : { busy: false, notice: { text: result.message, error: true } },
-    );
+    if (!result.ok) {
+      fix.setState({ busy: false, notice: { text: result.message, error: true } });
+      return;
+    }
+    const summary = fixLengthSummary(value, result.entity.connected);
+    fix.setState({ ...IDLE, notice: { text: summary.text, error: summary.warning } });
   }
 
   return {

@@ -1,8 +1,9 @@
 """``suggest_lines`` vision pipeline (REQ-17; spec section 10).
 
-gray -> ``cv2.adaptiveThreshold`` (Gaussian) -> morphological opening -> ``skeletonize``
--> skeleton graph -> paths between nodes (collinear branches joined) -> shapely simplify
--> drop short paths -> confidence. Pure and local: no I/O, no database, no external AI
+gray (coloured grid removed) -> ``cv2.adaptiveThreshold`` (Gaussian) -> morphological
+opening -> ``skeletonize`` -> skeleton graph -> paths between nodes (collinear branches
+joined) -> shapely simplify -> drop short paths -> join collinear fragments and straighten
+small kinks -> confidence. Pure and local: no I/O, no database, no external AI
 service. The input is the rectified image (:data:`PX_PER_MM` px per paper mm) and the
 output stays in its pixels: ``(x, y)`` = (column, row), integers at pixel centres, so
 paper mm = px / :data:`PX_PER_MM` (conversion to world metres is done by the caller).
@@ -19,6 +20,7 @@ import numpy.typing as npt
 from sketch2cad.calibration.rectify import PX_PER_MM
 from sketch2cad.config_params import ParamValue, code_default
 from sketch2cad.vision.binarize import gray_on_white, stroke_mask
+from sketch2cad.vision.join import Fragment, join_fragments, straighten
 from sketch2cad.vision.simplify import confidence, polyline_length, simplify_path, straightness
 from sketch2cad.vision.skeleton import skeleton_paths
 
@@ -68,6 +70,9 @@ class SuggestParams:
     simplify_tolerance_mm: float = float(code_default("suggest_lines.simplify_tolerance_mm"))
     min_length_mm: float = float(code_default("suggest_lines.min_length_mm"))
     merge_angle_deg: float = float(code_default("suggest_lines.merge_angle_deg"))
+    join_gap_mm: float = float(code_default("suggest_lines.join_gap_mm"))
+    join_offset_mm: float = float(code_default("suggest_lines.join_offset_mm"))
+    remove_grid: bool = bool(code_default("suggest_lines.remove_grid"))
 
     def __post_init__(self) -> None:
         if self.threshold_block_size <= 1 or self.threshold_block_size % 2 == 0:
@@ -78,6 +83,8 @@ class SuggestParams:
             raise ValueError("simplify_tolerance_mm and min_length_mm must be positive")
         if not 0 < self.merge_angle_deg < 90:
             raise ValueError("merge_angle_deg must be between 0 and 90")
+        if self.join_gap_mm < 0 or self.join_offset_mm < 0:
+            raise ValueError("join_gap_mm and join_offset_mm must not be negative")
 
     @classmethod
     def param_names(cls) -> list[str]:
@@ -119,7 +126,7 @@ def suggest_polylines(
     if image.size == 0:
         return []
     try:
-        gray = gray_on_white(image)
+        gray = gray_on_white(image, remove_grid=params.remove_grid)
     except ValueError as exc:
         raise UnsupportedImageError(str(exc)) from None
     mask = stroke_mask(
@@ -132,14 +139,26 @@ def suggest_polylines(
     paths = skeleton_paths(
         mask, min_length_px=min_length_px, merge_angle_deg=params.merge_angle_deg
     )
-    found: list[SuggestedPolyline] = []
+    fragments: list[Fragment] = []
     for path in paths:
         points = simplify_path(path, params.simplify_tolerance_mm * PX_PER_MM)
+        if polyline_length(points) >= min_length_px:
+            fragments.append(Fragment(points, list(path)))
+    offset_px = params.join_offset_mm * PX_PER_MM
+    joined = join_fragments(
+        fragments,
+        gap_px=params.join_gap_mm * PX_PER_MM,
+        offset_px=offset_px,
+        angle_deg=params.merge_angle_deg,
+    )
+    found: list[SuggestedPolyline] = []
+    for fragment in joined:
+        points = straighten(fragment.points, offset_px=offset_px)
         length_px = polyline_length(points)
-        if length_px < min_length_px:
+        if length_px < min_length_px:  # a wiggle can straighten into a short chord
             continue
         length_mm = length_px / PX_PER_MM
-        score = confidence(length_mm, straightness(path))
+        score = confidence(length_mm, straightness(fragment.pixels))
         found.append(SuggestedPolyline(tuple(points), score, length_mm))
     if len(found) > MAX_PATHS:
         logger.info("Keeping %d of %d suggested polylines", MAX_PATHS, len(found))

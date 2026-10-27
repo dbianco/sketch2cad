@@ -198,6 +198,7 @@ def test_without_calibration_the_plan_is_non_metric_with_no_blocking_entity(
         "blocking_entities": [],
         "reasons": {},
         "discrepant_dimensions": [],
+        "length_conflicts": [],
     }
     assert stored_status(factory, plan.id) == "non_metric"
 
@@ -229,6 +230,7 @@ def test_the_endpoint_lists_exactly_the_blockers_and_matches_the_plan_field(
         "blocking_entities": [],
         "reasons": {},
         "discrepant_dimensions": [dimension],
+        "length_conflicts": [],
     }
     assert stored_status(factory, plan.id) == "metric"
 

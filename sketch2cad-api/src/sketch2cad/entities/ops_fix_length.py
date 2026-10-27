@@ -37,6 +37,10 @@ from sketch2cad.geometry.metrics import (
 DECLARED_SEGMENTS: Final = "declared_segments"
 """Attribute holding the declared segment lengths; written only by ``fix_length``."""
 
+LENGTH_CONFLICTS: Final = "length_conflicts"
+"""Server-managed attribute: declarations a ``fix_length`` elsewhere broke, as
+``{"k": {"declared_m": v, "actual_m": w}}``; kept until the entity's geometry is edited."""
+
 SEGMENT_TOLERANCE_M: Final = TANGENCY_TOLERANCE_M
 """A declared segment stays declared while its length is within this many metres."""
 
@@ -204,6 +208,40 @@ def fix_length(
     kept = declared_segments(retained_attributes(geometry, new_geometry, attributes))
     kept[segment] = value
     return FixedLength(new_geometry, _with_declared(attributes, kept), segment, anchor, free)
+
+
+@dataclass(frozen=True)
+class BrokenDeclaration:
+    """A declared segment length that no longer holds after an edit."""
+
+    segment: int
+    declared_m: float
+    actual_m: float | None
+    """Length now, or ``None`` when the segments were renumbered."""
+
+
+def broken_declarations(
+    before: Mapping[str, Any], after: Mapping[str, Any], geometry: Mapping[str, Any]
+) -> list[BrokenDeclaration]:
+    """Declarations in attributes ``before`` that attributes ``after`` dropped."""
+    kept = declared_segments(after)
+    count = segment_count(geometry)
+    return [
+        BrokenDeclaration(k, v, segment_length(geometry, k) if k < count else None)
+        for k, v in sorted(declared_segments(before).items())
+        if k not in kept
+    ]
+
+
+def with_length_conflicts(
+    attributes: Mapping[str, Any], broken: list[BrokenDeclaration]
+) -> dict[str, Any]:
+    """``attributes`` recording ``broken`` in :data:`LENGTH_CONFLICTS` (merged by segment)."""
+    raw: object = attributes.get(LENGTH_CONFLICTS)
+    current: dict[str, Any] = dict(cast(dict[str, Any], raw)) if isinstance(raw, dict) else {}
+    for item in broken:
+        current[str(item.segment)] = {"declared_m": item.declared_m, "actual_m": item.actual_m}
+    return {**attributes, LENGTH_CONFLICTS: current}
 
 
 def declared_origin(geometry: Mapping[str, Any], attributes: Mapping[str, Any]) -> str | None:

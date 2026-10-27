@@ -14,6 +14,7 @@ export const TOOL_SHORTCUTS: Readonly<Record<ToolId, string>> = {
   symbol: "S",
   frame: "F",
   fixlength: "D",
+  dimension: "A",
   triangulate: "G",
   baseline: "B",
   ocr: "R",
@@ -31,6 +32,7 @@ export const CURSOR_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
   "symbol",
   "frame",
   "fixlength",
+  "dimension",
   "triangulate",
   "baseline",
   "ocr",
@@ -112,6 +114,7 @@ const TOOL_NAMES: Readonly<Record<ToolId, string>> = {
   symbol: "Símbolo",
   frame: "Sistema local",
   fixlength: "Fijar longitud",
+  dimension: "Cota",
   triangulate: "Triangulación",
   baseline: "Base + offset",
   ocr: "Leer cota (OCR)",
@@ -163,6 +166,12 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
         description: "Elegir el segmento y después su vértice ancla (o Tab hasta el extremo)",
       },
       { keys: "Fijar longitud: Esc", description: "Cancelar el segmento elegido" },
+      {
+        keys: "Cota: Intro, flechas, Intro",
+        description:
+          "Marcar los dos extremos (o Intro sobre un segmento), escribir el valor declarado y pulsar Crear cota",
+      },
+      { keys: "Cota: Esc", description: "Quitar los puntos marcados" },
       {
         keys: "Triangulación y Base + offset: Intro",
         description:
