@@ -272,7 +272,8 @@ describe("BatchPanel and SuggestionLayer", () => {
     expect(await screen.findByText("Aceptadas: 2001 sugerencias.")).toBeTruthy();
     const requests = sent("POST", BULK_URL) as { ids: string[] }[];
     expect(requests.map((r) => r.ids.length)).toEqual([2000, 1]);
-  });
+    // Rendering 2001 list items in jsdom takes ~7 s on a CI runner, above the default 5 s.
+  }, 30_000);
 
   it("selects an item on the canvas and reviews a single suggestion", async () => {
     const { store } = setup({
