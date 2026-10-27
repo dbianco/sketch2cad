@@ -1,7 +1,7 @@
 ---
 id: 001-113
 title: "Label CI tests by acceptance criterion and gate on them"
-status: todo
+status: in_review
 milestone: "H6 — Endurecimiento y validación interna"
 repository: sketch2cad
 depends_on: [001-111, 001-112]
