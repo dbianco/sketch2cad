@@ -66,10 +66,25 @@ packages = ["src/sketch2cad"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra --strict-markers"
+# ca01..ca13 label the tests that realize each acceptance criterion of spec section 16. They
+# are applied from the CA_TESTS mapping in tests/conftest.py; scripts/ca_report.py reports them.
 markers = [
     "perf: real-timing performance measurements",
     "slow: needs the `ocr` extra and the TrOCR model; skipped when they are missing",
+    "ca01: CA-01 Original: the original is preserved and its SHA-256 verified afterwards",
+    "ca02: CA-02 Calibration: an oblique photo of a known pattern is rectified within 1 mm; unrectified it cannot be metric",
+    "ca03: CA-03 Reconstruction from dimensions: triangulation and baseline+offset match the expected coordinates within 1 cm",
+    "ca04: CA-04 Suggestions (H5): on the synthetic set >= 90 % of segments > 20 mm recovered with deviation < 2 mm; zero spurious < 5 mm",
+    "ca05: CA-05 Human review (H5): a suggestion can be accepted, corrected, rejected or replaced; provenance and history are kept",
+    "ca06: CA-06 DXF: passes audit(), re-reads equal to the snapshot (golden + re-read)",
+    "ca07: CA-07 Scale: three control distances agree in model, DXF and PDF within 0.5 %",
+    "ca08: CA-08 Reproducibility: two exports of the same revision give DXF and PDF with the same hash",
+    "ca09: CA-09 Audit: one altered byte of an artifact or event fails verification naming the artifact",
+    "ca10: CA-10 States: forbidden transitions are rejected; VALIDATED freezes; reopening creates a new revision and keeps the old one",
+    "ca11: CA-11 Failures: unreadable image, calibration out of tolerance, failed job -> explicit state with cause and action",
+    "ca12: CA-12 Security: an unauthorized user cannot read, edit, export or download; every attempt is recorded",
+    "ca13: CA-13 Licenses: no dependency outside the allow-list",
 ]
 
 [tool.ruff]

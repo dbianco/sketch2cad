@@ -1,0 +1,8 @@
+# Acceptance gate configuration read by scripts/ca_report.py (task 001-113, jotdown H6-1).
+#
+# h5_built: whether milestone H5 (suggestions and OCR) was built. CA-04 and CA-05 depend on
+# H5 (spec section 16): when true they are required like every other criterion; when false
+# the report shows them as "N/A (not built)" and the H6 report must declare them as later
+# validation.
+[features]
+h5_built = true

@@ -246,3 +246,16 @@ def test_committed_exceptions_document_psycopg() -> None:
     assert errors == []
     psycopg = [e for e in entries if e.package == "psycopg"]
     assert len(psycopg) == 1 and psycopg[0].status == "approved" and psycopg[0].reason
+
+
+def test_installed_environment_passes_the_license_check() -> None:
+    """CA-13 on the real environment: pip-licenses over the installed packages, no network."""
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, str(SCRIPT)],
+        cwd=API_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "License check passed" in result.stdout
