@@ -17,19 +17,20 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
+# Module import: tasks_suggest imports calibration.rectify, whose package imports this module.
+import sketch2cad.worker.tasks_suggest as suggest_jobs
 from sketch2cad.audit.chain import EventKind, append_event
 from sketch2cad.calibration.rectify import enqueue_rectify
 from sketch2cad.config import Settings
+from sketch2cad.config_params import case_incident_type, code_default, get_params
 from sketch2cad.db.models import (
     Calibration,
     CalibrationMethod,
-    Entity,
+    IncidentType,
     Plan,
     PlanStatus,
-    Revision,
     Source,
     SourceMode,
     User,
@@ -53,7 +54,7 @@ from sketch2cad.plans.service import active_calibration, recompute_metric_status
 logger = logging.getLogger(__name__)
 
 CALIBRATABLE_STATUSES = frozenset({PlanStatus.CALIBRATION_PENDING, PlanStatus.EDITING})
-"""A plan can be (re)calibrated only before review; V-08 then requires it to be empty."""
+"""A plan can be (re)calibrated only before review; V-08 then requires no accepted entity."""
 
 V08_MESSAGE = "No puedes recalibrar un plano con entidades. Descártalas o crea otro plano."
 V05_MESSAGE = (
@@ -65,14 +66,16 @@ ROLE_CONTROL = "control"
 ROLE_CHECK = "check"
 BASIS_CONTROL = "control_points"
 BASIS_CHECK = "check_points"
+MAX_REPROJECTION_ERROR = "calibration.max_reprojection_error_mm"
+MAX_SCALE_DISCREPANCY = "calibration.max_scale_discrepancy_pct"
 
 
 @dataclass(frozen=True)
 class CalibrationTolerances:
-    """Tolerances of spec section 11.4; defaults match :class:`~sketch2cad.config.Settings`."""
+    """Tolerances of spec section 11.4; defaults are the registry code defaults."""
 
-    max_reprojection_error_mm: float = 1.0
-    max_scale_discrepancy_pct: float = 1.0
+    max_reprojection_error_mm: float = code_default(MAX_REPROJECTION_ERROR)
+    max_scale_discrepancy_pct: float = code_default(MAX_SCALE_DISCREPANCY)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "CalibrationTolerances":
@@ -81,6 +84,23 @@ class CalibrationTolerances:
             max_reprojection_error_mm=settings.CALIBRATION_MAX_REPROJECTION_ERROR_MM,
             max_scale_discrepancy_pct=settings.CALIBRATION_MAX_SCALE_DISCREPANCY_PCT,
         )
+
+    @classmethod
+    def resolve(
+        cls, session: Session | None, incident_type: IncidentType | None
+    ) -> "CalibrationTolerances":
+        """Resolve both tolerances for ``incident_type`` (overrides, then the default)."""
+        values = get_params(
+            (MAX_REPROJECTION_ERROR, MAX_SCALE_DISCREPANCY),
+            incident_type=incident_type,
+            session=session,
+        )
+        return cls(float(values[MAX_REPROJECTION_ERROR]), float(values[MAX_SCALE_DISCREPANCY]))
+
+    @classmethod
+    def for_plan(cls, session: Session, plan: Plan) -> "CalibrationTolerances":
+        """Tolerances for the incident type of the plan's case file."""
+        return cls.resolve(session, case_incident_type(session, plan.case_file_id))
 
 
 class CalibrationInputError(ValueError):
@@ -305,13 +325,12 @@ def _source_dpi(db: Session, plan: Plan) -> float | None:
 
 
 def has_entities(db: Session, plan: Plan) -> bool:
-    """Whether any revision of ``plan`` holds an entity that is not soft-deleted."""
-    query = (
-        select(Entity.id)
-        .join(Revision, Revision.id == Entity.revision_id)
-        .where(Revision.plan_id == plan.id, Entity.deleted_at.is_(None))
-    )
-    return bool(db.scalar(select(exists(query))))
+    """Whether any revision of ``plan`` holds a live accepted, corrected or manual entity.
+
+    Pending suggestions (``suggested``, ``rejected``) do not lock the calibration (spec
+    section 7 step 8); :func:`accept` deletes them when the calibration changes.
+    """
+    return suggest_jobs.locking_entities_exist(db, plan)
 
 
 def ensure_calibratable(db: Session, plan: Plan) -> None:
@@ -372,7 +391,11 @@ def accept(
     when it is not allowed (422), deactivates the previous calibration, moves the plan from
     ``CALIBRATION_PENDING`` to ``EDITING`` and appends ``calibration.proposed`` and
     ``calibration.accepted``. Queues the ``rectify`` job (idempotent on the calibration
-    content, none for ``none``). Runs in the caller's transaction; the caller commits.
+    content, none for ``none``). When the content changes, the pending suggestions of the
+    previous calibration are soft-deleted; ``suggest_lines`` is queued now for ``none`` or
+    an already rectified image, else by the rectify job
+    (:func:`sketch2cad.worker.tasks_suggest.on_calibration_accepted`). Runs in the caller's
+    transaction; the caller commits.
     """
     db.refresh(plan, with_for_update=True)
     proposal = propose(db, plan, data, tolerances)
@@ -437,6 +460,7 @@ def accept(
         plan.id,
     )
     enqueue_rectify(db, plan, calibration)
+    suggest_jobs.on_calibration_accepted(db, plan, user, previous, calibration, client_ip)
     return calibration
 
 

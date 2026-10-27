@@ -4,6 +4,7 @@ from sketch2cad.db.models.artifact import Artifact, ArtifactKind
 from sketch2cad.db.models.calibration import Calibration, CalibrationMethod
 from sketch2cad.db.models.case_file import CaseCodeCounter, CaseFile, CaseMember, IncidentType
 from sketch2cad.db.models.catalog import Catalog
+from sketch2cad.db.models.config_override import ConfigOverride, ConfigScope
 from sketch2cad.db.models.entity import Entity, EntityType, MetricOrigin, ReviewStatus
 from sketch2cad.db.models.event import Event
 from sketch2cad.db.models.evidence import Evidence
@@ -22,6 +23,8 @@ __all__ = [
     "CaseFile",
     "CaseMember",
     "Catalog",
+    "ConfigOverride",
+    "ConfigScope",
     "Entity",
     "EntityType",
     "Event",

@@ -29,6 +29,7 @@ from sketch2cad.db.models import (
     Revision,
     Source,
     User,
+    UserRole,
     UserSession,
 )
 from sketch2cad.db.session import get_session
@@ -153,6 +154,36 @@ def _deny(
         client_ip=request.client.host if request.client else None,
     )
     return error
+
+
+ADMIN_PERMISSION = "role:admin"
+"""``permission`` of the ``access.denied`` event of an admin-only route."""
+
+
+def require_admin(
+    request: Request,
+    db: Annotated[Session, Depends(get_session)],
+    audit_factory: Annotated[sessionmaker[Session], Depends(get_audit_session_factory)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """The current user if they are ``admin``; else 403 and ``access.denied`` (global chain)."""
+    if user.role is UserRole.ADMIN:
+        return user
+    error = ProblemError(403, "Forbidden", "Only an admin may do this.")
+    actor_id, actor_role = user.id, user.role.value
+    db.rollback()
+    record_access_denied(
+        audit_factory,
+        case_file_id=None,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        method=request.method,
+        route=_route_template(request),
+        permission=ADMIN_PERMISSION,
+        status=error.status,
+        client_ip=request.client.host if request.client else None,
+    )
+    raise error
 
 
 def source_not_found() -> ProblemError:

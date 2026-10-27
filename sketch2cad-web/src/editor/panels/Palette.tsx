@@ -2,7 +2,7 @@
 // keyboard shortcut, and the active-layer picker. Shortcuts are single keys without modifiers and
 // are ignored while typing in a form field. Every control is a native button or select, so the
 // palette is reachable with Tab (spec 17, WCAG 2.1 AA).
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import { TOOL_SHORTCUTS } from "../a11y/shortcuts";
@@ -57,6 +57,13 @@ export const TOOL_BUTTONS: readonly ToolButton[] = [
   },
 ];
 
+/** Buttons of the AI tools (a11y/shortcuts.ts AI_TOOLS), shown only while AI assistance is on. */
+export const AI_TOOL_BUTTONS: readonly ToolButton[] = [
+  { id: "ocr", label: "Leer cota (OCR)", caption: "Leer cota (OCR)", shortcut: TOOL_SHORTCUTS.ocr },
+];
+
+const NO_TOOLS: readonly ToolButton[] = [];
+
 export const PALETTE_TEXT = {
   palette: "Paleta de herramientas",
   tools: "Herramientas",
@@ -76,11 +83,14 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
-/** Tool of a shortcut key event, if any. */
-export function shortcutTool(event: KeyboardEvent): ToolId | undefined {
+/** Tool of a shortcut key event among `tools`, if any. */
+export function shortcutTool(
+  event: KeyboardEvent,
+  tools: readonly ToolButton[] = TOOL_BUTTONS,
+): ToolId | undefined {
   if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target))
     return undefined;
-  return TOOL_BUTTONS.find((tool) => tool.shortcut === event.key.toUpperCase())?.id;
+  return tools.find((tool) => tool.shortcut === event.key.toUpperCase())?.id;
 }
 
 export interface PaletteProps {
@@ -88,31 +98,34 @@ export interface PaletteProps {
   catalog: Catalog;
   /** Read-only plan: every tool button and the shortcuts are disabled. */
   disabled?: boolean;
+  /** Buttons added after TOOL_BUTTONS (AI_TOOL_BUTTONS while AI assistance is on). */
+  extraTools?: readonly ToolButton[];
 }
 
-export function Palette({ ui, catalog, disabled = false }: PaletteProps) {
+export function Palette({ ui, catalog, disabled = false, extraTools = NO_TOOLS }: PaletteProps) {
   const activeTool = useStore(ui, (state) => state.activeTool);
   const layerFlags = useStore(ui, (state) => state.layerFlags);
   const activeLayer = useStore(ui, (state) => resolveActiveLayer(state, catalog));
+  const buttons = useMemo(() => [...TOOL_BUTTONS, ...extraTools], [extraTools]);
 
   useEffect(() => {
     if (disabled) return;
     function onKeyDown(event: KeyboardEvent) {
-      const tool = shortcutTool(event);
+      const tool = shortcutTool(event, buttons);
       if (tool === undefined) return;
       event.preventDefault();
       ui.getState().setTool(tool);
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [ui, disabled]);
+  }, [ui, disabled, buttons]);
 
   const drawable = activeLayer !== null && isDrawable({ layerFlags }, catalog, activeLayer);
 
   return (
     <aside className="editor-palette" aria-label={PALETTE_TEXT.palette}>
       <div role="group" aria-label={PALETTE_TEXT.tools}>
-        {TOOL_BUTTONS.map((tool) => (
+        {buttons.map((tool) => (
           <button
             key={tool.id}
             type="button"

@@ -1,7 +1,7 @@
 ---
 id: 001-104
 title: "Implement OCR output normalization"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-099]

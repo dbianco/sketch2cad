@@ -24,7 +24,7 @@ from sketch2cad.api.deps import (
 )
 from sketch2cad.api.errors import ProblemError
 from sketch2cad.api.routers import api_v1_router
-from sketch2cad.api.routers.entities import EDIT_DEPENDENCIES, Tolerances
+from sketch2cad.api.routers.entities import EDIT_DEPENDENCIES
 from sketch2cad.cases.permissions import record_access_denied
 from sketch2cad.db.models import (
     Calibration,
@@ -37,6 +37,7 @@ from sketch2cad.db.models import (
     User,
 )
 from sketch2cad.db.session import get_session
+from sketch2cad.entities.dimensions import DimensionTolerances
 from sketch2cad.geometry.frame import LocalFrame
 from sketch2cad.plans.lease import (
     LeaseConflictError,
@@ -349,7 +350,6 @@ def get_plan(
 def get_metric_status(
     plan: Annotated[Plan, Depends(require_plan_permission("read"))],
     db: Annotated[Session, Depends(get_session)],
-    tolerances: Tolerances,
 ) -> MetricStatusOut:
     """Metric status of the plan and the entities that keep it from ``metric``.
 
@@ -358,6 +358,7 @@ def get_metric_status(
     ``status`` equals that field. Writes nothing. Requires ``read`` on the plan's case
     file; others get 403 and an ``access.denied`` event.
     """
+    tolerances = DimensionTolerances.for_case(db, plan.case_file_id)
     result = metric_status_of(db, plan, tolerances)
     return MetricStatusOut(
         status=MetricStatus(result.status),

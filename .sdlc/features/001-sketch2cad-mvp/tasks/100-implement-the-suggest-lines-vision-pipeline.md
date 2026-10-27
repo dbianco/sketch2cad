@@ -1,7 +1,7 @@
 ---
 id: 001-100
 title: "Implement the suggest_lines vision pipeline"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-099]

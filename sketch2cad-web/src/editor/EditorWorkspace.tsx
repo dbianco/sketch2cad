@@ -15,16 +15,18 @@
 // Keyboard (a11y/): with a drawing tool (CURSOR_TOOLS) the focused canvas has a keyboard cursor
 // that moves by the snap grid size, and "Ayuda de teclado" (or ?) lists every shortcut.
 // "Deshacer" / "Rehacer" (Ctrl/Cmd + Z, Shift + Ctrl/Cmd + Z) run the editor store's history.
+// The AI tools (OCR crop, R) are in the palette only while `aiAssist` is true; with it false an
+// active AI tool falls back to Select.
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import type { ApiClient } from "../api/client";
 import { KeyboardHelp } from "./a11y/KeyboardHelp";
-import { CURSOR_TOOLS } from "./a11y/shortcuts";
+import { AI_TOOLS, CURSOR_TOOLS } from "./a11y/shortcuts";
 import { EditorCanvas, type EditorCanvasProps } from "./canvas/EditorCanvas";
 import { NorthArrow } from "./canvas/NorthArrow";
 import { HistoryButtons } from "./panels/HistoryButtons";
-import { Palette, isTypingTarget } from "./panels/Palette";
+import { AI_TOOL_BUTTONS, Palette, isTypingTarget } from "./panels/Palette";
 import { SnapSettings, snapSettings, type SnapSettingsStore } from "./panels/SnapSettings";
 import { SymbolPicker, symbolPicker, type SymbolPickerStore } from "./panels/SymbolPicker";
 import { planStore, type PlanStore } from "./plan/planStore";
@@ -32,6 +34,7 @@ import { editorStore, type EditorStore } from "./store/entities";
 import { createBaselineOffsetTool } from "./tools/BaselineOffsetDialog";
 import { createFixLengthTool } from "./tools/FixLengthTool";
 import { createLineTool } from "./tools/LineTool";
+import { createOcrCropTool } from "./tools/OcrCropTool";
 import { LocalFramePanel, createLocalFrameTool } from "./tools/LocalFrameTool";
 import { createPointTool, createTextTool } from "./tools/PointTextTools";
 import { createPolylineTool } from "./tools/PolylineTool";
@@ -43,6 +46,7 @@ import {
   editorUi,
   type EditorTool,
   type EditorUiStore,
+  type SourceImage,
   type ToolContext,
   type ToolId,
 } from "./ui/editorUi";
@@ -65,6 +69,7 @@ export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => E
   fixlength: createFixLengthTool,
   triangulate: createTriangulationTool,
   baseline: createBaselineOffsetTool,
+  ocr: createOcrCropTool,
 };
 
 export type EditorWorkspaceProps = Omit<
@@ -78,6 +83,10 @@ export type EditorWorkspaceProps = Omit<
   plan?: StoreApi<PlanStore>;
   /** API client of the local frame panel and the fix-length tool; the same-origin client by default. */
   api?: ApiClient;
+  /** AI assistance is on (`GET /config/features`): the AI tools are offered. */
+  aiAssist?: boolean;
+  /** The plan's primary source under `imageUrl`, with its size in pixels (OCR crop). */
+  source?: { id: string; widthPx: number; heightPx: number };
 };
 
 export function EditorWorkspace({
@@ -87,22 +96,42 @@ export function EditorWorkspace({
   symbols = symbolPicker,
   plan = planStore,
   api,
+  aiAssist = false,
+  source,
   catalog,
   ...canvasProps
 }: EditorWorkspaceProps) {
-  const { paperScale } = canvasProps;
-  const activeTool = useStore(ui, (state) => state.activeTool);
+  const { paperScale, imageBounds } = canvasProps;
+  const chosenTool = useStore(ui, (state) => state.activeTool);
+  const activeTool = !aiAssist && AI_TOOLS.has(chosenTool) ? "select" : chosenTool;
   const layerFlags = useStore(ui, (state) => state.layerFlags);
   const planOpen = useStore(plan, (state) => state.planId !== null);
   const northDeg = useStore(plan, (state) => state.localFrame?.north_angle_deg ?? 0);
   const readOnly = useStore(plan, (state) => state.readOnly);
   const gridM = useStore(snap, (state) => state.gridM);
+  const sourceImage = useMemo<SourceImage | undefined>(
+    () =>
+      source === undefined || imageBounds === undefined
+        ? undefined
+        : { sourceId: source.id, widthPx: source.widthPx, heightPx: source.heightPx, bounds: imageBounds },
+    [source, imageBounds],
+  );
   const tool = useMemo(
     () =>
       readOnly
         ? undefined
-        : TOOL_FACTORIES[activeTool]({ store, ui, catalog, snap, symbols, paperScale, api }),
-    [readOnly, activeTool, store, ui, catalog, snap, symbols, paperScale, api],
+        : TOOL_FACTORIES[activeTool]({
+            store,
+            ui,
+            catalog,
+            snap,
+            symbols,
+            paperScale,
+            api,
+            plan,
+            sourceImage,
+          }),
+    [readOnly, activeTool, store, ui, catalog, snap, symbols, paperScale, api, plan, sourceImage],
   );
 
   useEffect(() => {
@@ -126,7 +155,12 @@ export function EditorWorkspace({
           flex: `0 0 ${String(PALETTE_COLUMN_WIDTH_PX)}px`,
         }}
       >
-        <Palette ui={ui} catalog={catalog} disabled={readOnly} />
+        <Palette
+          ui={ui}
+          catalog={catalog}
+          disabled={readOnly}
+          extraTools={aiAssist ? AI_TOOL_BUTTONS : undefined}
+        />
         <HistoryButtons store={store} disabled={readOnly} />
         <KeyboardHelp />
       </div>

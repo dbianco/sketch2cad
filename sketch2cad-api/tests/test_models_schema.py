@@ -27,6 +27,7 @@ APPLICATION_TABLES = {
     "evidence",
     "catalog",
     "artifact",
+    "config_override",
 }
 SUPPORT_TABLES = {"alembic_version", "case_code_counter"}
 ENUM_TYPES = {"user_role", "incident_type", "plan_status", "source_mode", "metric_status"}

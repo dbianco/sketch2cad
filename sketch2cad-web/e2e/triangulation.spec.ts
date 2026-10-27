@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type APIResponse, type Locator, type Page } from "@playwright/test";
+import { rejectChainedSuggestions } from "./support";
 
 // Metric reconstruction against the compose stack (H3-10, US-08, US-09, REQ-06, REQ-07, REQ-08):
 // the fix-length tool (D) declares the length of two walls of a schematic sketch, the
@@ -190,6 +191,8 @@ async function seed(page: Page, kind: PlanKind, evidenceLabel?: string): Promise
     200,
   );
   expect(accepted.status).toBe("EDITING");
+  // Not about AI assistance: drop the suggestions chained after the calibration.
+  await rejectChainedSuggestions(page, plan.current_revision_id);
   let evidenceId: string | undefined;
   if (evidenceLabel !== undefined) {
     const evidence = await json<{ id: string }>(

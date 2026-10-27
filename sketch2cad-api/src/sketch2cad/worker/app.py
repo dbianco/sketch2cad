@@ -15,10 +15,13 @@ application settings are not required.
 Importing this module has no side effects: the module-level ``app`` is built on first
 access. The API defers jobs through ``app``; the worker process loads ``worker_app``, the
 same app after checking the signing key at ``SIGNING_KEY_PATH`` (missing, or mode wider
-than 0600: exit status 1 naming the path, jotdown H4-11). Registered tasks: ``rasterize``
-(:mod:`sketch2cad.worker.tasks_raster`), ``qc`` (:mod:`sketch2cad.worker.tasks_qc`) and
-``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`) and ``export``
-(:mod:`sketch2cad.worker.tasks_export`).
+than 0600: exit status 1 naming the path, jotdown H4-11); it also starts loading the OCR
+model in the background (a warning when the ``ocr`` extra or the model is missing).
+Registered tasks: ``rasterize`` (:mod:`sketch2cad.worker.tasks_raster`), ``qc``
+(:mod:`sketch2cad.worker.tasks_qc`) and ``rectify`` (:mod:`sketch2cad.worker.tasks_rectify`),
+``suggest_lines``
+(:mod:`sketch2cad.worker.tasks_suggest`), ``export`` (:mod:`sketch2cad.worker.tasks_export`)
+and ``ocr_crop`` (:mod:`sketch2cad.worker.tasks_ocr`).
 """
 
 import argparse
@@ -26,6 +29,7 @@ import os
 import sys
 from collections.abc import Sequence
 from functools import lru_cache
+from typing import Any
 
 import procrastinate
 import psycopg
@@ -36,7 +40,14 @@ from sqlalchemy.exc import ArgumentError
 
 from sketch2cad.logging import configure_logging
 from sketch2cad.package.signing import require_signing_key
-from sketch2cad.worker import tasks_export, tasks_qc, tasks_raster, tasks_rectify
+from sketch2cad.worker import (
+    tasks_export,
+    tasks_ocr,
+    tasks_qc,
+    tasks_raster,
+    tasks_rectify,
+    tasks_suggest,
+)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -94,7 +105,9 @@ def create_worker_app(conninfo: str | None = None) -> procrastinate.App:
     tasks_raster.register(app)
     tasks_qc.register(app)
     tasks_rectify.register(app)
+    tasks_suggest.register(app)
     tasks_export.register(app)
+    tasks_ocr.register(app)
     return app
 
 
@@ -121,6 +134,25 @@ def _module_app() -> procrastinate.App:
     return create_worker_app()
 
 
+@lru_cache
+def _external_connection_app() -> procrastinate.App:
+    # Never opened, so no pool is created: it only runs queries on the caller's connection.
+    return procrastinate.App(connector=procrastinate.SyncPsycopgConnector())
+
+
+def defer_on_connection(task_name: str, connection: Any, **task_kwargs: Any) -> None:
+    """Defer ``task_name`` in the caller's transaction on the sync psycopg ``connection``
+    (a ``psycopg.Connection``, for example SQLAlchemy's ``driver_connection``).
+
+    Usable both in the API and inside a running worker task (``suggest_lines`` chained
+    after ``rectify``). While the worker runs, ``app`` is open with an async pool, and an
+    open ``PsycopgConnector`` sends external connections to its async code, which fails
+    with ``TypeError`` on a sync connection; this separate, never-opened app has a
+    ``SyncPsycopgConnector`` that runs the defer query on ``connection`` itself.
+    """
+    _external_connection_app().configure_task(task_name, connection=connection).defer(**task_kwargs)
+
+
 def __getattr__(name: str) -> procrastinate.App:
     """Build the module-level ``app`` (and ``worker_app``) lazily, for ``--app=...``."""
     if name == "app":
@@ -129,7 +161,9 @@ def __getattr__(name: str) -> procrastinate.App:
         # The worker process signs packages: refuse to start without a safe signing key.
         # SystemExit names the path; no traceback.
         require_signing_key()
-        return _module_app()
+        worker = _module_app()
+        tasks_ocr.preload_model_in_background()
+        return worker
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

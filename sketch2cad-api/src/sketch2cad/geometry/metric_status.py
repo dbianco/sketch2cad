@@ -24,7 +24,9 @@ Rule set (H2, extended in H3):
   is not a metric layer.
 
 Hand-drawn entities get ``scaled_drawing`` in a ``scaled_drawing`` plan whose calibration
-was accepted as metric, otherwise ``none`` (:func:`default_metric_origin`). The H3 tools
+was accepted as metric, otherwise ``none`` (:func:`default_metric_origin`). Suggestions are
+born ``trace_only`` and are promoted only when a person accepts or corrects them, by the
+same condition (:func:`reviewed_metric_origin`); otherwise they stay ``trace_only``. The H3 tools
 assign the dimension-based origins (``declared_dimension``, ``triangulation``,
 ``baseline_offset``) on the entity itself, so the rule reads them as stored.
 
@@ -45,6 +47,7 @@ NO_CALIBRATION_METHOD: Final = "none"
 
 ORIGIN_SCALED_DRAWING: Final = "scaled_drawing"
 ORIGIN_NONE: Final = "none"
+ORIGIN_TRACE_ONLY: Final = "trace_only"
 METRIC_ORIGINS: Final = frozenset(
     {"declared_dimension", "triangulation", "baseline_offset", "scaled_drawing", "derived"}
 )
@@ -160,6 +163,14 @@ def apply_metric_status[T](
     return value
 
 
+def is_metric_scaled_drawing(
+    source_mode: str, calibration_method: str | None, as_metric: bool
+) -> bool:
+    """Whether drawn geometry is metric by itself: a ``scaled_drawing`` plan whose active
+    calibration (not ``none``) was accepted as metric (spec section 11.3)."""
+    return source_mode == SCALED_DRAWING_MODE and is_calibrated(calibration_method) and as_metric
+
+
 def default_metric_origin(
     source_mode: str,
     calibration_method: str | None,
@@ -173,6 +184,24 @@ def default_metric_origin(
     ``entity_type``: the H3 tools set the dimension-based origins afterwards.
     """
     del entity_type  # same default for every type (spec section 11.3)
-    if source_mode == SCALED_DRAWING_MODE and is_calibrated(calibration_method) and as_metric:
+    if is_metric_scaled_drawing(source_mode, calibration_method, as_metric):
         return ORIGIN_SCALED_DRAWING
     return ORIGIN_NONE
+
+
+def reviewed_metric_origin(
+    source_mode: str,
+    calibration_method: str | None,
+    as_metric: bool,
+    entity_type: str,
+) -> str:
+    """``metric_origin`` of a suggestion once a person accepts or corrects it (spec 11.3).
+
+    ``scaled_drawing`` under the same condition as :func:`default_metric_origin`;
+    otherwise the suggestion keeps ``trace_only`` (a ``schematic_sketch`` has no promotion:
+    only a dimension makes it metric).
+    """
+    del entity_type  # same rule for every type (spec section 11.3)
+    if is_metric_scaled_drawing(source_mode, calibration_method, as_metric):
+        return ORIGIN_SCALED_DRAWING
+    return ORIGIN_TRACE_ONLY

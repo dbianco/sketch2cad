@@ -6,7 +6,8 @@
 # static preview server.
 #
 #   bash scripts/e2e-stack.sh up     build and start the stack, wait until it is healthy and
-#                                    create a technician and a reviewer user with the CLI
+#                                    create a technician, a reviewer and an admin user with
+#                                    the CLI
 #   bash scripts/e2e-stack.sh down   remove the stack, including its volumes (down -v)
 #
 # Secrets: POSTGRES_PASSWORD and SESSION_SECRET are throwaway random values generated in
@@ -19,7 +20,9 @@
 # last line as `E2E_CREDENTIALS_FILE=<path>`. Each file holds two lines: username and password.
 # Next to it, `reviewer_credentials` holds the reviewer user (same format) and
 # `signing_key_id` the public key id of the stack's signing key (`ed25519:...`, public data),
-# which e2e/export_verify.spec.ts pins when it runs the package verifier.
+# which e2e/export_verify.spec.ts pins when it runs the package verifier, and
+# `admin_credentials` the admin user, with which e2e/suggestions_ocr.spec.ts switches the AI
+# assistance off and on again (runtime override of `ai_assist.enabled`).
 #
 # Optional environment variables:
 #   WEB_PORT          host port of the web service (default 18080)
@@ -27,6 +30,11 @@
 #   SIGNING_KEY_PATH  signing key path inside the containers (default
 #                     /app/keys/signing-key.pem, on the `signing-keys` volume)
 #   E2E_STATE_DIR     existing private directory for the credentials file
+#   E2E_WITH_OCR=1    build the worker with torch and the TrOCR model (WORKER_WITH_OCR=true:
+#                     ~4.3 GB image, ~8.5 min cold build) so that the OCR reading tests of
+#                     e2e/suggestions_ocr.spec.ts run; by default the worker is built without
+#                     OCR (WORKER_WITH_OCR=false), its OCR jobs fail, and those tests are
+#                     skipped (the spec reads the same variable)
 #   E2E_REUSE=1       reuse an already running `sketch2cad` project instead of refusing; the
 #                     stack is not rebuilt and only the user is created
 #   KEEP_UP=1         `up` leaves the stack running even when it fails
@@ -42,6 +50,11 @@ PROJECT="sketch2cad"
 export WEB_PORT="${WEB_PORT:-18080}"
 export APP_ENV="${APP_ENV:-dev}"
 export SIGNING_KEY_PATH="${SIGNING_KEY_PATH:-/app/keys/signing-key.pem}"
+if [ "${E2E_WITH_OCR:-0}" = "1" ]; then
+  export WORKER_WITH_OCR=true
+else
+  export WORKER_WITH_OCR=false
+fi
 
 compose() {
   docker compose -p "$PROJECT" "$@"
@@ -63,6 +76,7 @@ up_teardown() {
   if [ "$status" -ne 0 ]; then
     [ -n "${credentials:-}" ] && rm -f "$credentials"
     [ -n "${reviewer_credentials:-}" ] && rm -f "$reviewer_credentials"
+    [ -n "${admin_credentials:-}" ] && rm -f "$admin_credentials"
     if [ "${KEEP_UP:-0}" = "1" ] || [ "${reused:-0}" = "1" ]; then
       echo "stack left running after a failure (KEEP_UP=1 or E2E_REUSE=1)" >&2
     else
@@ -89,6 +103,7 @@ cmd_up() {
   reused=0
   credentials=""
   reviewer_credentials=""
+  admin_credentials=""
   key_output=""
   if [ -n "$(POSTGRES_PASSWORD=unused SESSION_SECRET=unused compose ps -a -q)" ]; then
     [ "${E2E_REUSE:-0}" = "1" ] \
@@ -109,7 +124,7 @@ cmd_up() {
     POSTGRES_PASSWORD="$(openssl rand -hex 24)"
     SESSION_SECRET="$(openssl rand -hex 32)"
     export POSTGRES_PASSWORD SESSION_SECRET
-    echo "docker compose build, generate-signing-key --if-missing, up -d --wait"
+    echo "docker compose build (WORKER_WITH_OCR=$WORKER_WITH_OCR), generate-signing-key --if-missing, up -d --wait"
     up_start=$(date +%s)
     compose build || fail "docker compose build failed"
     key_output="$(compose run --rm --no-deps api python -m sketch2cad.cli generate-signing-key --if-missing)" \
@@ -138,7 +153,9 @@ cmd_up() {
   credentials="$state_dir/credentials"
   reviewer_credentials="$state_dir/reviewer_credentials"
   create_user "$credentials" technician "E2E"
+  admin_credentials="$state_dir/admin_credentials"
   create_user "$reviewer_credentials" reviewer "E2E revisor"
+  create_user "$admin_credentials" admin "E2E administrador"
 
   trap - EXIT
   echo "E2E_CREDENTIALS_FILE=$credentials"

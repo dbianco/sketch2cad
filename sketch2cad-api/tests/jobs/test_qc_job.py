@@ -210,6 +210,7 @@ def test_sharp_image_job_succeeds_with_green_qc(
         "source_id": body["id"],
         "error": None,
         "result_ref": None,
+        "result": None,
     }
 
     run_worker_once(database_url, jobs_schema)

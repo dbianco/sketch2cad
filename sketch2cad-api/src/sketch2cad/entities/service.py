@@ -16,8 +16,15 @@ polylines), store its ``constraint`` and set
 ``metric_origin = none`` (spec section 11.3). After any edit or deletion that changes an
 entity, the entities that depend on it through ``constraint.refs`` are recomputed
 (:mod:`sketch2cad.entities.recompute`), each with an ``entity.recomputed`` event in the
-same transaction. An entity may place evidence of its plan's case file (``evidence_id``,
-points and symbols only; :func:`_check_evidence`); a marker symbol's
+same transaction. Editing a pending suggestion (``review_status`` ``suggested``) is a human
+correction (CA-05): any change flips it to ``corrected`` and promotes its ``metric_origin``
+by :func:`reviewed_origin`; deleting one rejects it (``review_status`` ``rejected``). The
+bulk accept and reject live in :mod:`sketch2cad.entities.bulk_review`. An entity may
+place evidence of its plan's case file (``evidence_id``, points and symbols only;
+:func:`_check_evidence`). A dimension created with ``ocr_job_id`` takes ``source.method =
+ocr`` and, besides ``entity.created``, one ``entity.reviewed`` event (``before`` the OCR
+value as ``suggested``, ``after`` ``accepted`` when the declared value equals it, else
+``corrected``): the acceptance rate of OCR readings (:func:`_ocr_job`). A marker symbol's
 ``evidence_number`` attribute follows that evidence (:func:`_sync_evidence_number`).
 Entities are edited only in a
 ``draft`` revision of a plan in ``EDITING`` or ``IN_REVIEW``, by the user holding the
@@ -40,6 +47,8 @@ from sketch2cad.db.models import (
     Calibration,
     Catalog,
     Entity,
+    JobMeta,
+    JobStatus,
     MetricOrigin,
     Plan,
     PlanStatus,
@@ -70,6 +79,7 @@ from sketch2cad.entities.ops_triangulate import triangulate_position
 from sketch2cad.entities.recompute import CONSTRAINT_ERROR, constraint_graph, recompute_dependents
 from sketch2cad.entities.schemas import (
     Attributes,
+    DimensionGeometry,
     EntityIn,
     EntityOperation,
     EntityPatch,
@@ -81,7 +91,12 @@ from sketch2cad.entities.schemas import (
 from sketch2cad.evidence.service import find_case_evidence
 from sketch2cad.geometry.constraints import would_create_cycle
 from sketch2cad.geometry.homography import Point
-from sketch2cad.geometry.metric_status import METRIC_ORIGINS, default_metric_origin
+from sketch2cad.geometry.metric_status import (
+    METRIC_ORIGINS,
+    default_metric_origin,
+    reviewed_metric_origin,
+)
+from sketch2cad.ocr.trocr import OCR_JOB_KIND
 from sketch2cad.plans.lease import LeaseConflictError, ensure_lease_holder
 from sketch2cad.plans.service import active_calibration, recompute_metric_status
 
@@ -101,6 +116,8 @@ SERVER_ATTRIBUTES = (DECLARED_SEGMENTS, CONSTRAINT_ERROR)
 EXPORT_ONLY_LAYERS = frozenset({"L_SHEET"})
 # Entity types that may place evidence (spec section 2.1).
 EVIDENCE_TYPES = frozenset({"point", "symbol"})
+# Review states of a suggestion a person has approved (spec section 11.3).
+REVIEWED_STATUSES = frozenset({ReviewStatus.ACCEPTED.value, ReviewStatus.CORRECTED.value})
 # Catalog symbol whose ``evidence_number`` attribute shows the evidence it places.
 EVIDENCE_MARKER = "evidence_marker"
 
@@ -197,6 +214,39 @@ def _check_evidence(
         raise EntityInputError(f"Evidence {evidence_id} is not in this case file.")
 
 
+def _ocr_job(db: Session, plan: Plan, item: EntityIn) -> JobMeta | None:
+    """The succeeded ``ocr_crop`` job of ``plan`` named by ``item.ocr_job_id``, if any."""
+    if item.ocr_job_id is None:
+        return None
+    geometry = item.geometry
+    if not isinstance(geometry, DimensionGeometry) or geometry.declared_value_m is None:
+        raise EntityInputError("ocr_job_id applies only to dimensions with declared_value_m.")
+    job = db.get(JobMeta, item.ocr_job_id)
+    if (
+        job is None
+        or job.kind != OCR_JOB_KIND
+        or job.plan_id != plan.id
+        or job.status != JobStatus.SUCCEEDED.value
+    ):
+        raise EntityInputError(f"ocr_job_id {item.ocr_job_id} is not a read OCR crop of this plan.")
+    return job
+
+
+def _ocr_review(entity: Entity, job: JobMeta) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Set the OCR provenance of a new dimension; ``before``/``after`` of its review."""
+    result: dict[str, Any] = job.params.get("result") or {}
+    ocr_value = result.get("value_m")
+    declared: float = entity.geometry["declared_value_m"]  # set: checked by _ocr_job
+    same = ocr_value is not None and abs(float(ocr_value) - declared) <= 1e-9
+    entity.source = {"method": "ocr", "job_id": str(job.id), "parent_entity_id": None}
+    entity.confidence = result.get("confidence")
+    entity.model_version = job.model_version
+    entity.review_status = (ReviewStatus.ACCEPTED if same else ReviewStatus.CORRECTED).value
+    before = {"review_status": ReviewStatus.SUGGESTED.value, "value_m": ocr_value}
+    after = {"review_status": entity.review_status, "declared_value_m": declared}
+    return before, {**after, "source": entity.source, "confidence": entity.confidence}
+
+
 def _sync_evidence_number(db: Session, plan: Plan, entity: Entity) -> None:
     """Make a marker's ``geometry.attributes.evidence_number`` equal its evidence's number.
 
@@ -286,6 +336,37 @@ def initial_metric_origin(
     )
 
 
+def reviewed_origin(plan: Plan, calibration: Calibration | None, entity_type: str) -> MetricOrigin:
+    """``metric_origin`` of a suggestion a person accepted or corrected (spec section 11.3).
+
+    ``scaled_drawing`` in a ``scaled_drawing`` plan whose active calibration was accepted as
+    metric, else ``trace_only`` (:func:`reviewed_metric_origin`, same condition as
+    :func:`initial_metric_origin`).
+    """
+    return MetricOrigin(
+        reviewed_metric_origin(
+            plan.source_mode.value,
+            None if calibration is None else calibration.method,
+            calibration is not None and calibration.as_metric,
+            entity_type,
+        )
+    )
+
+
+def promote_reviewed(entity: Entity, calibration: Calibration | None, plan: Plan) -> None:
+    """Promote the ``trace_only`` origin of a reviewed suggestion by :func:`reviewed_origin`.
+
+    Only a ``trace_only`` entity without declared segment lengths changes: a stronger origin
+    (declared, constrained) is never downgraded, and partial declarations keep
+    ``trace_only`` as for hand-drawn entities (:func:`_apply_declarations`).
+    """
+    if entity.metric_origin != MetricOrigin.TRACE_ONLY.value:
+        return
+    if declared_origin(entity.geometry, entity.attributes) is not None:
+        return
+    entity.metric_origin = reviewed_origin(plan, calibration, entity.type).value
+
+
 def _record(
     db: Session,
     plan: Plan,
@@ -322,6 +403,9 @@ def create_entities(
 ) -> list[Entity]:
     """Insert hand-drawn entities with ``source.method = manual`` and one event each.
 
+    Dimensions with ``ocr_job_id`` get the OCR provenance and their review event instead
+    (:func:`_ocr_review`).
+
     Raises before writing anything: :class:`EntityConflictError` when the revision is not
     editable, :class:`EntityInputError` naming the first item whose layer or symbol is not
     in the active catalog or whose ``evidence_id`` is not evidence of the plan's case file.
@@ -329,11 +413,13 @@ def create_entities(
     """
     plan = ensure_editable(db, revision, user)
     refs = active_catalog_refs(db)
+    ocr_jobs: list[JobMeta | None] = []
     for index, item in enumerate(items):
         try:
             _check_refs(refs, item.layer, item.geometry)
             _check_attributes(item.attributes)
             _check_evidence(db, plan, item.type.value, item.evidence_id)
+            ocr_jobs.append(_ocr_job(db, plan, item))
         except EntityInputError as exc:
             raise EntityInputError(f"entities[{index}]: {exc}") from None
     calibration = active_calibration(db, plan)
@@ -355,14 +441,21 @@ def create_entities(
         )
         for item in items
     ]
+    reviews = [
+        None if job is None else _ocr_review(entity, job)
+        for entity, job in zip(entities, ocr_jobs, strict=True)
+    ]
     for entity in entities:
         _sync_evidence_number(db, plan, entity)
     db.add_all(entities)
     db.flush()
-    for entity in entities:
+    for entity, review in zip(entities, reviews, strict=True):
         _record(
             db, plan, entity, user, EventKind.ENTITY_CREATED, client_ip, after=entity_state(entity)
         )
+        if review is not None:
+            _record(db, plan, entity, user, EventKind.ENTITY_REVIEWED, client_ip, *review)
+            logger.info("OCR reading %s of entity %s", entity.review_status, entity.id)
     recompute_metric_status(db, plan)
     logger.info("User %s created %d entities in revision %s", user.id, len(entities), revision.id)
     return entities
@@ -391,7 +484,9 @@ def update_entity(
 ) -> EntityUpdate:
     """Apply ``patch`` and append ``entity.updated`` with ``operation`` and ``reason``.
 
-    ``source`` and ``review_status`` are left unchanged; ``metric_origin`` changes with
+    ``source`` is left unchanged. A suggestion that the edit changes becomes ``corrected``
+    and its ``metric_origin`` is promoted (:func:`_correct_suggestion`, CA-05);
+    ``metric_origin`` also changes with
     the declared segment lengths (:func:`_apply_declarations`), with a constraint
     operation (:func:`_apply_constraint`) and when a constrained entity is moved by hand
     (:func:`_drop_moved_constraint`). Raises :class:`EntityGoneError`,
@@ -439,7 +534,10 @@ def update_entity(
     _sync_evidence_number(db, plan, entity)
     if patch.operation not in CONSTRAINT_OPERATIONS:
         _drop_moved_constraint(entity, old_geometry)
+    corrected = _correct_suggestion(entity, before)
     _apply_declarations(db, plan, entity, old_geometry, patch.operation)
+    if corrected:
+        promote_reviewed(entity, active_calibration(db, plan), plan)
     entity.updated_at = utc_now()
     db.flush()
     after = {**entity_state(entity), "operation": patch.operation.value}
@@ -459,6 +557,18 @@ def update_entity(
     recompute_metric_status(db, plan)
     logger.info("User %s applied %s to entity %s", user.id, patch.operation.value, entity.id)
     return update
+
+
+def _correct_suggestion(entity: Entity, before: dict[str, Any]) -> bool:
+    """Flip a pending suggestion that an edit changed to ``corrected``; return whether.
+
+    A person editing a suggestion reviews it (CA-05); ``source`` and ``confidence`` stay.
+    The ``entity.updated`` event's ``after`` records the new ``review_status``.
+    """
+    if entity.review_status != ReviewStatus.SUGGESTED.value or entity_state(entity) == before:
+        return False
+    entity.review_status = ReviewStatus.CORRECTED.value
+    return True
 
 
 CONSTRAINT_OPERATIONS = frozenset({EntityOperation.TRIANGULATE, EntityOperation.BASELINE_OFFSET})
@@ -630,7 +740,9 @@ def _apply_declarations(
     Runs after ``fix_length`` and after any edit that changed a geometry with
     declarations: every segment declared gives ``declared_dimension``, only some give
     ``trace_only`` (spec section 8.2); none left gives the hand-drawn default
-    (:func:`initial_metric_origin`) for a manual entity and ``trace_only`` otherwise.
+    (:func:`initial_metric_origin`) for a manual entity, the promotion rule
+    (:func:`reviewed_origin`) for an accepted or corrected suggestion and ``trace_only``
+    for a pending one.
     """
     if operation is not EntityOperation.FIX_LENGTH:
         if entity.geometry == old_geometry:
@@ -644,6 +756,8 @@ def _apply_declarations(
         if entity.source.get("method") == "manual":
             calibration = active_calibration(db, plan)
             origin = initial_metric_origin(plan, calibration, entity.type).value
+        elif entity.review_status in REVIEWED_STATUSES:
+            origin = reviewed_origin(plan, active_calibration(db, plan), entity.type).value
         else:
             origin = MetricOrigin.TRACE_ONLY.value
     entity.metric_origin = origin
@@ -660,13 +774,27 @@ def delete_entity(
 
     Entities fixed from it can no longer be recomputed: they keep their position and are
     marked (``constraint_error`` ``reference_missing``, ``metric_origin`` ``none``).
+    Deleting a pending suggestion rejects it: ``review_status`` becomes ``rejected`` and the
+    event's ``after`` records it (``{"review_status": "rejected"}``; null otherwise).
     """
     plan, _ = _lock_live(db, entity, user)
     before = entity_state(entity)
+    after: dict[str, Any] | None = None
+    if entity.review_status == ReviewStatus.SUGGESTED.value:
+        entity.review_status = ReviewStatus.REJECTED.value
+        after = {"review_status": entity.review_status}
     entity.deleted_at = entity.updated_at = utc_now()
     db.flush()
     _record(
-        db, plan, entity, user, EventKind.ENTITY_DELETED, client_ip, before=before, reason=reason
+        db,
+        plan,
+        entity,
+        user,
+        EventKind.ENTITY_DELETED,
+        client_ip,
+        before=before,
+        after=after,
+        reason=reason,
     )
     _recompute_dependents(db, plan, entity, user, client_ip)
     recompute_metric_status(db, plan)

@@ -30,11 +30,16 @@ def normalize_deg(angle_deg: float) -> float:
     return 0.0 if reduced == FULL_TURN_DEG else reduced
 
 
+_QUARTER_TURNS = ((1, 0), (0, 1), (-1, 0), (0, -1))
+"""Exact cosine and sine of 0, 90, 180 and 270 degrees (unit vectors, not tolerances)."""
+
+
 def _cos_sin(angle_deg: float) -> tuple[float, float]:
     """Cosine and sine of ``angle_deg``, exact for multiples of 90 degrees."""
     quarter, rest = divmod(normalize_deg(angle_deg), 90.0)
     if rest == 0.0:
-        return ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0))[int(quarter)]
+        cos, sin = _QUARTER_TURNS[int(quarter)]
+        return float(cos), float(sin)
     radians = math.radians(angle_deg)
     return math.cos(radians), math.sin(radians)
 

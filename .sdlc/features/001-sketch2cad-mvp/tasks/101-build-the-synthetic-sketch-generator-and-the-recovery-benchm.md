@@ -1,7 +1,7 @@
 ---
 id: 001-101
 title: "Build the synthetic sketch generator and the recovery benchmark"
-status: todo
+status: in_review
 milestone: "H5 — Asistencia de IA"
 repository: sketch2cad
 depends_on: [001-100]

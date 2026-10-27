@@ -406,8 +406,13 @@ def test_every_content_edit_requires_the_lease(
 
 
 def test_accepting_a_calibration_requires_the_lease(
-    client: TestClient, plan_id: str, factory: sessionmaker[Session]
+    client: TestClient,
+    plan_id: str,
+    factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Method none queues suggest_lines at once (task 102); this schema has no job queue.
+    monkeypatch.setenv("AI_ASSIST_ENABLED", "false")
     with factory() as db:
         plan = db.get(Plan, uuid.UUID(plan_id))
         assert plan is not None
