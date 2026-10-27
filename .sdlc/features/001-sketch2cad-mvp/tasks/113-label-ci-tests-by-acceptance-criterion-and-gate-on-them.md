@@ -1,7 +1,8 @@
 ---
 id: 001-113
 title: "Label CI tests by acceptance criterion and gate on them"
-status: in_review
+status: partial
+unmet: ["The acceptance workflow failing on GitHub when a required criterion has zero tests (workflow not run on GitHub; the script check passes locally)"]
 milestone: "H6 — Endurecimiento y validación interna"
 repository: sketch2cad
 depends_on: [001-111, 001-112]
