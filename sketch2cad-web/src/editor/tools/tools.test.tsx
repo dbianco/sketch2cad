@@ -413,6 +413,7 @@ describe("palette", () => {
       "Símbolo",
       "Sistema local",
       "Fijar longitud",
+      "Cota",
       "Triangulación",
       "Base + offset",
     ]);

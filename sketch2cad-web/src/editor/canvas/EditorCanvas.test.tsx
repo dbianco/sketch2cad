@@ -180,7 +180,10 @@ describe("EditorCanvas layers", () => {
     expect(entityElement(container, "label")?.textContent).toBe("Cocina");
     // Text height is paper mm at the plan scale: 2.5 mm at 1:100 is 0.25 m.
     expect(entityElement(container, "label")?.getAttribute("font-size")).toBe("0.25");
-    expect(entityElement(container, "dim")?.textContent).toBe("10,05 m");
+    // The declared value; 10.05 vs 10.00 measured is beyond the 0.02 m tolerance, so the
+    // measured length follows with a warning.
+    expect(entityElement(container, "dim")?.querySelector("text")?.textContent).toBe("10,05 m");
+    expect(entityElement(container, "dim")?.getAttribute("data-discrepancy")).toBe("true");
   });
 
   it("hides the elements of a layer when its visibility is toggled off, and shows them again", () => {

@@ -1,13 +1,16 @@
 // Select tool (jotdown H2, CU-04): click selects an entity, Shift + click adds or removes it,
 // Delete/Backspace deletes the selection, Esc clears it. The selection panel moves the selection
-// to another layer (reclassify). Entities on locked or hidden layers are left alone. A press on
-// the background is declined, so the canvas pans as in the viewer.
+// to another layer (reclassify) and, for a single dimension, edits its declared value (relabel,
+// undoable). Entities on locked or hidden layers are left alone. A press on the background is
+// declined, so the canvas pans as in the viewer.
+import { useState } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import type { Catalog } from "../canvas/EditorCanvas";
 import { layerFlags as flagsOf } from "../canvas/layers";
 import type { EditorStore } from "../store/entities";
-import type { EntityId } from "../store/types";
+import type { EditorEntity, EntityId } from "../store/types";
+import { DISTANCE_MESSAGE, parseDistance } from "../util/parseDistance";
 import {
   editableLayers,
   isDrawable,
@@ -25,6 +28,8 @@ export const SELECT_TEXT = {
   mixed: "Varias capas",
   remove: "Eliminar selección",
   removeShort: "Eliminar",
+  declared: "Valor declarado de la cota (m)",
+  saveDeclared: "Guardar valor",
 } as const;
 
 /** Selected entities that may be edited: live and on a visible, unlocked layer. */
@@ -141,8 +146,62 @@ export function SelectionPanel({ store, ui, catalog }: SelectionPanelProps) {
           >
             {SELECT_TEXT.removeShort}
           </button>
+          {selection.length === 1 && (
+            <DeclaredValueForm
+              key={selection[0]}
+              entity={byId[selection[0] as EntityId]}
+              context={context}
+            />
+          )}
         </>
       )}
     </section>
+  );
+}
+
+/** Declared value of a selected dimension; saving relabels it with the new value. */
+function DeclaredValueForm({
+  entity,
+  context,
+}: {
+  entity: EditorEntity | undefined;
+  context: ToolContext;
+}) {
+  const geometry = entity?.geometry;
+  const declared = geometry?.kind === "dimension" ? (geometry.declared_value_m ?? null) : null;
+  const [text, setText] = useState(() =>
+    declared === null ? "" : declared.toFixed(2).replace(".", ","),
+  );
+  const [error, setError] = useState(false);
+  if (entity === undefined || geometry?.kind !== "dimension") return null;
+  if (!editableSelection(context).includes(entity.id)) return null;
+  const dimension = geometry;
+  const id = entity.id;
+  return (
+    <form
+      className="editor-dimension-value"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const value = parseDistance(text);
+        setError(value === null);
+        if (value === null || value === declared) return;
+        context.store.getState().relabel(id, {
+          geometry: { ...dimension, declared_value_m: value },
+        });
+      }}
+    >
+      <label>
+        {SELECT_TEXT.declared}{" "}
+        <input
+          type="text"
+          inputMode="decimal"
+          value={text}
+          aria-invalid={error}
+          onChange={(event) => setText(event.target.value)}
+        />
+      </label>{" "}
+      <button type="submit">{SELECT_TEXT.saveDeclared}</button>
+      {error && <p role="alert">{DISTANCE_MESSAGE}</p>}
+    </form>
   );
 }

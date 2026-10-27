@@ -25,6 +25,7 @@ from pydantic import (
 from sketch2cad.catalog.schema import ATTRIBUTE_NAME, LAYER_NAME, SYMBOL_ID
 from sketch2cad.db.models import EntityType, MetricOrigin, MetricStatus, ReviewStatus
 from sketch2cad.entities.dimensions import measured_length
+from sketch2cad.geometry.metrics import TANGENCY_TOLERANCE_M
 
 # One request carries at most the entity count the editor is sized for (spec section 17).
 MAX_ENTITIES_PER_REQUEST = 2000
@@ -137,6 +138,19 @@ class SymbolGeometry(_Strict):
     attributes: Attributes = Field(default_factory=dict[str, AttributeValue])
 
 
+def _check_dimension_points(geometry: "Geometry | None") -> None:
+    """Reject a new or edited dimension whose ``p1_m`` and ``p2_m`` coincide.
+
+    It has no direction to be drawn along, so the DXF and PDF exports would fail on it.
+    Only request models check it: entities already stored still read back.
+    """
+    if (
+        isinstance(geometry, DimensionGeometry)
+        and measured_length(geometry.p1_m, geometry.p2_m) < TANGENCY_TOLERANCE_M
+    ):
+        raise ValueError("dimension points p1_m and p2_m must not coincide")
+
+
 Geometry = Annotated[
     LineGeometry
     | PolylineGeometry
@@ -167,6 +181,7 @@ class EntityIn(_Strict):
     def _kind_matches_type(self) -> "EntityIn":
         if self.geometry.kind != self.type.value:
             raise ValueError("geometry.kind must equal type")
+        _check_dimension_points(self.geometry)
         return self
 
 
@@ -250,6 +265,7 @@ class EntityPatch(_Strict):
     @model_validator(mode="after")
     def _operation_has_its_fields(self) -> "EntityPatch":
         self._check_computed_fields()
+        _check_dimension_points(self.geometry)
         if self.operation in GEOMETRY_OPERATIONS and self.geometry is None:
             raise ValueError(f"{self.operation.value} needs geometry")
         if self.operation is EntityOperation.RECLASSIFY and self.layer is None:

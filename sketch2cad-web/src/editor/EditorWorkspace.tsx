@@ -4,7 +4,7 @@
 //
 // Pointer: with the Select tool a press on an entity selects it and a press on the background
 // pans; drawing tools take every primary-button press, so with them the canvas pans with the
-// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S, F, D, G, B)
+// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S, F, D, A, G, B)
 // and the active tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work
 // anywhere except while typing in a field. A tool's `panel` (triangulation, base + offset) is shown
 // next to the canvas. The snap settings panel configures snapping for every tool.
@@ -32,6 +32,7 @@ import { SymbolPicker, symbolPicker, type SymbolPickerStore } from "./panels/Sym
 import { planStore, type PlanStore } from "./plan/planStore";
 import { editorStore, type EditorStore } from "./store/entities";
 import { createBaselineOffsetTool } from "./tools/BaselineOffsetDialog";
+import { createDimensionTool } from "./tools/DimensionTool";
 import { createFixLengthTool } from "./tools/FixLengthTool";
 import { createLineTool } from "./tools/LineTool";
 import { createOcrCropTool } from "./tools/OcrCropTool";
@@ -67,6 +68,7 @@ export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => E
   symbol: createSymbolTool,
   frame: createLocalFrameTool,
   fixlength: createFixLengthTool,
+  dimension: createDimensionTool,
   triangulate: createTriangulationTool,
   baseline: createBaselineOffsetTool,
   ocr: createOcrCropTool,

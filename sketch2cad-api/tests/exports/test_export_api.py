@@ -20,7 +20,11 @@ from typing import Any
 
 import cv2
 import psycopg
+import pypdfium2 as pdfium  # pyright: ignore[reportMissingTypeStubs]
 import pytest
+from ezdxf.entities import Dimension
+from ezdxf.entities.mtext import MText
+from ezdxf.filemanagement import read as read_drawing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from psycopg import sql
@@ -438,6 +442,75 @@ def test_final_export_packages_signs_and_moves_the_plan_to_exported(
     assert outsider.get(package_url).status_code == 403
     assert denied(factory) == ["deliver", "read"]
     assert len(events(factory, EventKind.ARTIFACT_DOWNLOADED)) == 1
+
+
+# Declared dimensions over the plan's polyline: offset left, none, right; 3.05 m declared on a
+# 3.00 m segment is beyond the 0.02 m tolerance (alert style), 5.16 m on a 5.161 m diagonal is not.
+DIMENSIONS = [
+    ([0.0, 0.0], [4.2, 0.0], 0.5, 4.20),
+    ([4.2, 0.0], [4.2, 3.0], 0.0, 3.05),
+    ([0.0, 0.0], [4.2, 3.0], -0.4, 5.16),
+]
+
+
+def test_declared_dimensions_print_in_the_final_dxf_and_pdf(
+    client: TestClient,
+    reviewer: TestClient,
+    plan_id: str,
+    database_url: str,
+    jobs_schema: str,
+) -> None:
+    revision_id = client.get(f"{API}/plans/{plan_id}").json()["current_revision_id"]
+    items = [
+        {
+            "type": "dimension",
+            "layer": "L_DIMENSIONS",
+            "geometry": {
+                "kind": "dimension",
+                "p1_m": p1,
+                "p2_m": p2,
+                "offset_m": offset,
+                "declared_value_m": declared,
+            },
+        }
+        for p1, p2, offset, declared in DIMENSIONS
+    ]
+    response = client.post(f"{API}/revisions/{revision_id}/entities", json={"entities": items})
+    assert response.status_code == 201, response.text
+    validate(client, reviewer, plan_id)
+    job_id = export(reviewer, plan_id, mode="final").json()["id"]
+    run_worker_once(database_url, jobs_schema)
+    assert reviewer.get(f"{API}/jobs/{job_id}").json()["status"] == "succeeded"
+    listed = {a["kind"]: a["id"] for a in reviewer.get(f"{API}/plans/{plan_id}/artifacts").json()}
+
+    def download(kind: str) -> bytes:
+        response = reviewer.get(f"{API}/artifacts/{listed[kind]}", params={"confirm": "true"})
+        assert response.status_code == 200, response.text
+        return response.content
+
+    doc = read_drawing(io.StringIO(download("dxf").decode("utf-8")))
+    dimensions = doc.modelspace().query("DIMENSION")
+    assert len(dimensions) == len(DIMENSIONS)
+    by_text = {d.dxf.text: d for d in dimensions if isinstance(d, Dimension)}
+    assert sorted(by_text) == ["3.05", "4.20", "5.16"]
+    for text, dimension in by_text.items():
+        assert dimension.dxf.layer == "L_DIMENSIONS"
+        assert dimension.dxf.dimtype & 0b111 == 1  # aligned
+        style = "S2C_DIM_ALERT" if text == "3.05" else "S2C_DIM"
+        assert dimension.dxf.dimstyle == style
+        block = dimension.get_geometry_block()
+        assert block is not None
+        # The rendered block (what a viewer draws) shows the declared text, not the measurement.
+        shown = [mtext.text for mtext in block.query("MTEXT") if isinstance(mtext, MText)]
+        assert shown == [text], shown
+    assert by_text["3.05"].dxf.defpoint2.isclose((4.2, 0.0, 0.0))
+    assert by_text["3.05"].dxf.defpoint3.isclose((4.2, 3.0, 0.0))
+
+    pdf = pdfium.PdfDocument(download("pdf_plan"))
+    page_text = pdf[0].get_textpage().get_text_range()
+    for _, _, _, declared in DIMENSIONS:
+        assert f"{declared:.2f}" in page_text
+    assert "3.00" not in page_text  # the measured length of the discrepant one is not printed
 
 
 def test_the_package_events_match_the_events_endpoint(
