@@ -3378,6 +3378,119 @@
         "title": "PlanJobIn",
         "type": "object"
       },
+      "PlanJobOut": {
+        "description": "A job of a plan as listed by ``GET /plans/{plan_id}/jobs``.",
+        "properties": {
+          "calibration_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibration Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrResultOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Ref"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "source_id",
+          "error",
+          "result_ref",
+          "created_at",
+          "calibration_id"
+        ],
+        "title": "PlanJobOut",
+        "type": "object"
+      },
+      "PlanJobsOut": {
+        "description": "The plan's most recent jobs, newest first (at most :data:`PLAN_JOBS_LIMIT`).",
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/PlanJobOut"
+            },
+            "title": "Jobs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "jobs"
+        ],
+        "title": "PlanJobsOut",
+        "type": "object"
+      },
       "PlanOut": {
         "description": "A plan with its active calibration, edit lease and current revision.\n\n``calibration`` is null until a calibration is accepted. ``lease`` is null while no\nuser holds a valid (unexpired) edit lease.",
         "properties": {
@@ -6527,6 +6640,88 @@
       }
     },
     "/api/v1/plans/{plan_id}/jobs": {
+      "get": {
+        "description": "The plan's most recent jobs on its primary source, newest first.\n\nAt most :data:`PLAN_JOBS_LIMIT` jobs; ``kind`` (repeatable) keeps only those kinds,\nfor example ``?kind=rectify&kind=suggest_lines``. A failed job carries\n``error {cause, action}``. Writes nothing. Requires ``read`` on the plan's case\nfile; others get 403 and an ``access.denied`` event.",
+        "operationId": "list_plan_jobs_api_v1_plans__plan_id__jobs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "s2c_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "S2C Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanJobsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The user lacks ``read`` on the plan's case file (access.denied)."
+          },
+          "404": {
+            "description": "The plan does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Plan Jobs",
+        "tags": [
+          "jobs"
+        ]
+      },
       "post": {
         "description": "Queue a job on the plan (202); poll ``GET /jobs/{id}``. Requires ``edit``.\n\n``suggest_lines`` (relaunch): allowed while no entity of the plan is accepted,\ncorrected or manual, with the plan's edit lease. Soft-deletes the pending suggestions\n(one ``entity.deleted`` event with their ids), supersedes earlier jobs and queues a new\none; it inserts its suggestions with ``suggestions.added``.\n\n``ocr_crop``: reads the number inside ``box_px`` of the plan's primary source; needs\nneither the lease nor a calibration and writes nothing but the job. The succeeded job\ncarries ``result`` (:class:`OcrResultOut`).\n\nBoth kinds give 404 when ``ai_assist.enabled`` is false (``GET /config/features``).",
         "operationId": "post_plan_job_api_v1_plans__plan_id__jobs_post",

@@ -34,6 +34,12 @@ type ReviewStatus = components["schemas"]["BulkReviewIn"]["review_status"];
 export const BULK_REVIEW_MAX_IDS = 2000;
 
 const ratio = (value: number) => value.toFixed(2).replace(".", ",");
+/**
+ * A confidence truncated (not rounded) to two decimals, so that the shown value agrees with its
+ * band: 0.698 under a 0.70 threshold reads "0,69 · baja", not "0,70 · baja". The tiny epsilon
+ * keeps values such as 0.29 (0.28999… in binary) from dropping a hundredth.
+ */
+const confidenceText = (value: number) => ratio(Math.floor(value * 100 + 1e-9) / 100);
 const count = (n: number) => (n === 1 ? "1 sugerencia" : `${String(n)} sugerencias`);
 
 export const BATCH_TEXT = {
@@ -48,7 +54,8 @@ export const BATCH_TEXT = {
   item: (n: number) => `Sugerencia ${String(n)}`,
   acceptItem: (n: number) => `Aceptar sugerencia ${String(n)}`,
   rejectItem: (n: number) => `Rechazar sugerencia ${String(n)}`,
-  confidence: (c: number | null) => (c === null ? "confianza desconocida" : `confianza ${ratio(c)}`),
+  confidence: (c: number | null) =>
+    c === null ? "confianza desconocida" : `confianza ${confidenceText(c)}`,
   lowTag: "baja",
   none: "No hay sugerencias pendientes.",
   needsLease: "Para aceptar o rechazar sugerencias necesitas el permiso de edición del plano.",

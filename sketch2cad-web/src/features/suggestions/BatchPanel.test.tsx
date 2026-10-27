@@ -227,6 +227,16 @@ describe("BatchPanel and SuggestionLayer", () => {
     ]);
   });
 
+  it("truncates the shown confidence so it agrees with its band", async () => {
+    setup({ entities: [suggestion(S1, 0.698), suggestion(S2, 0.7), suggestion(S3, 0.29)] });
+    const panel = await openPanel();
+    expect(within(panel).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Sugerencia 1 · confianza 0,29 · bajaAceptarRechazar",
+      "Sugerencia 2 · confianza 0,69 · bajaAceptarRechazar",
+      "Sugerencia 3 · confianza 0,70AceptarRechazar",
+    ]);
+  });
+
   it("reject-all sends one rejected bulk request and confirms the count", async () => {
     setup({
       routes: {

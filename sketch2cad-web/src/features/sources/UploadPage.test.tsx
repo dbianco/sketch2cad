@@ -438,7 +438,9 @@ describe("UploadPage", () => {
     expect(alert.textContent).toContain(
       "Resolución insuficiente: el lado corto mide 800 px (mínimo 900 px).",
     );
-    expect(alert.textContent).toContain("Carga una foto o un escaneo mejor, o continúa en modo manual.");
+    expect(alert.textContent).toContain(
+      "Puedes continuar, pero las sugerencias automáticas pueden ser poco fiables con esta calidad de imagen",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Cargar otra fuente" }));
     expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeTruthy();
   });

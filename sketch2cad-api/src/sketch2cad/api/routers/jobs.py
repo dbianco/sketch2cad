@@ -1,13 +1,16 @@
-"""Job status endpoint, polled by the client every 2 s (REQ-02, REQ-15), the relaunch of
+"""Job status endpoint, polled by the client every 2 s (REQ-02, REQ-15), the list of a
+plan's jobs (followed by the editor after a calibration), the relaunch of
 ``suggest_lines`` on a plan (REQ-17) and the ``ocr_crop`` job of a user crop (REQ-18)."""
 
 import logging
 import uuid
+from datetime import datetime
 from http import HTTPStatus
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from sketch2cad.api.deps import (
@@ -78,6 +81,28 @@ class JobOut(BaseModel):
     result: OcrResultOut | None = None
     """Set only for a succeeded ``ocr_crop`` job."""
 
+
+class PlanJobOut(JobOut):
+    """A job of a plan as listed by ``GET /plans/{plan_id}/jobs``."""
+
+    created_at: datetime
+    calibration_id: uuid.UUID | None
+    """The calibration the job works for (``rectify``, ``suggest_lines``); else null."""
+
+
+class PlanJobsOut(BaseModel):
+    """The plan's most recent jobs, newest first (at most :data:`PLAN_JOBS_LIMIT`)."""
+
+    jobs: list[PlanJobOut]
+
+
+PLAN_JOBS_LIMIT = 20
+"""Most jobs returned by ``GET /plans/{plan_id}/jobs``."""
+
+PLAN_JOBS_RESPONSES: dict[int | str, dict[str, Any]] = {
+    403: {"description": "The user lacks ``read`` on the plan's case file (access.denied)."},
+    404: {"description": "The plan does not exist."},
+}
 
 PLAN_JOB_RESPONSES: dict[int | str, dict[str, Any]] = {
     403: {"description": "The user lacks ``edit`` on the plan's case file (access.denied)."},
@@ -180,6 +205,48 @@ def get_job(job: Annotated[JobMeta, Depends(_readable_job)]) -> JobOut:
     Requires ``read`` on the case file of the job's source.
     """
     return job_out(job)
+
+
+def _calibration_id(job: JobMeta) -> uuid.UUID | None:
+    raw = job.params.get("calibration_id")
+    if not isinstance(raw, str):
+        return None
+    try:
+        return uuid.UUID(raw)
+    except ValueError:
+        return None
+
+
+@router.get("/plans/{plan_id}/jobs", responses=PLAN_JOBS_RESPONSES)
+def list_plan_jobs(
+    plan: Annotated[Plan, Depends(require_plan_permission("read"))],
+    db: Annotated[Session, Depends(get_session)],
+    kind: Annotated[list[str] | None, Query()] = None,
+) -> PlanJobsOut:
+    """The plan's most recent jobs on its primary source, newest first.
+
+    At most :data:`PLAN_JOBS_LIMIT` jobs; ``kind`` (repeatable) keeps only those kinds,
+    for example ``?kind=rectify&kind=suggest_lines``. A failed job carries
+    ``error {cause, action}``. Writes nothing. Requires ``read`` on the plan's case
+    file; others get 403 and an ``access.denied`` event.
+    """
+    query = select(JobMeta).where(
+        JobMeta.plan_id == plan.id, JobMeta.source_id == plan.primary_source_id
+    )
+    if kind:
+        query = query.where(JobMeta.kind.in_(kind))
+    rows = db.scalars(
+        query.order_by(JobMeta.created_at.desc(), JobMeta.id.desc()).limit(PLAN_JOBS_LIMIT)
+    )
+    jobs = [
+        PlanJobOut(
+            **job_out(job).model_dump(),
+            created_at=job.created_at,
+            calibration_id=_calibration_id(job),
+        )
+        for job in rows
+    ]
+    return PlanJobsOut(jobs=jobs)
 
 
 def _ai_assist_disabled() -> ProblemError:

@@ -553,7 +553,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Plan Jobs
+         * @description The plan's most recent jobs on its primary source, newest first.
+         *
+         *     At most :data:`PLAN_JOBS_LIMIT` jobs; ``kind`` (repeatable) keeps only those kinds,
+         *     for example ``?kind=rectify&kind=suggest_lines``. A failed job carries
+         *     ``error {cause, action}``. Writes nothing. Requires ``read`` on the plan's case
+         *     file; others get 403 and an ``access.denied`` event.
+         */
+        get: operations["list_plan_jobs_api_v1_plans__plan_id__jobs_get"];
         put?: never;
         /**
          * Post Plan Job
@@ -2059,6 +2068,45 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * PlanJobOut
+         * @description A job of a plan as listed by ``GET /plans/{plan_id}/jobs``.
+         */
+        PlanJobOut: {
+            /** Calibration Id */
+            calibration_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            error: components["schemas"]["JobErrorOut"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            result?: components["schemas"]["OcrResultOut"] | null;
+            /** Result Ref */
+            result_ref: string | null;
+            /** Source Id */
+            source_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed";
+        };
+        /**
+         * PlanJobsOut
+         * @description The plan's most recent jobs, newest first (at most :data:`PLAN_JOBS_LIMIT`).
+         */
+        PlanJobsOut: {
+            /** Jobs */
+            jobs: components["schemas"]["PlanJobOut"][];
         };
         /**
          * PlanOut
@@ -3680,6 +3728,55 @@ export interface operations {
             };
             /** @description ``final`` on a plan that is not ``VALIDATED`` (``code`` ``V-11``), or ``draft`` before ``EDITING`` (``code`` ``draft_not_allowed``). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plan_jobs_api_v1_plans__plan_id__jobs_get: {
+        parameters: {
+            query?: {
+                kind?: string[] | null;
+            };
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: {
+                s2c_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanJobsOut"];
+                };
+            };
+            /** @description The user lacks ``read`` on the plan's case file (access.denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The plan does not exist. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
