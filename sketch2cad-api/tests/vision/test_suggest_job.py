@@ -97,10 +97,17 @@ LINE_PX = ((200, 300), (1200, 300))
 SQUARE_PX = ((300, 600), (700, 600), (700, 900), (300, 900))
 
 
-def sketch_png() -> bytes:
-    image = np.full((1000, 1500), 255, np.uint8)
-    cv2.line(image, LINE_PX[0], LINE_PX[1], 0, 5)
-    cv2.polylines(image, [np.array(SQUARE_PX, np.int32)], True, 0, 5)
+def sketch_png(*, grid: bool = False) -> bytes:
+    """The known strokes; with ``grid``, an RGB sheet with a light orange grid every 5 mm."""
+    image = np.full((1000, 1500, 3) if grid else (1000, 1500), 255, np.uint8)
+    if grid:
+        for x in range(25, 1500, 50):
+            cv2.line(image, (x, 0), (x, 999), (240, 200, 170), 2)  # RGB orange
+        for y in range(25, 1000, 50):
+            cv2.line(image, (0, y), (1499, y), (240, 200, 170), 2)
+    ink = (0, 0, 0) if grid else 0
+    cv2.line(image, LINE_PX[0], LINE_PX[1], ink, 5)
+    cv2.polylines(image, [np.array(SQUARE_PX, np.int32)], True, ink, 5)
     buffer = io.BytesIO()
     Image.fromarray(image).save(buffer, format="PNG", dpi=(254, 254))
     return buffer.getvalue()
@@ -189,7 +196,9 @@ def client(stack: ExitStack, factory: sessionmaker[Session]) -> TestClient:
     return _login(stack, factory)
 
 
-def make_plan(client: TestClient, source_mode: str = "schematic_sketch") -> str:
+def make_plan(
+    client: TestClient, source_mode: str = "schematic_sketch", *, grid: bool = False
+) -> str:
     case = {
         "incident_type": "traffic_collision",
         "incident_date": "2026-10-20",
@@ -199,7 +208,7 @@ def make_plan(client: TestClient, source_mode: str = "schematic_sketch") -> str:
     response = client.post(CASES_URL, json=case)
     assert response.status_code == 201, response.text
     case_id = response.json()["id"]
-    data = sketch_png()
+    data = sketch_png(grid=grid)
     response = client.post(
         f"{CASES_URL}/{case_id}/sources",
         files={"file": ("croquis.png", data, "application/octet-stream")},
@@ -364,6 +373,24 @@ def test_method_none_runs_on_the_original_at_once(
     run_worker_once(database_url, jobs_schema)
 
     assert_known_strokes(live_suggestions(factory, plan_id))  # 254 dpi source: 10 px/mm
+
+
+@pytest.mark.parametrize("method", ["scan_dpi", "none"])
+def test_the_colour_grid_of_the_source_is_removed(
+    client: TestClient,
+    factory: sessionmaker[Session],
+    database_url: str,
+    jobs_schema: str,
+    method: str,
+) -> None:
+    # The job reads the image in colour (rectified or original), so the grid is dropped.
+    plan_id = make_plan(client, grid=True)
+    accept(client, plan_id, method=method)
+    run_worker_once(database_url, jobs_schema)
+
+    [event] = events(factory, plan_id, "suggestions.added")
+    assert event.after is not None and event.after["params"]["remove_grid"] is True
+    assert_known_strokes(live_suggestions(factory, plan_id))
 
 
 def _accept_one(factory: sessionmaker[Session], plan_id: str) -> None:

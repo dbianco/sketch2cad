@@ -73,6 +73,9 @@ SPEC_DEFAULTS: dict[str, Any] = {
     "suggest_lines.simplify_tolerance_mm": 0.8,
     "suggest_lines.min_length_mm": 5.0,
     "suggest_lines.merge_angle_deg": 5.0,
+    "suggest_lines.join_gap_mm": 2.0,
+    "suggest_lines.join_offset_mm": 1.0,
+    "suggest_lines.remove_grid": True,
     "ocr.min_confidence": 0.6,
     "ai_assist.enabled": True,
     "legal.disclaimer_enabled": True,
@@ -116,6 +119,8 @@ def test_an_unknown_parameter_raises_a_key_error_naming_it() -> None:
         (TOLERANCE, math.nan),
         ("qc.min_short_side_amber", 1200.5),
         ("suggest_lines.threshold_block_size", 32),
+        ("suggest_lines.join_gap_mm", -1.0),
+        ("suggest_lines.remove_grid", 1),
         ("legal.disclaimer_enabled", 1),
     ],
 )
