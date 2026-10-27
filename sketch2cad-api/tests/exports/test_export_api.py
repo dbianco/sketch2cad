@@ -8,6 +8,7 @@ the app tables and the Procrastinate schema; storage and the signing key live in
 import hashlib
 import io
 import json
+import logging
 import subprocess
 import sys
 import uuid
@@ -56,9 +57,10 @@ from sketch2cad.jobs.service import MISSING_OBJECT
 from sketch2cad.package.signing import generate_signing_key
 from sketch2cad.plans.transitions import TransitionConflictError, mark_exported
 from sketch2cad.qc import synthetic
+from sketch2cad.revisions.snapshot import SnapshotError
 from sketch2cad.storage import FilesystemStorage
 from sketch2cad.storage.base import key_for_hash
-from sketch2cad.worker import tasks_raster
+from sketch2cad.worker import tasks_export, tasks_raster
 from sketch2cad.worker.app import apply_schema, create_worker_app, to_conninfo
 
 PASSWORD = "correct horse battery staple"  # noqa: S105 - test fixture
@@ -482,6 +484,37 @@ def test_missing_original_fails_the_job_with_cause_and_action(
     assert polled["error"] == MISSING_OBJECT.to_dict()
     assert artifacts(factory, plan_id) == []
     assert stored_plan(factory, plan_id).status is PlanStatus.EDITING
+
+
+def test_failed_package_build_logs_the_error_type_not_its_message(
+    client: TestClient,
+    reviewer: TestClient,
+    plan_id: str,
+    factory: sessionmaker[Session],
+    database_url: str,
+    jobs_schema: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """REQ-11 / H6-8: export error messages may quote geometry values; logs keep the type."""
+    leaked = "coords_m[1][0]: 4.2137 at croquis-secreto-07.jpg"
+
+    def failing_build(_inputs: object) -> object:
+        raise SnapshotError(leaked)
+
+    validate(client, reviewer, plan_id)
+    job_id = export(reviewer, plan_id, mode="final").json()["id"]
+    monkeypatch.setattr(tasks_export, "build_package", failing_build)
+
+    with caplog.at_level(logging.DEBUG):
+        run_worker_once(database_url, jobs_schema)
+
+    polled = reviewer.get(f"{API}/jobs/{job_id}").json()
+    assert polled["status"] == "failed"
+    assert polled["error"] == tasks_export.EXPORT_FAILED.to_dict()
+    assert stored_plan(factory, plan_id).status is PlanStatus.VALIDATED
+    assert "package build failed: SnapshotError" in caplog.text
+    assert "4.2137" not in caplog.text and "croquis-secreto" not in caplog.text
 
 
 def test_unknown_ids_are_404_and_invalid_bodies_422(client: TestClient, plan_id: str) -> None:

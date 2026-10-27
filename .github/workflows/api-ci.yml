@@ -73,14 +73,36 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
       - run: uv sync --frozen
+      # The console output is copied to ci.log and the application logs (every logger, DEBUG)
+      # go to ci-app.log, so the next step can scan both (H6-8). Neither is uploaded.
       - id: pytest
         run: |
-          status=0
-          uv run pytest -q || status=$?
+          set +e
+          uv run pytest -q --log-file=ci-app.log --log-file-level=DEBUG 2>&1 | tee ci.log
+          status="${PIPESTATUS[0]}"
+          set -e
           # The login perf test appends login_p95_ms=<value> to this step's summary when CI=true.
           p95="$(grep -o 'login_p95_ms=[0-9.]*' "$GITHUB_STEP_SUMMARY" | tail -n 1 | cut -d= -f2 || true)"
           echo "login_p95_ms=${p95}" >> "$GITHUB_OUTPUT"
           exit "$status"
+      # H6-8 / REQ-11: no coordinates and no sketch file names in the test logs. Runs after a
+      # failed test step too (failure output is the likeliest leak). The real validation-set
+      # names come from the optional VALIDATION_NAMES secret (one per line), written to a
+      # private temporary file and never printed; forks and unset secrets scan without them.
+      - name: Scan the test logs for coordinates and sketch file names
+        if: ${{ !cancelled() && steps.pytest.outcome != 'skipped' }}
+        env:
+          VALIDATION_NAMES: ${{ secrets.VALIDATION_NAMES }}
+        run: |
+          names_args=()
+          if [ -n "${VALIDATION_NAMES}" ]; then
+            names_file="$(mktemp)"
+            chmod 600 "$names_file"
+            trap 'rm -f "$names_file"' EXIT
+            printf '%s\n' "$VALIDATION_NAMES" > "$names_file"
+            names_args=(--names-file "$names_file")
+          fi
+          uv run python scripts/scan_logs.py "${names_args[@]}" ci.log ci-app.log
 
   migrations:
     runs-on: ubuntu-latest
