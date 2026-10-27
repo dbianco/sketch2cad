@@ -885,6 +885,94 @@
         "title": "ConfigScope",
         "type": "string"
       },
+      "ConnectedChangesOut": {
+        "description": "What a ``fix_length`` changed besides the entity (``sketch2cad.entities.connected``).\n\n``tolerance_m`` is the distance within which vertices counted as connected.",
+        "properties": {
+          "length_conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/LengthConflictOut"
+            },
+            "title": "Length Conflicts",
+            "type": "array"
+          },
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectedVertexOut"
+            },
+            "title": "Moved",
+            "type": "array"
+          },
+          "pinned": {
+            "items": {
+              "$ref": "#/components/schemas/PinnedVertexOut"
+            },
+            "title": "Pinned",
+            "type": "array"
+          },
+          "tolerance_m": {
+            "title": "Tolerance M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "tolerance_m",
+          "moved",
+          "pinned",
+          "length_conflicts"
+        ],
+        "title": "ConnectedChangesOut",
+        "type": "object"
+      },
+      "ConnectedVertexOut": {
+        "description": "A vertex of another entity that followed a ``fix_length`` (``from_m`` → ``to_m``).",
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "from_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "From M",
+            "type": "array"
+          },
+          "to_m": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "To M",
+            "type": "array"
+          },
+          "vertex": {
+            "title": "Vertex",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_id",
+          "vertex",
+          "from_m",
+          "to_m"
+        ],
+        "title": "ConnectedVertexOut",
+        "type": "object"
+      },
       "DimensionGeometry": {
         "additionalProperties": false,
         "description": "``declared_value_m`` is null for a plain measurement; ``measured_value_m`` is computed.\n\nA client-sent ``measured_value_m`` is ignored and replaced by the ``p1_m``-``p2_m``\ndistance; ``declared_value_m`` is kept as sent (``sketch2cad.entities.dimensions``).",
@@ -1612,7 +1700,7 @@
       },
       "EntityPatch": {
         "additionalProperties": false,
-        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry``, ``attributes`` or ``evidence_id`` (evidence\nof the plan's case file, or ``null`` to drop the reference; only ``relabel`` takes\nit, and only for points and symbols). Moving a point or symbol\nthat has a ``constraint`` needs ``confirm_constraint_removal = true`` (409\n``constraint_removal_required`` otherwise); it removes the constraint and sets\n``metric_origin`` to ``none`` (spec section 11.3).\n\nThe other operations take only their own fields and the server computes the geometry:\n\n- ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and\n  the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).\n- ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b`` (each a\n  point or symbol id, or a :class:`VertexRef` ``{entity_id, vertex}``), distances\n  ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is\n  the candidate closest to the current position; ``alt`` is the other one).\n- ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``\n  (references as in ``triangulate``; two vertices of the same entity are allowed),\n  ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.",
+        "description": "An edit. ``geometry`` replaces the whole geometry and keeps the entity's ``kind``.\n\n``move_vertex`` and the ``snap_*`` operations need ``geometry``; ``reclassify`` needs\n``layer``; ``relabel`` needs ``geometry``, ``attributes`` or ``evidence_id`` (evidence\nof the plan's case file, or ``null`` to drop the reference; only ``relabel`` takes\nit, and only for points and symbols). Moving a point or symbol\nthat has a ``constraint`` needs ``confirm_constraint_removal = true`` (409\n``constraint_removal_required`` otherwise); it removes the constraint and sets\n``metric_origin`` to ``none`` (spec section 11.3).\n\nThe other operations take only their own fields and the server computes the geometry:\n\n- ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and\n  the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).\n  Vertices of other entities connected to a moved vertex follow it\n  (``sketch2cad.entities.connected``) except on the optional ``locked_layers`` (the\n  layers the editor shows as locked), which stay and are reported.\n- ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b`` (each a\n  point or symbol id, or a :class:`VertexRef` ``{entity_id, vertex}``), distances\n  ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is\n  the candidate closest to the current position; ``alt`` is the other one).\n- ``baseline_offset`` (points and symbols): base points ``base_a`` and ``base_b``\n  (references as in ``triangulate``; two vertices of the same entity are allowed),\n  ``s_m`` along A→B (any sign), perpendicular ``d_m`` (>= 0) and ``side``.",
         "properties": {
           "anchor_vertex": {
             "anyOf": [
@@ -1812,6 +1900,22 @@
             ],
             "title": "Layer"
           },
+          "locked_layers": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^L_[A-Z]+$",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Layers"
+          },
           "operation": {
             "$ref": "#/components/schemas/EntityOperation"
           },
@@ -1923,7 +2027,7 @@
         "type": "object"
       },
       "EntityPatchOut": {
-        "description": "The edited entity; ``triangulate`` also returns its candidate positions.\n\n``candidates`` holds the 1 (tangent circles) or 2 intersection points, the first to the\nleft of the direction from ``ref_a`` to ``ref_b``; ``chosen_candidate`` is the index of\nthe one applied. Both are null for every other operation.",
+        "description": "The edited entity; ``triangulate`` also returns its candidate positions.\n\n``candidates`` holds the 1 (tangent circles) or 2 intersection points, the first to the\nleft of the direction from ``ref_a`` to ``ref_b``; ``chosen_candidate`` is the index of\nthe one applied. Both are null for every other operation. ``connected`` is set by\n``fix_length`` only: the connected vertices that followed, those pinned on locked\nlayers and the declared lengths that no longer hold.",
         "properties": {
           "attributes": {
             "additionalProperties": true,
@@ -1975,6 +2079,16 @@
               }
             ],
             "title": "Confidence"
+          },
+          "connected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectedChangesOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "constraint": {
             "anyOf": [
@@ -2833,6 +2947,55 @@
         "title": "LeaseReleaseOut",
         "type": "object"
       },
+      "LengthConflictOut": {
+        "description": "A declared segment length the edit broke; ``residual_m = |actual_m - declared_m|``.\n\n``actual_m`` and ``residual_m`` are null when the segments were renumbered.",
+        "properties": {
+          "actual_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual M"
+          },
+          "declared_m": {
+            "title": "Declared M",
+            "type": "number"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "residual_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Residual M"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_id",
+          "segment",
+          "declared_m",
+          "actual_m",
+          "residual_m"
+        ],
+        "title": "LengthConflictOut",
+        "type": "object"
+      },
       "LineGeometry": {
         "additionalProperties": false,
         "properties": {
@@ -2980,7 +3143,7 @@
         "type": "string"
       },
       "MetricStatusOut": {
-        "description": "Metric status of a plan and what keeps it from ``metric`` (spec section 11.3).\n\n``blocking_entities`` are the ids of the live entities of the current revision in\n``L_STRUCTURE`` or ``L_ACCESS``, or referencing an evidence item, whose\n``metric_origin`` is not metric; ``reasons`` maps each of them to its reason code (that\n``metric_origin``: ``trace_only`` or ``none``). A plan without an accepted calibration is\n``non_metric`` with no blocking entity. ``discrepant_dimensions`` lists the dimensions\nwhose declared and measured values disagree; they do not change ``status``.",
+        "description": "Metric status of a plan and what keeps it from ``metric`` (spec section 11.3).\n\n``blocking_entities`` are the ids of the live entities of the current revision in\n``L_STRUCTURE`` or ``L_ACCESS``, or referencing an evidence item, whose\n``metric_origin`` is not metric; ``reasons`` maps each of them to its reason code (that\n``metric_origin``: ``trace_only`` or ``none``). A plan without an accepted calibration is\n``non_metric`` with no blocking entity. ``discrepant_dimensions`` lists the dimensions\nwhose declared and measured values disagree and ``length_conflicts`` the entities whose\ndeclared segment lengths a ``fix_length`` of a connected entity broke\n(``attributes.length_conflicts``); neither changes ``status``.",
         "properties": {
           "blocking_entities": {
             "items": {
@@ -2998,6 +3161,14 @@
             "title": "Discrepant Dimensions",
             "type": "array"
           },
+          "length_conflicts": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Length Conflicts",
+            "type": "array"
+          },
           "reasons": {
             "additionalProperties": {
               "type": "string"
@@ -3013,7 +3184,8 @@
           "status",
           "blocking_entities",
           "reasons",
-          "discrepant_dimensions"
+          "discrepant_dimensions",
+          "length_conflicts"
         ],
         "title": "MetricStatusOut",
         "type": "object"
@@ -3330,6 +3502,36 @@
           "overrides"
         ],
         "title": "ParamOut",
+        "type": "object"
+      },
+      "PinnedVertexOut": {
+        "description": "A connected vertex on a locked layer that did not follow; ``gap_m`` is left open.",
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "gap_m": {
+            "title": "Gap M",
+            "type": "number"
+          },
+          "layer": {
+            "title": "Layer",
+            "type": "string"
+          },
+          "vertex": {
+            "title": "Vertex",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_id",
+          "vertex",
+          "layer",
+          "gap_m"
+        ],
+        "title": "PinnedVertexOut",
         "type": "object"
       },
       "PlanCreate": {
@@ -5916,7 +6118,7 @@
         ]
       },
       "patch": {
-        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nChanging a pending suggestion marks it ``corrected`` (CA-05) and promotes its\n``metric_origin`` like an acceptance.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``\nand set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires\n``edit``.",
+        "description": "Edit geometry, attributes or layer with an ``operation``; ``source`` is preserved.\n\nChanging a pending suggestion marks it ``corrected`` (CA-05) and promotes its\n``metric_origin`` like an acceptance.\n\nAppends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the\noptional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``\nand set ``metric_origin``; ``triangulate`` also returns ``candidates``. ``fix_length``\nalso moves the connected vertices of other entities and returns them in ``connected``,\nwith the vertices pinned on ``locked_layers`` and the declared lengths that broke.\nRequires ``edit``.",
         "operationId": "patch_entity_api_v1_entities__entity_id__patch",
         "parameters": [
           {

@@ -22,6 +22,10 @@ Rule set (H2, extended in H3):
   is reported in ``discrepant_dimensions`` but does not change the status: spec section
   11.3 only marks it, the status depends on ``metric_origin`` alone, and ``L_DIMENSIONS``
   is not a metric layer.
+- An entity whose declared segment lengths were broken by a ``fix_length`` of a connected
+  entity (``length_conflict``) is reported in ``length_conflicts``; like a discrepancy it
+  does not change the status (the declaration was dropped, so the entity's own
+  ``metric_origin`` already counts).
 
 Hand-drawn entities get ``scaled_drawing`` in a ``scaled_drawing`` plan whose calibration
 was accepted as metric, otherwise ``none`` (:func:`default_metric_origin`). Suggestions are
@@ -68,6 +72,7 @@ class MetricEntity:
     references_evidence: bool = False
     deleted: bool = False
     discrepancy: bool = False
+    length_conflict: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,13 +81,15 @@ class MetricStatusResult:
 
     ``reasons`` pairs each blocking id with its :func:`blocking_reason`, in the order of
     ``blocking_entities``; ``discrepant_dimensions`` lists the live dimensions flagged with
-    a discrepancy. Both are derived details and take no part in equality.
+    a discrepancy and ``length_conflicts`` the live entities with broken declared lengths.
+    These are derived details and take no part in equality.
     """
 
     status: str
     blocking_entities: tuple[str, ...] = ()
     reasons: tuple[tuple[str, str], ...] = field(default=(), compare=False)
     discrepant_dimensions: tuple[str, ...] = field(default=(), compare=False)
+    length_conflicts: tuple[str, ...] = field(default=(), compare=False)
 
 
 class MetricStatusHolder(Protocol):
@@ -134,8 +141,11 @@ def compute_metric_status(
     """
     live = [entity for entity in entities if not entity.deleted]
     discrepant = tuple(entity.id for entity in live if entity.discrepancy)
+    conflicts = tuple(entity.id for entity in live if entity.length_conflict)
     if not is_calibrated(calibration_method):
-        return MetricStatusResult(NON_METRIC, discrepant_dimensions=discrepant)
+        return MetricStatusResult(
+            NON_METRIC, discrepant_dimensions=discrepant, length_conflicts=conflicts
+        )
     relevant = [entity for entity in live if is_relevant(entity)]
     reasons = tuple(
         (entity.id, reason)
@@ -144,10 +154,10 @@ def compute_metric_status(
     )
     if reasons:
         blocking = tuple(entity_id for entity_id, _ in reasons)
-        return MetricStatusResult(APPROXIMATE, blocking, reasons, discrepant)
+        return MetricStatusResult(APPROXIMATE, blocking, reasons, discrepant, conflicts)
     if relevant or (as_metric and source_mode == SCALED_DRAWING_MODE):
-        return MetricStatusResult(METRIC, discrepant_dimensions=discrepant)
-    return MetricStatusResult(APPROXIMATE, discrepant_dimensions=discrepant)
+        return MetricStatusResult(METRIC, (), (), discrepant, conflicts)
+    return MetricStatusResult(APPROXIMATE, (), (), discrepant, conflicts)
 
 
 def apply_metric_status[T](

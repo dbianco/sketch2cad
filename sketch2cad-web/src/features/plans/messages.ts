@@ -126,6 +126,9 @@ export const METRIC_PANEL_MESSAGES = {
   noBlocking: "Ninguna entidad impide el estado métrico.",
   discrepant: "Cotas con discrepancia (informativo)",
   discrepantItem: "El valor declarado no coincide con el medido",
+  lengthConflicts: "Longitudes declaradas que dejaron de cumplirse (revisar)",
+  lengthConflictItem:
+    "Fijar longitud en una entidad conectada cambió su longitud declarada: vuelve a fijarla",
   unknownEntity: "Entidad no cargada",
 } as const;
 

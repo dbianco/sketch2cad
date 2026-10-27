@@ -28,6 +28,7 @@ from sketch2cad.entities.dimensions import DimensionTolerances, dimension_discre
 from sketch2cad.entities.schemas import (
     BulkReviewIn,
     BulkReviewOut,
+    ConnectedChangesOut,
     EntitiesCreate,
     EntityListOut,
     EntityOut,
@@ -35,6 +36,7 @@ from sketch2cad.entities.schemas import (
     EntityPatchOut,
 )
 from sketch2cad.entities.service import (
+    ConnectedChanges,
     EntityConflictError,
     EntityGoneError,
     EntityInputError,
@@ -255,8 +257,10 @@ def patch_entity(
 
     Appends ``entity.updated`` with ``before``, ``after`` (plus ``operation``) and the
     optional ``reason``. ``triangulate`` and ``baseline_offset`` store the ``constraint``
-    and set ``metric_origin``; ``triangulate`` also returns ``candidates``. Requires
-    ``edit``.
+    and set ``metric_origin``; ``triangulate`` also returns ``candidates``. ``fix_length``
+    also moves the connected vertices of other entities and returns them in ``connected``,
+    with the vertices pinned on ``locked_layers`` and the declared lengths that broke.
+    Requires ``edit``.
     """
     try:
         update = update_entity(db, entity, user, body, _client_ip(request))
@@ -266,7 +270,40 @@ def patch_entity(
     out = _entity_out(db, entity)
     candidates = None if update.candidates is None else [list(c) for c in update.candidates]
     return EntityPatchOut.model_validate(
-        {**out.model_dump(), "candidates": candidates, "chosen_candidate": update.chosen}
+        {
+            **out.model_dump(),
+            "candidates": candidates,
+            "chosen_candidate": update.chosen,
+            "connected": _connected_out(update.connected),
+        }
+    )
+
+
+def _connected_out(changes: ConnectedChanges | None) -> ConnectedChangesOut | None:
+    if changes is None:
+        return None
+    return ConnectedChangesOut.model_validate(
+        {
+            "tolerance_m": changes.tolerance_m,
+            "moved": [
+                {"entity_id": m.entity_id, "vertex": m.vertex, "from_m": m.old, "to_m": m.new}
+                for m in changes.moves
+            ],
+            "pinned": [
+                {"entity_id": p.entity_id, "vertex": p.vertex, "layer": layer, "gap_m": p.gap_m}
+                for p, layer in changes.pinned
+            ],
+            "length_conflicts": [
+                {
+                    "entity_id": entity_id,
+                    "segment": c.segment,
+                    "declared_m": c.declared_m,
+                    "actual_m": c.actual_m,
+                    "residual_m": None if c.actual_m is None else abs(c.actual_m - c.declared_m),
+                }
+                for entity_id, c in changes.conflicts
+            ],
+        }
     )
 
 

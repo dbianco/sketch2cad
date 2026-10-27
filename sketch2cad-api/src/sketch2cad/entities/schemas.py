@@ -191,7 +191,7 @@ class EntitiesCreate(_Strict):
 
 # Body fields of the server-computed operations: (required, optional) per operation.
 OPERATION_FIELDS: dict[EntityOperation, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    EntityOperation.FIX_LENGTH: (("anchor_vertex", "value_m"), ("free_vertex",)),
+    EntityOperation.FIX_LENGTH: (("anchor_vertex", "value_m"), ("free_vertex", "locked_layers")),
     EntityOperation.TRIANGULATE: (("ref_a", "ref_b", "d_a_m", "d_b_m"), ("solution",)),
     EntityOperation.BASELINE_OFFSET: (("base_a", "base_b", "s_m", "d_m", "side"), ()),
 }
@@ -232,6 +232,9 @@ class EntityPatch(_Strict):
 
     - ``fix_length`` (lines and polylines): ``anchor_vertex``, ``value_m`` (> 0, V-04) and
       the optional adjacent ``free_vertex`` (``sketch2cad.entities.ops_fix_length``).
+      Vertices of other entities connected to a moved vertex follow it
+      (``sketch2cad.entities.connected``) except on the optional ``locked_layers`` (the
+      layers the editor shows as locked), which stay and are reported.
     - ``triangulate`` (points and symbols): references ``ref_a`` and ``ref_b`` (each a
       point or symbol id, or a :class:`VertexRef` ``{entity_id, vertex}``), distances
       ``d_a_m`` and ``d_b_m`` (> 0, V-04) and ``solution`` (``nearest``, the default, is
@@ -249,6 +252,7 @@ class EntityPatch(_Strict):
     anchor_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
     free_vertex: Annotated[StrictInt, Field(ge=0)] | None = None
     value_m: LengthValue | None = None
+    locked_layers: Annotated[list[LayerName], Field(max_length=100)] | None = None
     ref_a: Reference | None = None
     ref_b: Reference | None = None
     d_a_m: LengthValue | None = None
@@ -341,16 +345,62 @@ class EntityOut(BaseModel):
     discrepancy: bool | None
 
 
+class ConnectedVertexOut(BaseModel):
+    """A vertex of another entity that followed a ``fix_length`` (``from_m`` → ``to_m``)."""
+
+    entity_id: uuid.UUID
+    vertex: int
+    from_m: Coordinate
+    to_m: Coordinate
+
+
+class PinnedVertexOut(BaseModel):
+    """A connected vertex on a locked layer that did not follow; ``gap_m`` is left open."""
+
+    entity_id: uuid.UUID
+    vertex: int
+    layer: str
+    gap_m: float
+
+
+class LengthConflictOut(BaseModel):
+    """A declared segment length the edit broke; ``residual_m = |actual_m - declared_m|``.
+
+    ``actual_m`` and ``residual_m`` are null when the segments were renumbered.
+    """
+
+    entity_id: uuid.UUID
+    segment: int
+    declared_m: float
+    actual_m: float | None
+    residual_m: float | None
+
+
+class ConnectedChangesOut(BaseModel):
+    """What a ``fix_length`` changed besides the entity (``sketch2cad.entities.connected``).
+
+    ``tolerance_m`` is the distance within which vertices counted as connected.
+    """
+
+    tolerance_m: float
+    moved: list[ConnectedVertexOut]
+    pinned: list[PinnedVertexOut]
+    length_conflicts: list[LengthConflictOut]
+
+
 class EntityPatchOut(EntityOut):
     """The edited entity; ``triangulate`` also returns its candidate positions.
 
     ``candidates`` holds the 1 (tangent circles) or 2 intersection points, the first to the
     left of the direction from ``ref_a`` to ``ref_b``; ``chosen_candidate`` is the index of
-    the one applied. Both are null for every other operation.
+    the one applied. Both are null for every other operation. ``connected`` is set by
+    ``fix_length`` only: the connected vertices that followed, those pinned on locked
+    layers and the declared lengths that no longer hold.
     """
 
     candidates: list[Coordinate] | None = None
     chosen_candidate: int | None = None
+    connected: ConnectedChangesOut | None = None
 
 
 class EntityListOut(BaseModel):
