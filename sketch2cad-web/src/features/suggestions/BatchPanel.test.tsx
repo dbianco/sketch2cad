@@ -191,6 +191,24 @@ describe("BatchPanel and SuggestionLayer", () => {
     expect(screen.getByRole("button", { name: BATCH_TEXT.toggle(0) })).toBeTruthy();
   });
 
+  it("can be hidden with the close button, with Esc and with the header button", async () => {
+    setup();
+    const toggle = await screen.findByRole("button", { name: BATCH_TEXT.toggle(SUGGESTIONS.length) });
+    const panel = await openPanel();
+    fireEvent.click(within(panel).getByRole("button", { name: BATCH_TEXT.close }));
+    expect(screen.queryByRole("region", { name: BATCH_TEXT.title })).toBeNull();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    await openPanel();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("region", { name: BATCH_TEXT.title })).toBeNull();
+    expect(document.activeElement).toBe(toggle);
+
+    await openPanel();
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("region", { name: BATCH_TEXT.title })).toBeNull();
+  });
+
   it("gives the low-confidence class to a suggestion with confidence 0.5", async () => {
     setup();
     await waitFor(() => expect(suggestionElement(S2)).not.toBeNull());

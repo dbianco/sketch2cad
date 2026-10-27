@@ -9,7 +9,7 @@
 // then reloads the revision's entities, so accepted suggestions become normal entities and
 // rejected ones disappear; the reload clears the undo history. Reviewing needs the edit lease:
 // without it the buttons are disabled and the panel says why.
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import { ApiError, type ApiClient } from "../../api/client";
@@ -45,6 +45,7 @@ const count = (n: number) => (n === 1 ? "1 sugerencia" : `${String(n)} sugerenci
 export const BATCH_TEXT = {
   toggle: (n: number) => `Sugerencias (${String(n)})`,
   title: "Sugerencias de líneas",
+  close: "Cerrar el panel de sugerencias",
   high: (t: number) => `Confianza alta (≥ ${ratio(t)})`,
   low: (t: number) => `Confianza baja (< ${ratio(t)}, resaltadas)`,
   acceptAll: "Aceptar todas",
@@ -111,6 +112,19 @@ export function BatchPanel({ api, store, plan }: BatchPanelProps) {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const panelId = useId();
   const hintId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  // Esc closes the panel and gives the focus back to the header button, so it can always be hidden.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      toggleRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   const pending = useMemo<Pending[]>(
     () =>
@@ -166,6 +180,7 @@ export function BatchPanel({ api, store, plan }: BatchPanelProps) {
   return (
     <div style={{ position: "relative" }}>
       <button
+        ref={toggleRef}
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
@@ -192,7 +207,20 @@ export function BatchPanel({ api, store, plan }: BatchPanelProps) {
             fontSize: 13,
           }}
         >
-          <h2 style={{ fontSize: 14, margin: "0 0 6px" }}>{BATCH_TEXT.title}</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ fontSize: 14, margin: "0 0 6px" }}>{BATCH_TEXT.title}</h2>
+            <button
+              type="button"
+              aria-label={BATCH_TEXT.close}
+              title={BATCH_TEXT.close}
+              onClick={() => {
+                setOpen(false);
+                toggleRef.current?.focus();
+              }}
+            >
+              {"\u00d7"}
+            </button>
+          </div>
           <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 12px", margin: 0 }}>
             <dt>{BATCH_TEXT.high(threshold)}</dt>
             <dd data-testid="band-high" style={{ margin: 0 }}>
