@@ -1,0 +1,39 @@
+# License exceptions for the optional `ocr` extra (torch, transformers; task 001-105).
+#
+# Same format and rules as license-exceptions.toml. These entries live in a separate file
+# because the checker fails on exceptions that match no installed package: the default
+# environment does not install the ocr extra, so it reads only license-exceptions.toml.
+# The environment with the extra (`uv sync --frozen --extra ocr`, api-ci job licenses-ocr)
+# passes both files:
+#
+#   uv run --extra ocr python scripts/check_licenses.py \
+#       --exceptions license-exceptions.toml --exceptions license-exceptions-ocr.toml
+#
+# Owner policy (stated by the owner, recorded in DEC-6 and the 2026-10-25 allow-list extension):
+# any library license is acceptable except GPL/AGPL, which are forbidden and cannot be excepted;
+# licenses outside the allow-list need one documented exception with a reason.
+# License facts below were read from the installed dist-info (METADATA and licenses/ files) on
+# 2026-10-26; see docs/dependency-audit.md.
+
+[[exception]]
+package = "torch"
+# "*" because the lock resolves 2.14.1 on macOS/Windows (PyPI) and 2.14.1+cpu on Linux
+# (download.pytorch.org/whl/cpu); both wheels declare the same License-Expression.
+version = "*"
+license = "Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND MIT"
+status = "pending-owner-decision"
+reason = "PyTorch (OCR inference of TrOCR, task 001-105). The declared License-Expression of the 2.14.1 and 2.14.1+cpu wheels is a conjunction of permissive licenses only (BSD-3-Clause PyTorch LICENSE plus third_party notices; BSL-1.0 = Boost Software License from sleef), so it is acceptable under the owner policy (any license except GPL/AGPL). Pending only because the Linux 2.14.1+cpu wheel bundles torch/lib/libgomp.so.1, the GCC OpenMP runtime (GPL-3.0-or-later WITH GCC-exception-3.1, a runtime library exception that allows use from non-GPL programs): the owner must confirm that a GPL runtime with this exception is outside the GPL ban. No nvidia-* or triton packages are locked."
+
+[[exception]]
+package = "transformers"
+version = "*"
+license = "Apache 2.0 License"
+status = "approved"
+reason = "Hugging Face transformers (TrOCR model loading, task 001-105). The METADATA field 'License: Apache 2.0 License' is a non-SPDX spelling; dist-info/licenses/LICENSE is the full Apache License 2.0 text. Permissive, approved under the owner policy (any license except GPL/AGPL is acceptable)."
+
+[[exception]]
+package = "regex"
+version = "*"
+license = "Apache-2.0 AND CNRI-Python"
+status = "approved"
+reason = "regex (tokenizer dependency of transformers). License-Expression 'Apache-2.0 AND CNRI-Python'; dist-info/licenses/LICENSE.txt states the work derives from the CPython 2.6/3.1 're' module under CNRI's Python 1.6 license and that all additions are Apache 2.0. Both are permissive, non-copyleft licenses; approved under the owner policy (any license except GPL/AGPL is acceptable)."

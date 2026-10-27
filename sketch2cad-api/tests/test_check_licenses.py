@@ -36,6 +36,7 @@ load_allowed = cast(Callable[[Path], frozenset[str]], _script.load_allowed)
 main = cast(Callable[[list[str]], int], _script.main)
 
 ALLOWED = load_allowed(API_DIR / "licenses-allowed.txt")
+COMMITTED_FILES = (API_DIR / "license-exceptions.toml", API_DIR / "license-exceptions-ocr.toml")
 PSYCOPG_EXCEPTION = {
     "package": "psycopg",
     "version": "*",
@@ -239,6 +240,109 @@ def test_clean_input_passes_main(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert "License check passed" in capsys.readouterr().out
 
 
+def _write_toml(path: Path, entries: list[dict[str, str]]) -> Path:
+    tables = [
+        "[[exception]]\n" + "".join(f'{key} = "{value}"\n' for key, value in entry.items())
+        for entry in entries
+    ]
+    path.write_text("\n".join(tables), encoding="utf-8")
+    return path
+
+
+OCR_EXCEPTION = {
+    "package": "regex",
+    "version": "*",
+    "license": "Apache-2.0 AND CNRI-Python",
+    "reason": "Dependency of transformers.",
+    "status": "approved",
+}
+
+
+def test_repeated_exceptions_options_combine_the_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    payload = tmp_path / "licenses.json"
+    payload.write_text(
+        _payload(
+            ("psycopg", "3.3.6", "LGPL-3.0-only"), ("regex", "2026.9.29", OCR_EXCEPTION["license"])
+        ),
+        encoding="utf-8",
+    )
+    default = _write_toml(tmp_path / "default.toml", [PSYCOPG_EXCEPTION])
+    ocr = _write_toml(tmp_path / "ocr.toml", [OCR_EXCEPTION])
+
+    argv = ["--input", str(payload), "--exceptions", str(default), "--exceptions", str(ocr)]
+    assert main(argv) == 0
+    assert "License check passed" in capsys.readouterr().out
+    assert main(["--input", str(payload), "--exceptions", str(default)]) == 1
+    assert "regex 2026.9.29" in capsys.readouterr().out
+
+
+def test_ocr_exceptions_are_stale_without_the_ocr_packages(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    payload = tmp_path / "licenses.json"
+    payload.write_text(_payload(("psycopg", "3.3.6", "LGPL-3.0-only")), encoding="utf-8")
+    default = _write_toml(tmp_path / "default.toml", [PSYCOPG_EXCEPTION])
+    ocr = _write_toml(tmp_path / "ocr.toml", [OCR_EXCEPTION])
+
+    assert main(["--input", str(payload), "--exceptions", str(default)]) == 0
+    capsys.readouterr()
+    assert (
+        main(["--input", str(payload), "--exceptions", str(default), "--exceptions", str(ocr)]) == 1
+    )
+    assert "stale exception: regex" in capsys.readouterr().out
+
+
+def test_invalid_entry_is_reported_with_its_file_name(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    payload = tmp_path / "licenses.json"
+    payload.write_text(_payload(("psycopg", "3.3.6", "LGPL-3.0-only")), encoding="utf-8")
+    default = _write_toml(tmp_path / "default.toml", [PSYCOPG_EXCEPTION])
+    broken = _write_toml(tmp_path / "broken.toml", [{**OCR_EXCEPTION, "reason": " "}])
+
+    argv = ["--input", str(payload), "--exceptions", str(default), "--exceptions", str(broken)]
+    assert main(argv) == 1
+    assert "broken.toml: exception #1 (regex): missing or empty 'reason'" in capsys.readouterr().out
+
+
+def test_default_run_reads_only_the_default_exceptions_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = tmp_path / "licenses.json"
+    payload.write_text(_payload(("psycopg", "3.3.6", "LGPL-3.0-only")), encoding="utf-8")
+    default = _write_toml(tmp_path / "default.toml", [PSYCOPG_EXCEPTION])
+    monkeypatch.setattr(_script, "EXCEPTIONS_PATH", default)
+
+    assert main(["--input", str(payload)]) == 0
+    assert "License check passed" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("path", COMMITTED_FILES, ids=lambda path: path.name)
+def test_committed_exception_files_are_complete(path: Path) -> None:
+    """Every committed entry has package, version, license, a non-empty reason and a status."""
+    data = _script.tomllib.loads(path.read_text(encoding="utf-8"))
+    entries, errors = _script.parse_exceptions(data)
+    assert errors == []
+    assert len(entries) == len(data.get("exception", []))
+    for entry in entries:
+        assert entry.package and entry.version and entry.license
+        assert len(entry.reason) >= 40, f"{entry.package}: reason too short to document it"
+        assert entry.status in _script.STATUSES
+
+
+def test_committed_files_do_not_except_the_same_package_twice() -> None:
+    names = [
+        _script.normalize_name(entry.package)
+        for path in COMMITTED_FILES
+        for entry in _script.parse_exceptions(
+            _script.tomllib.loads(path.read_text(encoding="utf-8"))
+        )[0]
+    ]
+    assert len(names) == len(set(names))
+
+
 def test_committed_exceptions_document_psycopg() -> None:
     entries, errors = _script.parse_exceptions(
         _script.tomllib.loads((API_DIR / "license-exceptions.toml").read_text(encoding="utf-8"))
@@ -249,9 +353,16 @@ def test_committed_exceptions_document_psycopg() -> None:
 
 
 def test_installed_environment_passes_the_license_check() -> None:
-    """CA-13 on the real environment: pip-licenses over the installed packages, no network."""
+    """CA-13 on the real environment: pip-licenses over the installed packages, no network.
+
+    With the ocr extra installed (slow OCR test environment) the ocr exceptions are added, as
+    in the api-ci job licenses-ocr; otherwise only the default file is read.
+    """
+    args: list[str] = []
+    if importlib.util.find_spec("torch") is not None:
+        args = [arg for path in COMMITTED_FILES for arg in ("--exceptions", str(path))]
     result = subprocess.run(  # noqa: S603
-        [sys.executable, str(SCRIPT)],
+        [sys.executable, str(SCRIPT), *args],
         cwd=API_DIR,
         capture_output=True,
         text=True,
