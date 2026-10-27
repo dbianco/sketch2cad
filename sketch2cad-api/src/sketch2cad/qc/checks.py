@@ -87,13 +87,19 @@ class QcThresholds:
 
 @dataclass(frozen=True)
 class QcCheck:
-    """Outcome of one check; ``threshold`` is the limit that decided ``status``."""
+    """Outcome of one check; ``threshold`` is the limit that decided ``status``.
+
+    An amber or red check also says why (``cause``) and what the technician can do
+    (``action``), in Spanish (REQ-15); both are ``None`` for a green check.
+    """
 
     name: CheckName
     status: QcStatus
     value: float | None
     threshold: float | None
     message: str
+    cause: str | None = None
+    action: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """JSON form of the check (``source.qc.checks[]``)."""
@@ -103,6 +109,8 @@ class QcCheck:
             "value": self.value,
             "threshold": self.threshold,
             "message": self.message,
+            "cause": self.cause,
+            "action": self.action,
         }
 
 
@@ -125,6 +133,15 @@ def _graded(value: float, red: float | None, amber: float) -> tuple[QcStatus, fl
     if value < amber:
         return QcStatus.AMBER, amber
     return QcStatus.GREEN, amber
+
+
+def _guidance(
+    status: QcStatus, cause: str, actions: dict[QcStatus, str], **values: object
+) -> tuple[str | None, str | None]:
+    """``(cause, action)`` of a check: ``(None, None)`` when green, else both filled in."""
+    if status is QcStatus.GREEN:
+        return None, None
+    return cause.format(**values), actions[status].format(**values)
 
 
 def to_gray(image: npt.NDArray[Any]) -> GrayImage:
@@ -205,7 +222,15 @@ def _short_side_check(gray: GrayImage, t: QcThresholds) -> QcCheck:
         QcStatus.GREEN: "Resolución adecuada: el lado corto mide {v} px.",
     }
     message = messages[status].format(v=value, t=int(threshold))
-    return QcCheck(CheckName.SHORT_SIDE, status, float(value), float(threshold), message)
+    actions = {
+        QcStatus.RED: "Vuelve a fotografiar o escanear el croquis con al menos {t} px en el "
+        "lado corto.",
+        QcStatus.AMBER: "Si puedes, usa una foto o un escaneo de mayor resolución.",
+    }
+    cause, action = _guidance(status, message, actions, t=int(threshold))
+    return QcCheck(
+        CheckName.SHORT_SIDE, status, float(value), float(threshold), message, cause, action
+    )
 
 
 def _sharpness_check(gray: GrayImage, t: QcThresholds) -> QcCheck:
@@ -216,7 +241,20 @@ def _sharpness_check(gray: GrayImage, t: QcThresholds) -> QcCheck:
         QcStatus.AMBER: "Imagen algo borrosa: algunos trazos o cotas pueden no leerse.",
         QcStatus.GREEN: "Nitidez adecuada.",
     }
-    return QcCheck(CheckName.LAPLACIAN_VARIANCE, status, value, threshold, messages[status])
+    causes = {
+        QcStatus.RED: "Imagen muy borrosa: la varianza del Laplaciano es {v} (mínimo {t}).",
+        QcStatus.AMBER: "Imagen algo borrosa: algunos trazos o cotas pueden no leerse.",
+    }
+    actions = {
+        QcStatus.RED: "Vuelve a fotografiar el croquis enfocado, con buena luz y sin moverte.",
+        QcStatus.AMBER: "Si puedes, vuelve a fotografiarlo enfocado; si no, revisa las cotas "
+        "a mano.",
+    }
+    shown = {"v": f"{value:.1f}".replace(".", ","), "t": f"{threshold:g}".replace(".", ",")}
+    cause, action = _guidance(status, causes.get(status, ""), actions, **shown)
+    return QcCheck(
+        CheckName.LAPLACIAN_VARIANCE, status, value, threshold, messages[status], cause, action
+    )
 
 
 def _contrast_check(gray: GrayImage, t: QcThresholds) -> QcCheck:
@@ -226,21 +264,28 @@ def _contrast_check(gray: GrayImage, t: QcThresholds) -> QcCheck:
         QcStatus.AMBER: "Contraste bajo: mejora la iluminación o usa un fondo más oscuro.",
         QcStatus.GREEN: "Contraste adecuado.",
     }
-    return QcCheck(CheckName.CONTRAST, status, value, threshold, messages[status])
+    actions = {
+        QcStatus.AMBER: "Vuelve a fotografiar el croquis con más luz o sobre un fondo más oscuro.",
+    }
+    cause, action = _guidance(status, "Contraste bajo entre el papel y los trazos.", actions)
+    return QcCheck(CheckName.CONTRAST, status, value, threshold, messages[status], cause, action)
 
 
 def _crop_check(gray: GrayImage) -> QcCheck:
     value = round(paper_border_fraction(gray), 4)
     if 0.0 < value < 1.0:
         message = "El papel toca el borde de la imagen: puede faltar parte del croquis."
-        return QcCheck(CheckName.PAPER_CROP, QcStatus.AMBER, value, None, message)
+        action = "Vuelve a fotografiar el croquis con todo el papel dentro de la imagen."
+        return QcCheck(CheckName.PAPER_CROP, QcStatus.AMBER, value, None, message, message, action)
     message = "No se detecta el papel cortado por el borde de la imagen."
     return QcCheck(CheckName.PAPER_CROP, QcStatus.GREEN, value, None, message)
 
 
 def _unreadable(reason: str) -> QcResult:
     message = "No se pudo analizar la imagen: vuelve a cargar el archivo."
-    check = QcCheck(CheckName.INPUT, QcStatus.RED, None, None, message)
+    cause = "No se pudo leer ni analizar la imagen de la fuente."
+    action = "Vuelve a cargar el archivo original o una nueva foto o escaneo del croquis."
+    check = QcCheck(CheckName.INPUT, QcStatus.RED, None, None, message, cause, action)
     logger.warning("QC could not analyze the image: %s", reason)
     return QcResult(QcStatus.RED, (check,))
 

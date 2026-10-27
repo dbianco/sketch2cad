@@ -31,6 +31,14 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 INVALID_TYPE_MESSAGE = "El archivo no es un JPEG, PNG, TIFF o PDF de una página válido."
 TOO_LARGE_MESSAGE = "El archivo supera los 50 MB permitidos."
 ALTERED_MESSAGE = "El archivo se alteró durante la subida. Vuelve a cargarlo."
+# ``cause`` and ``action`` members of the rejected-upload problems (REQ-15).
+INVALID_TYPE_ACTION = (
+    "Vuelve a cargar el archivo original del croquis, o expórtalo como JPEG, PNG, TIFF o "
+    "PDF de una sola página."
+)
+TOO_LARGE_ACTION = "Reduce la resolución de la foto o del escaneo y vuelve a cargarlo."
+ALTERED_CAUSE = "El archivo se alteró durante la subida."
+ALTERED_ACTION = "Vuelve a cargarlo."
 
 _PILLOW_FORMATS: dict[MediaType, frozenset[str]] = {
     MediaType.JPEG: frozenset({"JPEG", "MPO"}),

@@ -57,10 +57,13 @@ CALIBRATABLE_STATUSES = frozenset({PlanStatus.CALIBRATION_PENDING, PlanStatus.ED
 """A plan can be (re)calibrated only before review; V-08 then requires no accepted entity."""
 
 V08_MESSAGE = "No puedes recalibrar un plano con entidades. Descártalas o crea otro plano."
-V05_MESSAGE = (
-    "El error de calibración es de {error} mm y supera el máximo de {maximum} mm. "
-    "Repite los puntos o continúa como aproximado."
-)
+V05_CAUSE = "El error de calibración es de {error} mm y supera el máximo de {maximum} mm."
+V05_ACTION = "Repite los puntos o continúa como aproximado."
+V05_MESSAGE = f"{V05_CAUSE} {V05_ACTION}"
+NONE_METRIC_CAUSE = "Una calibración sin método no puede ser métrica."
+NONE_METRIC_ACTION = "Elige un método de calibración o continúa como no métrico."
+PAPER_SCALE_CAUSE = "Un dibujo a escala necesita la escala del papel para ser métrico."
+PAPER_SCALE_ACTION = "Indica la escala del dibujo (1:N) o continúa como aproximado."
 
 ROLE_CONTROL = "control"
 ROLE_CHECK = "check"
@@ -126,15 +129,24 @@ class MetricRejectedError(ValueError):
     """``as_metric`` was requested for a calibration that cannot be metric (422).
 
     ``code`` is the PRD validation rule (``V-05``) when one applies; ``extensions`` holds
-    the values behind the message.
+    the values behind the message. ``cause`` and ``action`` say, in Spanish, why it was
+    rejected and what the technician can do (REQ-15).
     """
 
     def __init__(
-        self, message: str, code: str | None = None, extensions: dict[str, Any] | None = None
+        self,
+        message: str,
+        code: str | None = None,
+        extensions: dict[str, Any] | None = None,
+        *,
+        cause: str,
+        action: str,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.extensions = extensions or {}
+        self.cause = cause
+        self.action = action
 
 
 @dataclass(frozen=True)
@@ -357,22 +369,32 @@ def _format_mm(value: float) -> str:
 
 def _ensure_metric_allowed(plan: Plan, proposal: Proposal) -> None:
     if proposal.method is CalibrationMethod.NONE:
-        raise MetricRejectedError("A calibration with method none cannot be metric.")
+        raise MetricRejectedError(
+            "A calibration with method none cannot be metric.",
+            cause=NONE_METRIC_CAUSE,
+            action=NONE_METRIC_ACTION,
+        )
     if not proposal.meets_tolerance and proposal.error is not None:
-        message = V05_MESSAGE.format(
+        cause = V05_CAUSE.format(
             error=_format_mm(proposal.error.max_mm),
             maximum=_format_mm(proposal.max_reprojection_error_mm),
         )
         raise MetricRejectedError(
-            message,
+            f"{cause} {V05_ACTION}",
             code="V-05",
             extensions={
                 "reprojection_error_mm": proposal.error.to_json(),
                 "max_reprojection_error_mm": proposal.max_reprojection_error_mm,
             },
+            cause=cause,
+            action=V05_ACTION,
         )
     if plan.source_mode is SourceMode.SCALED_DRAWING and proposal.paper_scale is None:
-        raise MetricRejectedError("A metric calibration of a scaled_drawing needs paper_scale.")
+        raise MetricRejectedError(
+            "A metric calibration of a scaled_drawing needs paper_scale.",
+            cause=PAPER_SCALE_CAUSE,
+            action=PAPER_SCALE_ACTION,
+        )
 
 
 def accept(

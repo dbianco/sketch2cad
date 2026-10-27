@@ -1,4 +1,9 @@
-"""RFC 9457 problem details (``application/problem+json``) and exception handlers."""
+"""RFC 9457 problem details (``application/problem+json``) and exception handlers.
+
+A problem that reports a failure to the technician (unreadable upload, calibration out of
+tolerance, internal error) also carries the extension members ``cause`` and ``action``,
+both in Spanish (REQ-15): why it failed and what can be done about it.
+"""
 
 import logging
 from collections.abc import Mapping
@@ -16,6 +21,11 @@ logger = logging.getLogger(__name__)
 PROBLEM_CONTENT_TYPE = "application/problem+json"
 DEFAULT_PROBLEM_TYPE = "about:blank"
 
+INTERNAL_ERROR_CAUSE = "Error interno del servidor al procesar la solicitud."
+INTERNAL_ERROR_ACTION = (
+    "Vuelve a intentarlo más tarde; si el problema continúa, contacta al administrador."
+)
+
 
 class ProblemError(Exception):
     """An error rendered as a problem details response."""
@@ -28,6 +38,9 @@ class ProblemError(Exception):
         type: str = DEFAULT_PROBLEM_TYPE,
         headers: Mapping[str, str] | None = None,
         extensions: Mapping[str, Any] | None = None,
+        *,
+        cause: str | None = None,
+        action: str | None = None,
     ) -> None:
         super().__init__(detail)
         self.status = status
@@ -36,6 +49,10 @@ class ProblemError(Exception):
         self.type = type
         self.headers = headers
         self.extensions = dict(extensions or {})
+        if cause is not None:
+            self.extensions["cause"] = cause
+        if action is not None:
+            self.extensions["action"] = action
 
 
 def problem_response(
@@ -106,6 +123,8 @@ async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
         HTTPStatus.INTERNAL_SERVER_ERROR,
         _status_title(HTTPStatus.INTERNAL_SERVER_ERROR),
         "An unexpected error occurred.",
+        cause=INTERNAL_ERROR_CAUSE,
+        action=INTERNAL_ERROR_ACTION,
     )
 
 
