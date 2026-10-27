@@ -11,7 +11,7 @@ El MVP se respalda con un `pg_dump` de la base y una copia del directorio de obj
 
 | Fichero | Contenido |
 |---|---|
-| `pg.dump` | `pg_dump --format=custom` de toda la base (o solo de `BACKUP_SCHEMA`). Incluye expedientes, usuarios, `source`, la tabla `event` con sus cadenas de hashes y la cola de Procrastinate. |
+| `pg.dump` | `pg_dump --format=custom` de toda la base (o solo de `BACKUP_SCHEMA`). Incluye expedientes, usuarios, `source`, las revisiones con sus snapshots congelados (`revision.snapshot`), la tabla `event` con sus cadenas de hashes y la cola de Procrastinate. |
 | `objects.tar` | `tar` de `STORAGE_ROOT/objects`: los originales y sus derivados (PNG rasterizados), guardados por contenido en `objects/sha256/ab/cd/<hash>`. `STORAGE_ROOT/tmp` no se copia: solo contiene subidas a medio escribir. |
 | `MANIFEST` | Líneas `clave=valor`: `created_at`, `schema`, `objects` (número de ficheros), `pg_mode` (dónde corrió `pg_dump`) y `pg_dump_version`. |
 | `SHA256SUMS` | SHA-256 de `pg.dump` y de `objects.tar`. |
@@ -62,8 +62,9 @@ El script:
    - que `pg.dump` y `objects.tar` coinciden con `SHA256SUMS`;
    - que cada fichero restaurado tiene una ruta `sha256/ab/cd/<hash>` válida y que el SHA-256 de su contenido es su nombre; con `STORAGE_ROOT`, también que coincide con el objeto de origen cuando existe;
    - que cada fila de `source` resuelve a un objeto válido: `storage_key` es la clave de su `sha256` y `raster_key`, si está, existe;
+   - que cada revisión congelada (`revision.state = 'frozen'`) conserva su snapshot: el SHA-256 de los bytes canónicos (RFC 8785) de `revision.snapshot`, recalculado con `sketch2cad.revisions.snapshot.snapshot_sha256` (la misma función que lo calculó al congelar), es igual a `revision.snapshot_sha256` y al `snapshot_sha256` de su evento `revision.frozen`, si lo tiene;
    - que la cadena de hashes de cada expediente y la cadena global de autenticación pasan `sketch2cad.audit.verify.verify_chain` (docs/audit.md).
-4. Imprime una línea `FAIL ...` por cada problema, con la ruta del objeto afectado (por ejemplo `FAIL object sha256/a4/d9/a4d9...: content SHA-256 is ...`), y sale con 1. Si todo cuadra imprime `PASS` y sale con 0. Los errores de uso salen con 2.
+4. Imprime el recuento de lo comprobado: `Objects checked: N valid`, `Objects compared with <STORAGE_ROOT>: N` (con `STORAGE_ROOT`), `Sources checked: N` (filas `source` revisadas), `Originals matched: M of N` (filas `source` cuyo objeto existe y tiene el SHA-256 registrado), `Snapshots matched: M of N` (revisiones congeladas cuyo snapshot da el SHA-256 registrado) y `Event chains checked: N`. Imprime una línea `FAIL ...` por cada problema, con la ruta del objeto o el id de la fila afectada (por ejemplo `FAIL object sha256/a4/d9/a4d9...: content SHA-256 is ...` o `FAIL revision <id>: snapshot SHA-256 is ..., snapshot_sha256 is ...`), y sale con 1. Si todo cuadra imprime `PASS` y sale con 0. Los errores de uso salen con 2.
 5. Al salir, pase lo que pase, borra la base y el directorio de usar y tirar.
 
 Como en producción la base no es accesible desde el host, la prueba se hace contra un PostgreSQL temporal, en el mismo host o en otro, con la misma versión mayor:
@@ -96,7 +97,7 @@ Una vez al mes, y siempre al cerrar cada hito (spec §17), elegir el último res
 
 ## Limitaciones
 
-- Los snapshots congelados (revisiones) llegan en H2. Son objetos del mismo almacenamiento, de modo que la comprobación de objetos ya los cubre; cuando existan habrá que añadir que cada revisión resuelva a su objeto, igual que hoy `source`.
+- Los snapshots congelados no son objetos del almacenamiento: viven en la base (`revision.snapshot`, JSONB, con `revision.snapshot_sha256`), así que viajan en `pg.dump` y se verifican recalculando su hash, no con la comprobación de objetos. Las filas `artifact` (exportaciones) no se comprueban contra su objeto como `source`; solo se verifica el hash de sus ficheros.
 - Quitar eventos del final de una cadena no se detecta con los eventos solos (docs/audit.md); lo cubre el manifiesto de H4.
 - El respaldo no está cifrado y contiene datos personales: debe guardarse en un disco cifrado y con acceso restringido.
 - `pg_dump` y `tar` no forman una instantánea atómica conjunta; es correcto porque los objetos son de solo inserción, pero un objeto subido durante el respaldo puede quedar en `objects.tar` sin su fila.

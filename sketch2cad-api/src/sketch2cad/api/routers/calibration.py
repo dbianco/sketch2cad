@@ -186,7 +186,8 @@ def _rejected(db: Session, plan: Plan, exc: Exception) -> ProblemError:
     if isinstance(exc, CalibrationConflictError):
         return _problem(HTTPStatus.CONFLICT, exc, exc.code, **exc.extensions)
     if isinstance(exc, MetricRejectedError):
-        return _problem(HTTPStatus.UNPROCESSABLE_ENTITY, exc, exc.code, **exc.extensions)
+        extra = {**exc.extensions, "cause": exc.cause, "action": exc.action}
+        return _problem(HTTPStatus.UNPROCESSABLE_ENTITY, exc, exc.code, **extra)
     return _problem(HTTPStatus.UNPROCESSABLE_ENTITY, exc)
 
 

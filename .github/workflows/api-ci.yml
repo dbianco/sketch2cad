@@ -73,14 +73,36 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
       - run: uv sync --frozen
+      # The console output is copied to ci.log and the application logs (every logger, DEBUG)
+      # go to ci-app.log, so the next step can scan both (H6-8). Neither is uploaded.
       - id: pytest
         run: |
-          status=0
-          uv run pytest -q || status=$?
+          set +e
+          uv run pytest -q --log-file=ci-app.log --log-file-level=DEBUG 2>&1 | tee ci.log
+          status="${PIPESTATUS[0]}"
+          set -e
           # The login perf test appends login_p95_ms=<value> to this step's summary when CI=true.
           p95="$(grep -o 'login_p95_ms=[0-9.]*' "$GITHUB_STEP_SUMMARY" | tail -n 1 | cut -d= -f2 || true)"
           echo "login_p95_ms=${p95}" >> "$GITHUB_OUTPUT"
           exit "$status"
+      # H6-8 / REQ-11: no coordinates and no sketch file names in the test logs. Runs after a
+      # failed test step too (failure output is the likeliest leak). The real validation-set
+      # names come from the optional VALIDATION_NAMES secret (one per line), written to a
+      # private temporary file and never printed; forks and unset secrets scan without them.
+      - name: Scan the test logs for coordinates and sketch file names
+        if: ${{ !cancelled() && steps.pytest.outcome != 'skipped' }}
+        env:
+          VALIDATION_NAMES: ${{ secrets.VALIDATION_NAMES }}
+        run: |
+          names_args=()
+          if [ -n "${VALIDATION_NAMES}" ]; then
+            names_file="$(mktemp)"
+            chmod 600 "$names_file"
+            trap 'rm -f "$names_file"' EXIT
+            printf '%s\n' "$VALIDATION_NAMES" > "$names_file"
+            names_args=(--names-file "$names_file")
+          fi
+          uv run python scripts/scan_logs.py "${names_args[@]}" ci.log ci-app.log
 
   migrations:
     runs-on: ubuntu-latest
@@ -115,6 +137,27 @@ jobs:
           version: ${{ env.UV_VERSION }}
       - run: uv sync --frozen
       - run: uv run python scripts/check_licenses.py
+
+  # Licenses and pip-audit of the optional ocr extra (torch, transformers; task 001-105).
+  # Its exceptions live in license-exceptions-ocr.toml, read only here, so the default job does
+  # not fail on them as stale. On ubuntu the lock resolves the CPU-only torch wheel
+  # (2.14.1+cpu from download.pytorch.org/whl/cpu; no nvidia-* or triton packages).
+  # Every `uv run` repeats `--frozen --extra ocr`: without it uv would re-sync and drop the extra.
+  licenses-ocr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: uv sync --frozen --extra ocr
+      - run: >-
+          uv run --frozen --extra ocr python scripts/check_licenses.py
+          --exceptions license-exceptions.toml --exceptions license-exceptions-ocr.toml
+      - run: |
+          set +o pipefail
+          uv run --frozen --extra ocr pip-audit --format json --progress-spinner off \
+            | uv run --frozen --extra ocr python scripts/check_audit.py
 
   audit:
     runs-on: ubuntu-latest
@@ -159,7 +202,7 @@ jobs:
       - run: bash scripts/compose_smoke.sh
 
   summary:
-    needs: [start, lint, test, migrations, licenses, audit, secrets, compose-smoke]
+    needs: [start, lint, test, migrations, licenses, licenses-ocr, audit, secrets, compose-smoke]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -174,6 +217,7 @@ jobs:
             test=${{ needs.test.result }}
             migrations=${{ needs.migrations.result }}
             licenses=${{ needs.licenses.result }}
+            licenses-ocr=${{ needs['licenses-ocr'].result }}
             audit=${{ needs.audit.result }}
             secrets=${{ needs.secrets.result }}
             compose-smoke=${{ needs.compose-smoke.result }}

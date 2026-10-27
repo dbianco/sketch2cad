@@ -30,9 +30,13 @@ from sketch2cad.db.models import CaseFile, JobMeta, Source, User
 from sketch2cad.db.session import get_session
 from sketch2cad.jobs.service import QC_JOB_KIND
 from sketch2cad.sources.ingest import (
+    ALTERED_ACTION,
+    ALTERED_CAUSE,
     ALTERED_MESSAGE,
+    INVALID_TYPE_ACTION,
     INVALID_TYPE_MESSAGE,
     MAX_UPLOAD_BYTES,
+    TOO_LARGE_ACTION,
     TOO_LARGE_MESSAGE,
     AlteredUploadError,
     InvalidSourceTypeError,
@@ -153,9 +157,15 @@ def _out(source: Source, qc_job_id: uuid.UUID) -> SourceOut:
     )
 
 
-def _unprocessable(detail: str) -> ProblemError:
+def _unprocessable(
+    detail: str, cause: str | None = None, action: str | None = None
+) -> ProblemError:
     return ProblemError(
-        HTTPStatus.UNPROCESSABLE_ENTITY, HTTPStatus.UNPROCESSABLE_ENTITY.phrase, detail
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+        HTTPStatus.UNPROCESSABLE_ENTITY.phrase,
+        detail,
+        cause=cause,
+        action=action,
     )
 
 
@@ -188,7 +198,7 @@ def _ingest(
     except AlteredUploadError:
         db.rollback()
         logger.warning("Rejected upload to case file %s: hash mismatch", case_file.id)
-        raise _unprocessable(ALTERED_MESSAGE) from None
+        raise _unprocessable(ALTERED_MESSAGE, ALTERED_CAUSE, ALTERED_ACTION) from None
     except InvalidSourceTypeError:
         db.rollback()
         logger.warning("Rejected upload to case file %s: invalid content type", case_file.id)
@@ -196,6 +206,8 @@ def _ingest(
             HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
             HTTPStatus.UNSUPPORTED_MEDIA_TYPE.phrase,
             INVALID_TYPE_MESSAGE,
+            cause=INVALID_TYPE_MESSAGE,
+            action=INVALID_TYPE_ACTION,
         ) from None
     db.commit()
     return _out(source, job.id)
@@ -231,6 +243,8 @@ async def upload_source(
             HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
             HTTPStatus.REQUEST_ENTITY_TOO_LARGE.phrase,
             TOO_LARGE_MESSAGE,
+            cause=TOO_LARGE_MESSAGE,
+            action=TOO_LARGE_ACTION,
         ) from None
     except MalformedUploadError:
         raise _unprocessable(
@@ -365,5 +379,8 @@ def preview_source(
                 HTTPStatus.INTERNAL_SERVER_ERROR,
                 HTTPStatus.INTERNAL_SERVER_ERROR.phrase,
                 "The preview could not be generated.",
+                cause="No se pudo generar la vista previa de la fuente.",
+                action="Recarga la página; si el problema continúa, descarga el original o "
+                "contacta al administrador.",
             ) from None
     return Response(content=content, media_type=PREVIEW_MEDIA_TYPE)

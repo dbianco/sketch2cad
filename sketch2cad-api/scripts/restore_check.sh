@@ -9,9 +9,16 @@
 #      same SHA-256 as the source object, when the source has it.
 #   3. Every `source` row resolves to a valid object: storage_key is the key of its
 #      sha256 and raster_key, when set, is present.
-#   4. The hash chain of every case file and the global auth chain verifies
+#   4. Every frozen revision keeps its snapshot: the SHA-256 of the canonical (RFC 8785)
+#      bytes of revision.snapshot, recomputed with
+#      sketch2cad.revisions.snapshot.snapshot_sha256, equals revision.snapshot_sha256 and
+#      the snapshot_sha256 of its revision.frozen event, when present. Snapshots live in
+#      the database (JSONB), not in the object store.
+#   5. The hash chain of every case file and the global auth chain verifies
 #      (sketch2cad.audit.verify.verify_chain) in the restored database.
-# Frozen snapshots (revisions) arrive in H2; they are objects too, so check 2 covers them.
+#
+# The report prints "Originals matched: M of N" (source rows whose objects passed checks 2
+# and 3) and "Snapshots matched: M of N" (frozen revisions that passed check 4).
 #
 # The scratch database "restore_check_<timestamp>_<pid>_<random>" is created next to the
 # DATABASE_URL database and dropped on exit, as is the mktemp scratch directory.
@@ -165,7 +172,7 @@ pg_run pg_restore --no-owner --no-privileges --exit-on-error --dbname="$scratch_
   <"$backup_dir/pg.dump" ||
   fail "pg_restore into $scratch_db failed; it must not be older than the pg_dump that wrote the backup (MANIFEST) nor newer than the server"
 
-echo "Step 3/3: verify objects, sources and event chains"
+echo "Step 3/3: verify objects, sources, snapshots and event chains"
 if ! uv run python - "$backup_dir" "$scratch_dir/objects" "$scratch_db" "$schema" "$source_root" <<'PY'
 import hashlib
 import itertools
@@ -179,6 +186,7 @@ from sqlalchemy.orm import Session
 from sketch2cad.audit import event_content
 from sketch2cad.audit.verify import verify_chain
 from sketch2cad.db.models import Event
+from sketch2cad.revisions.snapshot import snapshot_sha256
 from sketch2cad.storage.base import InvalidKeyError, key_for_hash, validate_key
 
 backup_dir, objects_dir, database, schema, source_root = sys.argv[1:6]
@@ -227,20 +235,67 @@ url = make_url(os.environ["DATABASE_URL"]).set(database=database)
 engine = create_engine(url, connect_args={"options": f"-csearch_path={schema}"})
 try:
     with Session(engine) as session:
-        for table in ("source", "event"):
+        for table in ("source", "event", "revision"):
             if session.execute(text("SELECT to_regclass(:t)"), {"t": table}).scalar() is None:
                 failures.append(f"FAIL table {schema}.{table}: missing in the restored database")
                 raise SystemExit("\n".join(failures))
         rows = session.execute(text("SELECT id, sha256, storage_key, raster_key FROM source"))
         source_count = 0
+        sources_matched = 0
         for source_id, sha256, storage_key, raster_key in rows:
             source_count += 1
+            matched = True
             if storage_key != key_for_hash(sha256):
                 failures.append(f"FAIL source {source_id}: storage_key does not match sha256")
+                matched = False
             for key in (storage_key, raster_key):
                 if key is not None and key not in valid_keys:
                     failures.append(f"FAIL source {source_id}: object {key} missing or invalid")
+                    matched = False
+            sources_matched += matched
         print(f"Sources checked: {source_count}")
+        print(f"Originals matched: {sources_matched} of {source_count}")
+
+        frozen_events: dict[object, list[object]] = {}
+        for revision_id, after in session.execute(
+            text(
+                "SELECT revision_id, after FROM event"
+                " WHERE kind = 'revision.frozen' AND revision_id IS NOT NULL ORDER BY id"
+            )
+        ):
+            if isinstance(after, dict) and "snapshot_sha256" in after:
+                frozen_events.setdefault(revision_id, []).append(after["snapshot_sha256"])
+        revisions = session.execute(
+            text(
+                "SELECT id, snapshot, snapshot_sha256 FROM revision"
+                " WHERE state = 'frozen' ORDER BY id"
+            )
+        )
+        snapshot_count = 0
+        snapshots_matched = 0
+        for revision_id, snapshot, stored in revisions:
+            snapshot_count += 1
+            try:
+                actual = snapshot_sha256(snapshot)
+            except (TypeError, ValueError) as exc:
+                failures.append(f"FAIL revision {revision_id}: snapshot not canonicalizable ({exc})")
+                continue
+            matched = True
+            if actual != stored:
+                failures.append(
+                    f"FAIL revision {revision_id}: snapshot SHA-256 is {actual}, "
+                    f"snapshot_sha256 is {stored}"
+                )
+                matched = False
+            for recorded in frozen_events.get(revision_id, []):
+                if recorded != actual:
+                    failures.append(
+                        f"FAIL revision {revision_id}: snapshot SHA-256 is {actual}, "
+                        f"revision.frozen event has {recorded}"
+                    )
+                    matched = False
+            snapshots_matched += matched
+        print(f"Snapshots matched: {snapshots_matched} of {snapshot_count}")
 
         events = session.scalars(
             select(Event).order_by(Event.case_file_id.nulls_first(), Event.id)

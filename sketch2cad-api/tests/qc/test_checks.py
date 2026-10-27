@@ -170,7 +170,15 @@ def test_result_dict_is_the_json_stored_in_source_qc(sharp_2000: Any) -> None:
 
     assert json.loads(json.dumps(stored)) == stored
     assert stored["status"] == "green"
-    assert set(stored["checks"][0]) == {"name", "status", "value", "threshold", "message"}
+    assert set(stored["checks"][0]) == {
+        "name",
+        "status",
+        "value",
+        "threshold",
+        "message",
+        "cause",
+        "action",
+    }
     assert stored["checks"][3]["threshold"] is None
 
 

@@ -5,6 +5,11 @@ Usage (from any directory)::
     uv run python scripts/check_licenses.py                  # inspect the project environment
     uv run python scripts/check_licenses.py --input lic.json # inspect a saved pip-licenses JSON
 
+With the ocr extra installed (from sketch2cad-api/), pass both exception files::
+
+    uv run --extra ocr python scripts/check_licenses.py \\
+        --exceptions license-exceptions.toml --exceptions license-exceptions-ocr.toml
+
 Rules:
 
 * Licenses listed in ``licenses-allowed.txt`` (MIT, BSD, Apache-2.0, PSF) pass automatically.
@@ -13,6 +18,10 @@ Rules:
   ``license-exceptions.toml`` (same package, same version or ``"*"``, same license) that has a
   non-empty reason. Entries with ``status = "pending-owner-decision"`` pass with a warning.
 * Exceptions that match no installed package are stale and fail the check.
+* ``--exceptions`` can be given several times; the entries of all files are combined. Without
+  it only ``license-exceptions.toml`` is read. Entries for the optional ``ocr`` extra live in
+  ``license-exceptions-ocr.toml``, which is passed only when that extra is installed, so they
+  never become stale in the default environment.
 
 License strings are normalized from pip-licenses output: classifier names such as
 ``"MIT License"``, SPDX identifiers, SPDX expressions with ``OR``/``AND`` and several
@@ -241,6 +250,18 @@ def parse_exceptions(data: dict[str, Any]) -> tuple[list[LicenseException], list
     return entries, errors
 
 
+def load_exceptions(paths: list[Path]) -> tuple[list[LicenseException], list[str]]:
+    """Read and combine the exceptions of several TOML files; problems name their file."""
+    entries: list[LicenseException] = []
+    errors: list[str] = []
+    for path in paths:
+        with path.open("rb") as handle:
+            file_entries, file_errors = parse_exceptions(tomllib.load(handle))
+        entries.extend(file_entries)
+        errors.extend(f"{path.name}: {error}" for error in file_errors)
+    return entries, errors
+
+
 def _matches(exception: LicenseException, package: Package) -> bool:
     return (
         normalize_name(exception.package) == normalize_name(package.name)
@@ -317,14 +338,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
     parser.add_argument("--input", type=Path, help="read pip-licenses JSON from this file")
     parser.add_argument("--allowed", type=Path, default=ALLOWED_PATH)
-    parser.add_argument("--exceptions", type=Path, default=EXCEPTIONS_PATH)
+    parser.add_argument(
+        "--exceptions",
+        type=Path,
+        action="append",
+        help=f"exceptions TOML file; repeat to combine files (default: {EXCEPTIONS_PATH.name})",
+    )
     args = parser.parse_args(argv)
 
     payload = args.input.read_text(encoding="utf-8") if args.input else run_pip_licenses()
     own = project_name(PYPROJECT_PATH)
     packages = parse_packages(payload, skip=frozenset({own}))
-    with args.exceptions.open("rb") as handle:
-        exceptions, exception_errors = parse_exceptions(tomllib.load(handle))
+    exceptions, exception_errors = load_exceptions(args.exceptions or [EXCEPTIONS_PATH])
     report = evaluate(packages, load_allowed(args.allowed), exceptions, exception_errors)
 
     print(f"Checked {report.checked} packages (skipped the project itself: {own})")

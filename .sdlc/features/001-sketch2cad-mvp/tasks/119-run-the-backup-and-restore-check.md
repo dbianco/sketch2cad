@@ -1,7 +1,7 @@
 ---
 id: 001-119
 title: "Run the backup and restore check"
-status: todo
+status: in_review
 kind: acceptance-run
 milestone: "H6 — Endurecimiento y validación interna"
 repository: sketch2cad

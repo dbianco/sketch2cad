@@ -1,10 +1,13 @@
-"""backup.sh and restore_check.sh: a backup restores cleanly and one changed byte fails.
+"""backup.sh and restore_check.sh: a backup restores cleanly; one changed byte fails.
+
+A changed object byte, snapshot coordinate or ``snapshot_sha256`` makes the check fail.
 
 The PostgreSQL client tools run on the host, or inside the container named by
 ``PG_CONTAINER`` when that variable is set; without either the tests are skipped.
 """
 
 import io
+import json
 import os
 import re
 import shutil
@@ -24,8 +27,10 @@ from sqlalchemy import make_url, text
 from sqlalchemy.orm import Session
 
 from sketch2cad.audit import EventKind, append_event
-from sketch2cad.db.models import CaseFile, IncidentType, Source, User, UserRole
+from sketch2cad.db.models import CaseFile, Entity, IncidentType, Source, User, UserRole
 from sketch2cad.db.session import create_db_engine
+from sketch2cad.plans.service import NewPlan, create_plan
+from sketch2cad.revisions.service import freeze
 from sketch2cad.storage.filesystem import FilesystemStorage
 
 API_DIR = Path(__file__).resolve().parents[1]
@@ -79,6 +84,7 @@ class Fixture:
     storage_root: Path
     backup_dir: Path
     keys: tuple[str, ...]
+    revision_id: str
 
 
 def run_script(script: Path, *args: str, **env: str) -> subprocess.CompletedProcess[str]:
@@ -95,8 +101,11 @@ def run_script(script: Path, *args: str, **env: str) -> subprocess.CompletedProc
     )
 
 
-def seed(database_url: str, schema: str, storage: FilesystemStorage) -> tuple[str, ...]:
-    """Migrate ``schema`` and add sources, case file events and an auth event."""
+def seed(database_url: str, schema: str, storage: FilesystemStorage) -> tuple[tuple[str, ...], str]:
+    """Migrate ``schema`` and add sources, a frozen revision, case file and auth events.
+
+    Returns the object keys and the id of the frozen revision.
+    """
     config = Config(str(ALEMBIC_INI))
     config.attributes["schema"] = schema
     config.attributes["skip_logging_config"] = True
@@ -119,6 +128,7 @@ def seed(database_url: str, schema: str, storage: FilesystemStorage) -> tuple[st
             session.add(case_file)
             session.flush()
             append_event(session, case_file_id=case_file.id, kind=EventKind.CASE_FILE_CREATED)
+            sources: list[Source] = []
             for obj, media_type, raster in (
                 (stored[0], "image/jpeg", None),
                 (stored[1], "application/pdf", stored[2].key),
@@ -135,16 +145,32 @@ def seed(database_url: str, schema: str, storage: FilesystemStorage) -> tuple[st
                 )
                 session.add(source)
                 session.flush()
+                sources.append(source)
                 append_event(
                     session,
                     case_file_id=case_file.id,
                     kind=EventKind.SOURCE_INGESTED,
                     entity_id=source.id,
                 )
+            _, revision = create_plan(session, case_file, user, NewPlan("Plano", sources[0].id))
+            session.add(
+                Entity(
+                    revision_id=revision.id,
+                    type="polyline",
+                    layer="L_STRUCTURE",
+                    geometry={"kind": "polyline", "coords_m": [[2.0, 0.5], [5.25, 0.5]]},
+                    source={"method": "manual"},
+                    review_status="accepted",
+                    metric_origin="none",
+                )
+            )
+            session.flush()
+            freeze(session, revision, user)
+            revision_id = str(revision.id)
             append_event(session, case_file_id=None, kind=EventKind.AUTH_LOGIN, actor_id=user.id)
     finally:
         engine.dispose()
-    return tuple(obj.key for obj in stored)
+    return tuple(obj.key for obj in stored), revision_id
 
 
 @pytest.fixture(scope="module")
@@ -160,7 +186,7 @@ def backup(database_url: str) -> Iterator[Fixture]:
     try:
         with tempfile.TemporaryDirectory(prefix="backup_test.") as workdir:
             storage_root = Path(workdir, "storage")
-            keys = seed(database_url, schema, FilesystemStorage(storage_root))
+            keys, revision_id = seed(database_url, schema, FilesystemStorage(storage_root))
             result = run_script(
                 BACKUP_SCRIPT,
                 str(Path(workdir, "backups")),
@@ -171,7 +197,9 @@ def backup(database_url: str) -> Iterator[Fixture]:
             assert result.returncode == 0, result.stdout + result.stderr
             match = BACKUP_DIR_LINE.search(result.stdout)
             assert match is not None, result.stdout
-            yield Fixture(database_url, schema, storage_root, Path(match.group(1)), keys)
+            yield Fixture(
+                database_url, schema, storage_root, Path(match.group(1)), keys, revision_id
+            )
     finally:
         with admin.begin() as connection:
             connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
@@ -220,6 +248,8 @@ def test_restore_check_passes_on_an_unmodified_backup(backup: Fixture) -> None:
     assert "Objects checked: 3 valid" in output
     assert "Objects compared with" in output
     assert "Sources checked: 2" in output
+    assert "Originals matched: 2 of 2" in output
+    assert "Snapshots matched: 1 of 1" in output
     assert "Event chains checked: 2" in output
     assert "PASS: backup" in output
     assert "FAIL" not in output
@@ -256,8 +286,99 @@ def test_restore_check_fails_naming_an_object_with_one_changed_byte(
     assert result.returncode == 1, output
     assert f"FAIL object {victim_key}: content SHA-256 is" in output
     assert f"object {victim_key} missing or invalid" in output
+    assert "Originals matched: 1 of 2" in output
+    assert "Snapshots matched: 1 of 1" in output
     assert "PASS" not in output
     for key in backup.keys:
         if key != victim_key:
             assert f"FAIL object {key}" not in output
+    assert_scratch_removed(backup.database_url, output)
+
+
+CHANGE_SNAPSHOT_COORDINATE = (
+    "UPDATE revision SET snapshot = jsonb_set(snapshot, '{entities,0,geometry,coords_m,0,0}',"
+    " '2.01') WHERE id = :id"
+)
+CHANGE_SNAPSHOT_SHA256 = "UPDATE revision SET snapshot_sha256 = repeat('0', 64) WHERE id = :id"
+
+
+def backup_with_changed_revision(backup: Fixture, workdir: Path, update: str) -> Path:
+    """Back up ``backup.schema`` after running ``update`` on its frozen revision.
+
+    The trigger that keeps frozen revisions immutable is disabled for the change and the
+    original row is put back afterwards, so the module fixture stays intact.
+    """
+    engine = create_db_engine(
+        backup.database_url, connect_args={"options": f"-csearch_path={backup.schema}"}
+    )
+    disable = "ALTER TABLE revision DISABLE TRIGGER revision_frozen_immutable"
+    enable = "ALTER TABLE revision ENABLE TRIGGER revision_frozen_immutable"
+    params = {"id": backup.revision_id}
+    try:
+        with engine.begin() as connection:
+            snapshot, digest = connection.execute(
+                text("SELECT snapshot, snapshot_sha256 FROM revision WHERE id = :id"), params
+            ).one()
+            connection.execute(text(disable))
+            connection.execute(text(update), params)
+            connection.execute(text(enable))
+        try:
+            result = run_script(
+                BACKUP_SCRIPT,
+                str(workdir / "backups"),
+                DATABASE_URL=backup.database_url,
+                STORAGE_ROOT=str(backup.storage_root),
+                BACKUP_SCHEMA=backup.schema,
+            )
+        finally:
+            with engine.begin() as connection:
+                connection.execute(text(disable))
+                connection.execute(
+                    text(
+                        "UPDATE revision SET snapshot = CAST(:snapshot AS jsonb),"
+                        " snapshot_sha256 = :digest WHERE id = :id"
+                    ),
+                    {**params, "snapshot": json.dumps(snapshot), "digest": digest},
+                )
+                connection.execute(text(enable))
+    finally:
+        engine.dispose()
+    assert result.returncode == 0, result.stdout + result.stderr
+    match = BACKUP_DIR_LINE.search(result.stdout)
+    assert match is not None, result.stdout
+    return Path(match.group(1))
+
+
+def test_restore_check_fails_naming_a_revision_with_a_changed_snapshot_coordinate(
+    backup: Fixture, tmp_path: Path
+) -> None:
+    tampered = backup_with_changed_revision(backup, tmp_path, CHANGE_SNAPSHOT_COORDINATE)
+
+    result = run_script(RESTORE_SCRIPT, str(tampered), DATABASE_URL=backup.database_url)
+    output = result.stdout + result.stderr
+
+    assert result.returncode == 1, output
+    assert f"FAIL revision {backup.revision_id}: snapshot SHA-256 is" in output
+    assert "revision.frozen event has" in output
+    assert "Snapshots matched: 0 of 1" in output
+    assert "Originals matched: 2 of 2" in output
+    assert "FAIL object" not in output
+    assert "PASS" not in output
+    assert_scratch_removed(backup.database_url, output)
+
+
+def test_restore_check_fails_naming_a_revision_with_a_changed_snapshot_sha256(
+    backup: Fixture, tmp_path: Path
+) -> None:
+    tampered = backup_with_changed_revision(backup, tmp_path, CHANGE_SNAPSHOT_SHA256)
+
+    result = run_script(RESTORE_SCRIPT, str(tampered), DATABASE_URL=backup.database_url)
+    output = result.stdout + result.stderr
+
+    assert result.returncode == 1, output
+    assert f"FAIL revision {backup.revision_id}: snapshot SHA-256 is" in output
+    assert f"snapshot_sha256 is {'0' * 64}" in output
+    assert "revision.frozen event has" not in output
+    assert "Snapshots matched: 0 of 1" in output
+    assert "PASS" not in output
     assert_scratch_removed(backup.database_url, output)

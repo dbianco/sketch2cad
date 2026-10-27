@@ -1,7 +1,7 @@
 ---
 id: 001-111
 title: "Cover every explicit failure path (CA-11)"
-status: todo
+status: in_review
 milestone: "H6 — Endurecimiento y validación interna"
 repository: sketch2cad
 depends_on: [001-110, 001-098]

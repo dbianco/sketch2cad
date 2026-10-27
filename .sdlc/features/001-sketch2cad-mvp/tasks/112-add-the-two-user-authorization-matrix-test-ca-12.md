@@ -1,7 +1,7 @@
 ---
 id: 001-112
 title: "Add the two-user authorization matrix test (CA-12)"
-status: todo
+status: in_review
 milestone: "H6 — Endurecimiento y validación interna"
 repository: sketch2cad
 depends_on: [001-110, 001-098]

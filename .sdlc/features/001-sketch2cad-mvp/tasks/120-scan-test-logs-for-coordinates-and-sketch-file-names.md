@@ -1,7 +1,7 @@
 ---
 id: 001-120
 title: "Scan test logs for coordinates and sketch file names"
-status: todo
+status: in_review
 milestone: "H6 — Endurecimiento y validación interna"
 repository: sketch2cad
 depends_on: [001-113]

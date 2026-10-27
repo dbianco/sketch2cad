@@ -381,7 +381,7 @@ def _final(db: Session, storage: Storage, ctx: _Context) -> Artifact:
     try:
         package = build_package(inputs)
     except _EXPORT_ERRORS as exc:
-        raise ExportJobError(EXPORT_FAILED, f"package build failed: {exc}") from exc
+        raise ExportJobError(EXPORT_FAILED, f"package build failed: {type(exc).__name__}") from exc
     files = package.files
     package_artifact = _store(db, storage, ctx, ArtifactKind.ZIP, package.zip_bytes, False)
     for kind, name in (
