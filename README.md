@@ -57,4 +57,4 @@ Python 3.12 con FastAPI, SQLAlchemy y Alembic; worker Procrastinate sobre Postgr
 
 ## Licencia
 
-Sin licencia por ahora. Mientras no se agregue una, todos los derechos quedan reservados.
+Licencia MIT. El texto completo está en [`LICENSE`](LICENSE).
