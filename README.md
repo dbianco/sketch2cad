@@ -1,60 +1,62 @@
 # Sketch2CAD
 
-Aplicación web que convierte el croquis de campo de un siniestro vial, una escena del crimen o una inspección ocular en un plano 2D editable, medible y auditable, y lo exporta a DXF y PDF técnico.
+A web application that turns the field sketch of a traffic accident, a crime scene or a visual inspection into an editable, measurable and auditable 2D plan, and exports it to DXF and technical PDF.
 
-> **Estado:** fase de especificación. Este repositorio contiene la documentación; todavía no hay código. El producto es un borrador técnico y no está pensado como prueba hasta contar con revisión jurídica.
+> **Status:** MVP under development. The code lives in `sketch2cad-api/` and `sketch2cad-web/`. The product is a technical draft and is not meant to be used as evidence until it has had a legal review.
 
-## Idea central
+## Core idea
 
-Un croquis hecho a mano normalmente no está a escala. La información métrica real está en las **cotas escritas** y en mediciones de referencia (triangulación desde dos puntos fijos, línea base y offset), no en los píxeles. Por eso Sketch2CAD reconstruye la geometría a partir de las cotas que declara el técnico:
+A hand-drawn sketch is normally not to scale. The real metric information is in the **written dimensions** and in reference measurements (triangulation from two fixed points, baseline and offset), not in the pixels. That is why Sketch2CAD rebuilds the geometry from the dimensions the technician declares:
 
-- La **cota declarada manda** sobre la medida derivada; el sistema nunca corrige una por su cuenta.
-- La **IA solo propone** (polilíneas sugeridas y OCR asistido de cotas); una persona acepta, corrige o rechaza.
-- Cada plano tiene un **estado métrico** (`metric`, `approximate`, `non_metric`) que se imprime en el DXF y el PDF.
-- Cada acción queda en un **log de eventos encadenado por hashes**, y el paquete final lleva un manifiesto firmado que un auditor externo puede verificar sin acceso al servidor.
+- The **declared dimension wins** over the derived measurement; the system never corrects one on its own.
+- **AI only proposes** (suggested polylines and assisted OCR of dimensions); a person accepts, corrects or rejects.
+- Every plan has a **metric status** (`metric`, `approximate`, `non_metric`) that is printed on the DXF and the PDF.
+- Every action is recorded in a **hash-chained event log**, and the final package carries a signed manifest that an external auditor can verify without access to the server.
 
-## Alcance del MVP
+## MVP scope
 
-Incluye: expedientes y fuentes inmutables con hash, calibración imagen a papel, sistema de coordenadas local, editor 2D en el navegador, herramientas métricas (fijar longitud, triangulación, base más offset), revisión y validación con congelado de revisiones, exportación a DXF y PDF a escala, paquete final firmado y verificador independiente. Las sugerencias de IA son opcionales.
+Included: case files and immutable hashed sources, image-to-paper calibration, local coordinate system, 2D editor in the browser, metric tools (fix length, triangulation, baseline plus offset), review and validation with frozen revisions, export to DXF and to PDF at scale, signed final package and independent verifier. AI suggestions are optional.
 
-No incluye: 3D, georreferenciación, detección automática de evidencias, pericias autónomas, servicios externos de IA, MFA ni firma institucional.
+Not included: 3D, georeferencing, automatic evidence detection, autonomous expert analysis, external AI services, MFA or institutional signing.
 
 ## Plan
 
-Una persona a tiempo completo, 15 semanas, siete hitos secuenciales.
+One person full time, 15 weeks, seven sequential milestones.
 
-| Hito | Contenido | Semanas |
+| Milestone | Content | Weeks |
 |---|---|---|
-| H0 | Fundación: repositorios, docker-compose, auth local, CI y licencias, dos comprobaciones técnicas | 1 |
-| H1 | Expedientes, ingesta con hash y control de calidad, eventos encadenados | 2 |
-| H2 | Calibración, sistema local, editor SVG, revisiones | 3 |
-| H3 | Herramientas métricas, tabla de indicios, estado métrico | 2 |
-| H4 | Exportación DXF y PDF, manifiesto firmado, verificador | 3 |
-| H5 | Asistencia de IA (recortable) | 2 |
-| H6 | Endurecimiento y validación interna con 10 o más croquis propios | 2 |
+| H0 | Foundation: repositories, docker-compose, local auth, CI and licenses, two technical checks | 1 |
+| H1 | Case files, ingestion with hashing and quality control, chained events | 2 |
+| H2 | Calibration, local system, SVG editor, revisions | 3 |
+| H3 | Metric tools, evidence table, metric status | 2 |
+| H4 | DXF and PDF export, signed manifest, verifier | 3 |
+| H5 | AI assistance (can be cut) | 2 |
+| H6 | Hardening and internal validation with 10 or more own sketches | 2 |
 
-## Stack previsto
+## Stack
 
-Python 3.12 con FastAPI, SQLAlchemy y Alembic; worker Procrastinate sobre PostgreSQL 16; React 18 con TypeScript y Vite; editor en SVG; OpenCV, scikit-image y shapely; ezdxf para DXF y ReportLab para PDF; firma Ed25519 con JSON canónico (RFC 8785). Todo se ejecuta con `docker compose`. El código vivirá en este mismo repositorio, en dos carpetas: `sketch2cad-api/` y `sketch2cad-web/`.
+Python 3.12 with FastAPI, SQLAlchemy and Alembic; Procrastinate worker on PostgreSQL 16; React 18 with TypeScript and Vite; SVG editor; OpenCV, scikit-image and shapely; ezdxf for DXF and ReportLab for PDF; Ed25519 signing with canonical JSON (RFC 8785). Everything runs with `docker compose`. The code lives in this repository, in two folders: `sketch2cad-api/` and `sketch2cad-web/`.
 
-## Estructura
+## Structure
 
-| Ruta | Contenido |
+| Path | Content |
 |---|---|
-| `docs/specs/Sketch2CAD_MVP.md` | Especificación vigente del MVP (v2.0), fuente normativa |
-| `docs/specs/archive/` | Especificaciones anteriores, solo como antecedente |
-| `docs/evaluation/` | Evaluación de las especificaciones originales |
-| `docs/prototype/` | Prototipo de seis pantallas (referencia visual) |
-| `docs/references/` | Material de referencia (el PDF del artículo no se versiona) |
-| `sketch2cad-api/`, `sketch2cad-web/` | Código (se crean en el hito H0) |
-| `.sdlc/features/001-sketch2cad-mvp/` | `prd.md`, `scoping-doc.md` y `jotdown.md` de la feature. Debe estar en la raíz porque el plugin SDLC la busca ahí. |
+| `docs/specs/Sketch2CAD_MVP.md` | Current MVP specification (v2.0), the normative source |
+| `docs/specs/archive/` | Earlier specifications, kept only as background |
+| `docs/evaluation/` | Evaluation of the original specifications |
+| `docs/prototype/` | Six-screen prototype (visual reference) |
+| `docs/references/` | Reference material (the PDF of the article is not versioned) |
+| `sketch2cad-api/`, `sketch2cad-web/` | Code: API and worker, and the web editor |
+| `validation/` | Scripts and data for the internal validation (H6) |
+| `.sdlc/features/001-sketch2cad-mvp/` | `prd.md`, `scoping-doc.md` and `jotdown.md` of the feature. It must be at the root because the SDLC plugin looks for it there. |
 
-## Por dónde empezar
+## Where to start
 
-1. Lee `docs/specs/Sketch2CAD_MVP.md` para el producto completo.
-2. Lee `.sdlc/features/001-sketch2cad-mvp/prd.md` para objetivos, requisitos y decisiones.
-3. Lee `.sdlc/features/001-sketch2cad-mvp/jotdown.md` para el detalle de implementación por hito.
+1. Read `docs/specs/Sketch2CAD_MVP.md` for the whole product.
+2. Read `.sdlc/features/001-sketch2cad-mvp/prd.md` for goals, requirements and decisions.
+3. Read `.sdlc/features/001-sketch2cad-mvp/jotdown.md` for the implementation detail of each milestone.
+4. Read `docs/running-locally.md` to run the stack on your machine.
 
-## Licencia
+## License
 
-Licencia MIT. El texto completo está en [`LICENSE`](LICENSE).
+MIT License. The full text is in [`LICENSE`](LICENSE).
