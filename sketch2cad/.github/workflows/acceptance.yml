@@ -1,0 +1,55 @@
+# Acceptance gate: one run of the tests labelled ca01..ca13 (spec section 16, jotdown H6-1).
+#
+# scripts/ca_report.py collects every criterion (`pytest --collect-only -m caNN -q`), runs the
+# labelled tests once and writes the CA-01..CA-13 table to the job summary. The job fails when
+# a required criterion has zero tests or any of its tests does not pass. CA-04 and CA-05 are
+# required only when `[features] h5_built = true` in sketch2cad-api/acceptance.toml.
+#
+# Action pinning follows api-ci.yml (full commit SHA, tag in the trailing comment).
+name: acceptance
+
+on:
+  pull_request:
+    paths: ["sketch2cad-api/**", ".github/workflows/acceptance.yml"]
+  push:
+    branches: [main]
+    paths: ["sketch2cad-api/**", ".github/workflows/acceptance.yml"]
+
+concurrency:
+  group: acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: sketch2cad-api
+
+env:
+  UV_VERSION: "0.12.5"
+
+jobs:
+  criteria:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sketch2cad
+          POSTGRES_PASSWORD: sketch2cad
+          POSTGRES_DB: sketch2cad_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sketch2cad -d sketch2cad_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://sketch2cad:sketch2cad@localhost:5432/sketch2cad_test
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: uv sync --frozen
+      # Appends the table to $GITHUB_STEP_SUMMARY itself; exits non-zero on a failed criterion.
+      - run: uv run python scripts/ca_report.py

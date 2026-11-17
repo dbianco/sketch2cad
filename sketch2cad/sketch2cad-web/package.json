@@ -1,0 +1,47 @@
+{
+  "name": "sketch2cad-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test": "vitest",
+    "generate:client": "bash scripts/generate-client.sh",
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "spike:svg": "node spikes/svg-perf/run.ts",
+    "spike:editor": "node spikes/svg-perf/editor-run.ts"
+  },
+  "dependencies": {
+    "immer": "^11.2.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router": "^7.18.4",
+    "react-zoom-pan-pinch": "^4.2.0",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.64.1",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "24.19.2",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.1.2",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "fast-check": "^4.10.2",
+    "globals": "^17.13.0",
+    "jsdom": "^30.1.3",
+    "license-checker-rseidelsohn": "5.0.1",
+    "openapi-typescript": "7.13.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

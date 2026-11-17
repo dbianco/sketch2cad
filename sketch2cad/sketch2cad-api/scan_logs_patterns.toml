@@ -1,0 +1,57 @@
+# Patterns of scripts/scan_logs.py (task 001-120, jotdown H6-8, REQ-11).
+#
+# The scan fails on any sketch-like file name (extensions below) that is not in `allow`, and
+# on any name of `names`. The real names of the hand-drawn validation set live OUTSIDE the
+# repository: feed them at scan time with `--names-file` (CI writes the VALIDATION_NAMES
+# secret to a temporary file). Never commit them here.
+
+[filenames]
+extensions = ["jpg", "jpeg", "png", "tif", "tiff", "pdf", "heic"]
+
+# Synthetic names the repository itself uses. Compared case-insensitively with the base name
+# (no directory). tests/test_scan_logs.py checks that every committed image/PDF fixture is
+# listed here.
+allow = [
+  # Committed fixtures (tests/fixtures, sketch2cad-web/e2e/fixtures, docs/img).
+  "one_page.pdf",
+  "synthetic_sketch.png",
+  "dimensioned_sketch.png",
+  "dxf-freecad-2026-10-26.png",
+  # File names the product writes inside packages and downloads.
+  "plan.pdf",
+  "audit.pdf",
+  "original.png",
+  "original.jpg",
+  "original.jpeg",
+  "original.tif",
+  "original.tiff",
+  "original.pdf",
+  "sketch2cad.export.pdf",
+  # Generic placeholder names of the test suites (uploads and failure messages).
+  "croquis.png",
+  "croquis.jpg",
+  "croquis.pdf",
+  "foto.jpg",
+  "foto.png",
+  "plano.pdf",
+  "sketch.png",
+  "raster.png",
+  "preview.png",
+  "rectificada.png",
+  "big.jpg",
+  "enorme.tif",
+  "a.png",
+  "a.jpg",
+  "x.png",
+]
+
+[names]
+# Names of the validation set (task 001-115) that must never reach a log. `literal` entries
+# match as case-insensitive substrings; `globs` use `*` (any run of non-blank characters) and
+# `?` (one character) and match whole tokens.
+literal = []
+globs = [
+  "validation/sketches/*",
+  "validation/pattern/*",
+  "croquis-validacion-*",
+]

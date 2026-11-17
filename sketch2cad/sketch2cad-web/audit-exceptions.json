@@ -1,0 +1,14 @@
+{
+  "$comment": [
+    "Accepted pnpm audit advisories checked by scripts/check-audit.mjs (jotdown H0-8).",
+    "HIGH, CRITICAL and unknown-severity advisories fail CI unless listed here. Entry schema:",
+    "{ \"id\": \"GHSA-xxxx-xxxx-xxxx\" (GHSA id, numeric advisory id or CVE),",
+    "  \"package\": \"example-package\" (npm package name, module_name in the report),",
+    "  \"justification\": \"Why the risk is acceptable and how it is mitigated.\" (non-empty),",
+    "  \"expires\": \"2026-12-31\" (YYYY-MM-DD; after this date the exception fails CI),",
+    "  \"status\": \"accepted-risk\" or \"pending-owner-decision\" }",
+    "Exceptions that match no current advisory are stale and fail CI, so remove them once the",
+    "dependency is upgraded. Keep this list empty unless an advisory cannot be fixed yet."
+  ],
+  "exceptions": []
+}

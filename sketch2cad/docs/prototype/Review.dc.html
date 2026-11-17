@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Revisión y validación</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+</style>
+</helmet>
+<div style="width:1200px;height:720px;box-sizing:border-box;background:#F4F6F8;color:#14202B;display:flex;flex-direction:column">
+  <div style="height:56px;background:#14202B;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 32px">
+    <div style="font-weight:700;font-size:18px">Sketch2CAD</div>
+    <div style="font-size:14px;color:#C9D3DC">EXP-2026-0003 · Plano 1 · Revisión 2 · Perito revisor</div>
+  </div>
+  <div style="padding:32px;display:flex;gap:32px;flex-grow:1">
+    <div style="flex:3 1 0;display:flex;flex-direction:column;gap:20px">
+      <h1 style="margin:0;font-size:26px">Revisión del plano</h1>
+      <div style="background:#fff;border:1px solid #D5DCE3;border-radius:8px;padding:8px 20px">
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #E1E6EB;font-size:14px"><span>Cotas declaradas</span><b>14 de 14 con valor escrito</b></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #E1E6EB;font-size:14px"><span>Discrepancias sobre 0,02 m</span><b style="color:#7A3E00">1 · pared norte (declarada 4,20 m, medida 4,24 m)</b></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #E1E6EB;font-size:14px"><span>Entidades sin origen métrico</span><b style="color:#7A3E00">2 · impiden el estado métrico</b></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #E1E6EB;font-size:14px"><span>Sugerencias pendientes</span><b>0</b></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:14px"><span>Estado métrico del plano</span><b style="color:#7A3E00">Aproximado</b></div>
+      </div>
+      <div style="background:#fff;border:1px solid #D5DCE3;border-radius:8px;padding:16px 20px;font-size:14px">
+        <b>Eventos recientes</b>
+        <div style="margin-top:8px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.7;color:#33414E">
+          14:02 entity.created · polilínea 7 (manual)<br>14:05 constraint.applied · indicio 1 por triangulación<br>14:11 entity.reviewed · lote de 12 aceptadas<br>14:19 revision.submitted · enviada a revisión
+        </div>
+      </div>
+    </div>
+    <div style="flex:2 1 0;display:flex;flex-direction:column;gap:16px">
+      <h2 style="margin:0;font-size:20px">Decisión</h2>
+      <div style="font-size:14px;line-height:1.5;color:#33414E">Al validar, la revisión se congela. Para editar de nuevo hay que reabrirla, lo que crea una revisión nueva.</div>
+      <label style="font-size:13px;display:flex;flex-direction:column;gap:4px">Motivo (obligatorio al rechazar)
+        <textarea style="height:110px;border:1px solid #9AA8B5;border-radius:6px;padding:10px;font-size:14px;font-family:inherit"></textarea>
+      </label>
+      <div style="display:flex;gap:12px">
+        <button style="flex:1;height:44px;background:#fff;color:#B3261E;border:1px solid #B3261E;border-radius:6px;font-size:15px">Rechazar</button>
+        <button style="flex:1;height:44px;background:#0B6E8A;color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600">Validar</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

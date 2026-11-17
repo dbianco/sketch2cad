@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.git
+*.local
+Dockerfile
+.dockerignore
+e2e
+playwright.config.ts
+playwright-report
+test-results

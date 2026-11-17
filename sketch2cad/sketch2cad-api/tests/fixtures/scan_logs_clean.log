@@ -1,0 +1,26 @@
+........................................................................ [  4%]
+......................................................................s. [ 59%]
+......................................................                   [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/ocr/test_ocr_job.py:545: could not import 'torch': No module named 'torch'
+1565 passed, 1 skipped in 185.28s (0:03:05)
+tests/api/test_health_errors.py::test_create_app_does_not_require_settings PASSED [  0%]
+tests/geometry/test_geometry_constraints.py::test_parse_distance_rejects_with_the_v04_message[-3,5] PASSED [ 45%]
+tests/geometry/test_geometry_constraints.py::test_parse_distance_rejects_with_the_v04_message[1.234,5] PASSED [ 45%]
+tests/ocr/test_ocr_job.py::test_validate_box_keeps_the_crop_inside_the_image[box0-inside the image] PASSED [ 57%]
+INFO     sketch2cad.sources.ingest:ingest.py:170 Queued qc job ae5805d8-bb53-4290-b445-52d26793f854 for source caf84022-5c3b-4c70-b8ab-3019d91e1422
+WARNING  sketch2cad.api.routers.health:health.py:25 Health check failed: database unavailable (OperationalError)
+WARNING  sketch2cad.cases.permissions:permissions.py:110 Access denied: user 59b23011-173a-4f25-b42a-4d25051f5bfb lacks read on case file 102750a4-091f-4926-a665-0940e1503060 (GET /api/v1/case-files/{case_id}/events)
+ERROR    sketch2cad.api.errors:errors.py:116 Unhandled exception on GET /api/v1/boom (RuntimeError)
+INFO     httpx2:_client.py:1084 HTTP Request: GET http://testserver/healthz "HTTP/1.1 503 Service Unavailable"
+INFO     ezdxf:objects.py:155 creating ACAD_COLOR dictionary
+INFO     alembic.runtime.migration:migration.py:208 Will assume transactional DDL.
+INFO     procrastinate.worker.worker:worker.py:284 Starting job qc[1](source_id='caf84022-5c3b-4c70-b8ab-3019d91e1422', job_meta_id='ae5805d8-bb53-4290-b445-52d26793f854')
+DEBUG    psycopg.pool:pool_async.py:1037 task running in pool-27-worker-0: <AddConnection 'pool-27' at 0x12819c290>
+INFO     sketch2cad.export.pdf:pdf.py:636 Built PDF of plan 7a0c4b1e-0d2f-4c3a-9e8b-1f2a3b4c5d6e revision 2 (A3 1:100, draft=False, disclaimer=True)
+INFO     sketch2cad.calibration.service:service.py:476 User 9b31796f-d935-4db0-aaf8-2e4acbf40851 accepted calibration 2c61e2b1-5475-4b05-8f62-732fc8df59f4 (photo_homography_4pt, as_metric=False)
+All checks passed!
+250 files already formatted
+0 errors, 0 warnings, 0 informations
+sha256=99d1a45f3c0e7b2d8a6f4e1c9b5a7d3e2f0c8b6a4d2e0f9c7b5a3d1e9f7c5b3a ezdxf==1.4.5 Python 3.12.12
+INFO     sketch2cad.sources.ingest:ingest.py:231 Ingested tests/fixtures/one_page.pdf as synthetic_sketch.png

@@ -1,0 +1,14 @@
+{
+  "$comment": [
+    "Documented license exceptions checked by scripts/check-licenses.mjs (decision DEC-6).",
+    "Every package whose license is not in licenses-allowed.json needs one entry here:",
+    "package = npm package name, version = exact version or \"*\",",
+    "license = the license string reported by license-checker (SPDX expression),",
+    "reason = why it is accepted (required, non-empty),",
+    "status = \"approved\" or \"pending-owner-decision\" (pending entries pass with a WARNING).",
+    "Entries that match no installed package fail the check, so remove them with the dependency.",
+    "GPL and AGPL packages cannot be excepted.",
+    "Order: ISC (existing toolchain), ISC (license-checker-rseidelsohn), BlueOak-1.0.0, MIT-0, Creative Commons data packages, MPL-2.0."
+  ],
+  "exceptions": []
+}

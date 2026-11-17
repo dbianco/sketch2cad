@@ -1,0 +1,43 @@
+{
+  "description": "Seed and drawing script of e2e/editor_tools.spec.ts. Coordinates are world metres (Y up). The scan_segment calibration makes 1000 px of synthetic_sketch.png (2000 x 2828 px) span 100 mm of paper at the provisional 1:100, so the source image covers x 0..20 m and y -28.28..0 m. Points are at least 3 m apart so that endpoint snapping (8 px) never joins them.",
+  "case": {
+    "incident_type": "traffic_collision",
+    "incident_date": "2026-10-01",
+    "description": "Editor E2E",
+    "declared_location": "Cruce del editor"
+  },
+  "plan": {
+    "title": "Plano del editor",
+    "source_mode": "schematic_sketch"
+  },
+  "calibration": {
+    "method": "scan_segment",
+    "control_points": [{ "image_px": [200, 200] }, { "image_px": [1200, 200] }],
+    "segment_mm": 100,
+    "as_metric": false
+  },
+  "seed_entities": [
+    {
+      "type": "line",
+      "layer": "L_STRUCTURE",
+      "geometry": { "kind": "line", "coords_m": [[2, -20], [12, -20]] },
+      "attributes": {}
+    }
+  ],
+  "steps": {
+    "line": { "from": [2, -4], "to": [10, -4] },
+    "polyline": { "vertices": [[2, -8], [8, -8], [8, -13]] },
+    "point": { "at": [14, -4] },
+    "text": { "at": [14, -9], "content": "Calzada", "layer": "L_TEXT" },
+    "symbol": {
+      "symbol_id": "evidence_marker",
+      "label": "Marcador de indicio",
+      "layer": "L_EVIDENCE",
+      "evidence_number": 1,
+      "at": [14, -14]
+    },
+    "move_vertex": { "pick": [6, -4], "index": 1, "to": [11, -2] },
+    "reclassify": { "pick": [7, -20], "layer": "L_ACCESS" },
+    "delete": { "pick": [5, -8] }
+  }
+}

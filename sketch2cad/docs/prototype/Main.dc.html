@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Lista de expedientes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+</style>
+</helmet>
+<div style="width:1200px;height:720px;box-sizing:border-box;background:#F4F6F8;color:#14202B;display:flex;flex-direction:column">
+  <div style="height:56px;background:#14202B;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 32px">
+    <div style="font-weight:700;font-size:18px;letter-spacing:.02em">Sketch2CAD</div>
+    <div style="font-size:14px;color:#C9D3DC">Daniel Oliva · Técnico</div>
+  </div>
+  <div style="padding:32px;display:flex;flex-direction:column;gap:24px;flex-grow:1">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h1 style="margin:0;font-size:28px">Expedientes</h1>
+      <button style="height:44px;padding:0 20px;background:#0B6E8A;color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600">Nuevo expediente</button>
+    </div>
+    <div style="display:flex;gap:12px">
+      <label style="font-size:13px;display:flex;flex-direction:column;gap:4px">Buscar<input value="" placeholder="Código o ubicación" style="height:40px;width:280px;border:1px solid #9AA8B5;border-radius:6px;padding:0 12px;font-size:14px"></label>
+      <label style="font-size:13px;display:flex;flex-direction:column;gap:4px">Tipo de hecho<select style="height:40px;width:200px;border:1px solid #9AA8B5;border-radius:6px;padding:0 8px;font-size:14px"><option>Todos</option></select></label>
+    </div>
+    <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #D5DCE3;font-size:14px">
+      <thead><tr style="text-align:left;background:#E8EDF1">
+        <th style="padding:12px 16px">Código</th><th style="padding:12px 16px">Tipo de hecho</th><th style="padding:12px 16px">Fecha</th><th style="padding:12px 16px">Ubicación declarada</th><th style="padding:12px 16px">Planos</th><th style="padding:12px 16px">Estado</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-top:1px solid #D5DCE3"><td style="padding:14px 16px;font-weight:600">EXP-2026-0003</td><td style="padding:14px 16px">Siniestro vial</td><td style="padding:14px 16px">2026-10-21</td><td style="padding:14px 16px">Av. Principal y Calle 4</td><td style="padding:14px 16px">2</td><td style="padding:14px 16px"><span style="padding:3px 10px;border-radius:12px;background:#FDEBC8;color:#7A3E00;font-size:13px">En edición</span></td></tr>
+        <tr style="border-top:1px solid #D5DCE3"><td style="padding:14px 16px;font-weight:600">EXP-2026-0002</td><td style="padding:14px 16px">Inspección ocular</td><td style="padding:14px 16px">2026-10-14</td><td style="padding:14px 16px">Vivienda, planta baja</td><td style="padding:14px 16px">1</td><td style="padding:14px 16px"><span style="padding:3px 10px;border-radius:12px;background:#D6EFDF;color:#145A32;font-size:13px">Validado</span></td></tr>
+        <tr style="border-top:1px solid #D5DCE3"><td style="padding:14px 16px;font-weight:600">EXP-2026-0001</td><td style="padding:14px 16px">Escena del crimen</td><td style="padding:14px 16px">2026-10-02</td><td style="padding:14px 16px">Local comercial</td><td style="padding:14px 16px">3</td><td style="padding:14px 16px"><span style="padding:3px 10px;border-radius:12px;background:#D6E6F5;color:#0B3C66;font-size:13px">Exportado</span></td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:13px;color:#4A5966">Datos de ejemplo del prototipo.</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

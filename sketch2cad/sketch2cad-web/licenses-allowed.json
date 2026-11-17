@@ -1,0 +1,27 @@
+{
+  "$comment": [
+    "Licenses that pass scripts/check-licenses.mjs automatically (decision DEC-6, jotdown D-6).",
+    "Same allow-list as sketch2cad-api/licenses-allowed.txt; one normalized identifier per entry.",
+    "LGPL is accepted by DEC-6 only through one documented exception per dependency in",
+    "license-exceptions.json, so it is deliberately NOT listed here.",
+    "GPL and AGPL are forbidden and cannot be allowed by any exception (spec section 2.2).",
+    "Extended by owner decision on 2026-10-25: any permissive or weak file-level license is acceptable (ISC, BlueOak, MIT-0, 0BSD, Zlib, CC0, CC-BY, MPL-2.0). GPL/AGPL stays forbidden."
+  ],
+  "licenses": [
+    "MIT",
+    "BSD",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Apache-2.0",
+    "PSF-2.0",
+    "ISC",
+    "BlueOak-1.0.0",
+    "MIT-0",
+    "0BSD",
+    "Zlib",
+    "CC0-1.0",
+    "CC-BY-3.0",
+    "CC-BY-4.0",
+    "MPL-2.0"
+  ]
+}
