@@ -26,6 +26,7 @@ export type ToolId =
   | "dimension"
   | "triangulate"
   | "baseline"
+  | "measure"
   | "ocr";
 
 /** Layer reserved for the export sheet (spec 12.1): never drawn on in the editor. */

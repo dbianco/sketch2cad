@@ -416,6 +416,7 @@ describe("palette", () => {
       "Cota",
       "Triangulación",
       "Base + offset",
+      "Medir",
     ]);
     for (const [index, button] of buttons.entries()) {
       expect(button.getAttribute("title")).toBe(
