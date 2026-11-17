@@ -4,8 +4,8 @@
 //
 // Pointer: with the Select tool a press on an entity selects it and a press on the background
 // pans; drawing tools take every primary-button press, so with them the canvas pans with the
-// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S, F, D, A, G, B)
-// and the active tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work
+// middle button or Space + drag. Keys: the palette's shortcuts (V, E, L, P, O, T, S, F, D, A, G, B,
+// M) and the active tool's keys (Esc, Enter, Backspace, Delete, C, arrows on a vertex handle) work
 // anywhere except while typing in a field. A tool's `panel` (triangulation, base + offset) is shown
 // next to the canvas. The snap settings panel configures snapping for every tool.
 // The plan store (plan/planStore.ts) gives the local frame: the north arrow is drawn over the
@@ -35,6 +35,7 @@ import { createBaselineOffsetTool } from "./tools/BaselineOffsetDialog";
 import { createDimensionTool } from "./tools/DimensionTool";
 import { createFixLengthTool } from "./tools/FixLengthTool";
 import { createLineTool } from "./tools/LineTool";
+import { createMeasureTool } from "./tools/MeasureTool";
 import { createOcrCropTool } from "./tools/OcrCropTool";
 import { LocalFramePanel, createLocalFrameTool } from "./tools/LocalFrameTool";
 import { createPointTool, createTextTool } from "./tools/PointTextTools";
@@ -71,6 +72,7 @@ export const TOOL_FACTORIES: Readonly<Record<ToolId, (context: ToolContext) => E
   dimension: createDimensionTool,
   triangulate: createTriangulationTool,
   baseline: createBaselineOffsetTool,
+  measure: createMeasureTool,
   ocr: createOcrCropTool,
 };
 

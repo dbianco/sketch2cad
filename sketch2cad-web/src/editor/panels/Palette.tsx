@@ -56,6 +56,7 @@ export const TOOL_BUTTONS: readonly ToolButton[] = [
     caption: "Base + offset",
     shortcut: TOOL_SHORTCUTS.baseline,
   },
+  { id: "measure", label: "Medir", caption: "Medir", shortcut: TOOL_SHORTCUTS.measure },
 ];
 
 /** Buttons of the AI tools (a11y/shortcuts.ts AI_TOOLS), shown only while AI assistance is on. */

@@ -17,6 +17,7 @@ export const TOOL_SHORTCUTS: Readonly<Record<ToolId, string>> = {
   dimension: "A",
   triangulate: "G",
   baseline: "B",
+  measure: "M",
   ocr: "R",
 };
 
@@ -35,6 +36,7 @@ export const CURSOR_TOOLS: ReadonlySet<ToolId> = new Set<ToolId>([
   "dimension",
   "triangulate",
   "baseline",
+  "measure",
   "ocr",
 ]);
 
@@ -117,6 +119,7 @@ const TOOL_NAMES: Readonly<Record<ToolId, string>> = {
   dimension: "Cota",
   triangulate: "Triangulación",
   baseline: "Base + offset",
+  measure: "Medir",
   ocr: "Leer cota (OCR)",
 };
 
@@ -178,6 +181,11 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
           "Elegir el punto a fijar y después las referencias A y B (puntos, símbolos o esquinas de líneas)",
       },
       { keys: "Triangulación y Base + offset: Esc", description: "Quitar los puntos elegidos" },
+      {
+        keys: "Medir: Intro, flechas, Intro",
+        description: "Marcar dos puntos y leer la distancia, sin crear ninguna entidad",
+      },
+      { keys: "Medir: Esc", description: "Borrar la medición" },
     ],
   },
   {

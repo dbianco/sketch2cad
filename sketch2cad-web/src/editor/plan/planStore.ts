@@ -7,6 +7,23 @@ import { effectivePaperScale, type LocalFrame } from "../frame/frame";
 
 export type PlanOut = components["schemas"]["PlanOut"];
 export type LeaseOut = components["schemas"]["LeaseOut"];
+export type CalibrationOut = components["schemas"]["CalibrationOut"];
+
+/** Calibration method that defines no scale (the server's `NO_CALIBRATION_METHOD`). */
+export const NO_CALIBRATION_METHOD = "none";
+
+/**
+ * Whether `calibration` makes plan coordinates calibrated metres: it was accepted as metric
+ * (`as_metric`, which the server refuses for method `none` and past the reprojection tolerance,
+ * V-05) and its method defines a scale. The server's `is_calibrated` plus `as_metric`.
+ */
+export function isMetricCalibration(calibration: CalibrationOut | null | undefined): boolean {
+  return (
+    calibration != null &&
+    calibration.as_metric &&
+    calibration.method !== NO_CALIBRATION_METHOD
+  );
+}
 
 export interface PlanState {
   planId: string | null;
@@ -14,6 +31,11 @@ export interface PlanState {
   revisionId: string | null;
   /** Whether the plan has an active (accepted) calibration. */
   calibrated: boolean;
+  /**
+   * Whether that calibration is metric (`isMetricCalibration`): only then are distances on the
+   * canvas shown as calibrated metres (measure tool).
+   */
+  metricCalibration: boolean;
   /** Declared paper scale denominator; `null` means the provisional 1:100. */
   paperScale: number | null;
   /** Stored local frame; `null` until one is set (entities are then in DEFAULT_FRAME). */
@@ -45,6 +67,7 @@ export function initialPlanState(): PlanState {
     planId: null,
     revisionId: null,
     calibrated: false,
+    metricCalibration: false,
     paperScale: null,
     localFrame: null,
     lease: null,
@@ -62,6 +85,7 @@ export function createPlanStore(initial: Partial<PlanState> = {}): StoreApi<Plan
         planId: plan.id,
         revisionId: plan.current_revision_id,
         calibrated: plan.calibration !== null,
+        metricCalibration: isMetricCalibration(plan.calibration),
         paperScale: plan.calibration?.paper_scale ?? null,
         localFrame: plan.calibration?.local_frame ?? null,
         lease: plan.lease,
